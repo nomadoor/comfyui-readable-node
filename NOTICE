@@ -1,0 +1,10 @@
+comfyui-readable-node
+
+This skill reads ComfyUI workflows the way the ComfyUI frontend loads them, so its reading code
+reproduces the frontend's behaviour (subgraph expansion, widget value order, legacy group nodes,
+node sizes). That behaviour was checked against prompts produced by the running frontend; no frontend
+source code is included.
+
+scripts/ue.py reproduces the link rules of the Anything Everywhere custom nodes
+(cg-use-everywhere by chrisgoringe, Apache License 2.0). It was written from a description of
+that behaviour; no source code of that project is included.

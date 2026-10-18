@@ -1,0 +1,605 @@
+{
+ "_about": "Sizes of nodes newly created in the frontend (measured from the frontend) that are larger than what nodesize computes: nodes the frontend adds fields to afterwards (PreviewAny's preview_text, etc.) and nodes whose contents change with a selection. The canvas never makes these nodes smaller than this.",
+ "sizes": {
+  "CreateBoundingBoxes": [
+   420,
+   560
+  ],
+  "BuildJsonPromptIdeogram": [
+   400,
+   262
+  ],
+  "WebcamCapture": [
+   270,
+   184
+  ],
+  "LoadAudio": [
+   280,
+   136
+  ],
+  "PreviewAudio": [
+   270,
+   88
+  ],
+  "RecordAudio": [
+   270,
+   112
+  ],
+  "Preview3DAdvanced": [
+   400,
+   550
+  ],
+  "LoadVideo": [
+   280,
+   82
+  ],
+  "VideoTrim": [
+   270,
+   82
+  ],
+  "VideoCrop": [
+   270,
+   58
+  ],
+  "PreviewAny": [
+   210,
+   122
+  ],
+  "CustomCombo": [
+   270,
+   102
+  ],
+  "ResolutionSelector": [
+   270,
+   150
+  ],
+  "Painter": [
+   450,
+   550
+  ],
+  "SaveText": [
+   270,
+   170
+  ],
+  "ByteDanceSeedreamLayerSeparationNodeV2": [
+   400,
+   356
+  ],
+  "ByteDance2TextToVideoNode": [
+   400,
+   324
+  ],
+  "ByteDance2FirstLastFrameNode": [
+   438.9,
+   348
+  ],
+  "ByteDance2ReferenceNode": [
+   459.9,
+   436
+  ],
+  "ByteDance2ReferenceNodeV2": [
+   400,
+   436
+  ],
+  "ElevenLabsTextToDialogue": [
+   400,
+   280
+  ],
+  "GeminiNodeV3": [
+   400,
+   346
+  ],
+  "GeminiVideoOmni": [
+   400,
+   228
+  ],
+  "GeminiVideoOmniV2": [
+   400,
+   252
+  ],
+  "HeyGenTalkingPhotoNode": [
+   400,
+   304
+  ],
+  "HeyGenAvatarVideoNode": [
+   400,
+   376
+  ],
+  "HeyGenCreateAvatarNode": [
+   400,
+   200
+  ],
+  "HeyGenReferenceToVideoNode": [
+   400,
+   272
+  ],
+  "IdeogramEditApi": [
+   400,
+   276
+  ],
+  "IdeogramPreciseEditApi": [
+   400,
+   204
+  ],
+  "KlingVideoNode": [
+   400,
+   334
+  ],
+  "MinimaxHailuo03TextToVideoNode": [
+   400,
+   256
+  ],
+  "MinimaxHailuo03FirstLastFrameNode": [
+   400,
+   252
+  ],
+  "MinimaxHailuo03ReferenceNode": [
+   400,
+   296
+  ],
+  "MinimaxHailuo03ContextIRNode": [
+   400,
+   240
+  ],
+  "MinimaxHailuo03RegenerateNode": [
+   400,
+   260
+  ],
+  "PixverseV6TextToVideoNode": [
+   400,
+   358
+  ],
+  "PixverseV6FirstLastFrameNode": [
+   400,
+   330
+  ],
+  "PixverseV6ExtendVideoNode": [
+   400,
+   310
+  ],
+  "PixverseV6FusionVideoNode": [
+   400,
+   374
+  ],
+  "PrunaTextToVideoNode": [
+   400,
+   328
+  ],
+  "TopazVideoEnhanceV2": [
+   400,
+   256
+  ],
+  "TripoPSeriesTextToModelNode": [
+   400,
+   470
+  ],
+  "TripoSmartSegmentNode": [
+   400,
+   236
+  ],
+  "ViduMultiFrameVideoNode": [
+   400,
+   350
+  ],
+  "Wan2TextToVideoApi": [
+   400,
+   334
+  ],
+  "Wan2VideoContinuationApi": [
+   400,
+   330
+  ],
+  "Wan2VideoEditApi": [
+   400,
+   300
+  ],
+  "Wan2ReferenceVideoApi": [
+   400,
+   330
+  ],
+  "Wan3ReferenceToVideoApi": [
+   400,
+   344
+  ],
+  "HappyHorseTextToVideoApi": [
+   400,
+   256
+  ],
+  "HappyHorseVideoEditApi": [
+   400,
+   252
+  ],
+  "HappyHorseReferenceVideoApi": [
+   400,
+   276
+  ],
+  "PanoramaStickers": [
+   360,
+   260
+  ],
+  "PanoramaCutout": [
+   360,
+   260
+  ],
+  "PanoramaPreview": [
+   360,
+   260
+  ],
+  "PanoramaStudio": [
+   360,
+   260
+  ],
+  "Context Big (rgthree)": [
+   300,
+   466
+  ],
+  "Context (rgthree)": [
+   230.9,
+   186
+  ],
+  "Context Switch (rgthree)": [
+   302.9,
+   186
+  ],
+  "Context Switch Big (rgthree)": [
+   340.4,
+   466
+  ],
+  "Context Merge (rgthree)": [
+   301.4,
+   186
+  ],
+  "Context Merge Big (rgthree)": [
+   338.9,
+   466
+  ],
+  "Seed (rgthree)": [
+   315,
+   130
+  ],
+  "Any Switch (rgthree)": [
+   263.9,
+   106
+  ],
+  "Power Lora Loader (rgthree)": [
+   338.9,
+   118
+  ],
+  "Power Primitive (rgthree)": [
+   304.4,
+   112
+  ],
+  "Power Puter (rgthree)": [
+   272.9,
+   46
+  ],
+  "TypedDecision": [
+   400,
+   446
+  ],
+  "VHS_LoadVideo": [
+   236,
+   310
+  ],
+  "VHS_LoadVideoFFmpeg": [
+   294,
+   286
+  ],
+  "VHS_LoadVideoFFmpegPath": [
+   277,
+   262
+  ],
+  "VHS_LoadAudio": [
+   215,
+   126
+  ],
+  "VHS_LoadAudioUpload": [
+   232,
+   150
+  ],
+  "VHS_AudioToVHSAudio": [
+   283,
+   26
+  ],
+  "VHS_VHSAudioToAudio": [
+   288,
+   26
+  ],
+  "VHS_VideoInfoSource": [
+   227,
+   106
+  ],
+  "VHS_VideoInfoLoaded": [
+   231,
+   106
+  ],
+  "VHS_GetLatentCount": [
+   212,
+   26
+  ],
+  "VHS_GetMaskCount": [
+   206,
+   26
+  ],
+  "VHS_Unbatch": [
+   156,
+   26
+  ],
+  "DiffusionEdge_Preprocessor": [
+   435.9,
+   106
+  ],
+  "ConditioningMultiCombine": [
+   279.9,
+   126
+  ],
+  "MaskBatchMulti": [
+   270,
+   102
+  ],
+  "FastPreview": [
+   550,
+   550
+  ],
+  "FastPreviewBatch": [
+   520,
+   520
+  ],
+  "ModelPreviewOverrideKJ": [
+   360,
+   480
+  ],
+  "JoinStringMulti": [
+   270,
+   150
+  ],
+  "SplineEditor": [
+   550,
+   1000
+  ],
+  "PointsEditor": [
+   550,
+   550
+  ],
+  "SoundReactive": [
+   270,
+   246
+  ],
+  "ScreencapStream": [
+   270,
+   334
+  ],
+  "FluxBlockLoraSelect": [
+   270,
+   1426
+  ],
+  "HunyuanVideoBlockLoraSelect": [
+   317.9,
+   1498
+  ],
+  "Wan21BlockLoraSelect": [
+   270,
+   1018
+  ],
+  "LTX2BlockLoraSelect": [
+   270,
+   1210
+  ],
+  "ContextWindowsVisualizerKJ": [
+   560,
+   480
+  ],
+  "QwenMultiangleCameraNode": [
+   350,
+   520
+  ],
+  "STGAdvancedPresets": [
+   283.9,
+   58
+  ],
+  "LTXVGemmaCLIPModelLoader": [
+   288.9,
+   106
+  ],
+  "DynamicConditioning": [
+   273.9,
+   82
+  ],
+  "LowVRAMCheckpointLoader": [
+   332.9,
+   98
+  ],
+  "LTXAddVideoICLoRAGuideAdvanced": [
+   373.9,
+   374
+  ],
+  "LTXICLoRALoaderModelOnly": [
+   314.9,
+   102
+  ],
+  "LinearOverlapLatentTransition": [
+   318.9,
+   102
+  ],
+  "LoadImage": [
+   280,
+   102
+  ],
+  "LoadImageMask": [
+   280,
+   106
+  ],
+  "LoadImageOutput": [
+   280,
+   150
+  ],
+  "ImageCropV2": [
+   300,
+   450
+  ],
+  "ImageCompare": [
+   400,
+   350
+  ],
+  "ImageCompositor": [
+   300,
+   400
+  ],
+  "BriaReplaceImageBackground": [
+   400,
+   276
+  ],
+  "HeyGenImageToVideoNode": [
+   400,
+   208
+  ],
+  "HunyuanImageTextToImageApi": [
+   400,
+   280
+  ],
+  "HunyuanImageEditApi": [
+   400,
+   324
+  ],
+  "IdeogramTextToImageApi": [
+   400,
+   252
+  ],
+  "MeshyImageToModelNode": [
+   400,
+   460
+  ],
+  "MeshyMultiImageToModelNode": [
+   400,
+   436
+  ],
+  "MetaMuseImageTextToImageApi": [
+   400,
+   280
+  ],
+  "MetaMuseImageEditApi": [
+   400,
+   300
+  ],
+  "OpenRouterImageNode": [
+   400,
+   208
+  ],
+  "PixverseV6ImageToVideoNode": [
+   400,
+   334
+  ],
+  "PrunaImageToVideoNode": [
+   400,
+   344
+  ],
+  "QwenImageTextToImageApi": [
+   400,
+   334
+  ],
+  "QwenImageEditApi": [
+   400,
+   330
+  ],
+  "TopazImageEnhanceV2": [
+   400,
+   352
+  ],
+  "Wan2ImageToVideoApi": [
+   400,
+   350
+  ],
+  "Wan3ImageToVideoApi": [
+   400,
+   324
+  ],
+  "HappyHorseImageToVideoApi": [
+   400,
+   232
+  ],
+  "Image Inset Crop (rgthree)": [
+   322.4,
+   154
+  ],
+  "Image Comparer (rgthree)": [
+   211.9,
+   78
+  ],
+  "Image or Latent Size (rgthree)": [
+   356.9,
+   46
+  ],
+  "VHS_LoadImages": [
+   246,
+   194
+  ],
+  "VHS_GetImageCount": [
+   211,
+   26
+  ],
+  "CrossFadeImagesMulti": [
+   279,
+   150
+  ],
+  "ImageAddMulti": [
+   270,
+   150
+  ],
+  "ImageBatchMulti": [
+   270,
+   102
+  ],
+  "ImageConcatMulti": [
+   270,
+   150
+  ],
+  "TransitionImagesMulti": [
+   279,
+   246
+  ],
+  "ImageToCPU": [
+   161.9,
+   26
+  ],
+  "Load3D": [
+   300,
+   600
+  ],
+  "Load3DAdvanced": [
+   300,
+   600
+  ],
+  "Preview3D": [
+   400,
+   550
+  ],
+  "PreviewGaussianSplat": [
+   400,
+   550
+  ],
+  "PreviewPointCloud": [
+   400,
+   550
+  ],
+  "SaveGLB": [
+   400,
+   550
+  ],
+  "Save3DAdvanced": [
+   400,
+   550
+  ],
+  "SaveGaussianSplat": [
+   400,
+   550
+  ],
+  "SavePointCloud": [
+   400,
+   550
+  ],
+  "CreateCameraInfo": [
+   360,
+   480
+  ]
+ }
+}

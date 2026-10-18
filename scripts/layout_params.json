@@ -1,0 +1,45 @@
+{
+  "_about": "Tunable layout values (parameters), read by canvas.py and notes.py. Fixed sizes of the frontend (title bar height, Reroute size, etc.) do not belong here.",
+  "V_GAP": {
+    "value": 44,
+    "unit": "px",
+    "meaning": "Gap between nodes stacked in the same column (from the bottom of the upper node to the top of the lower node's title bar)",
+    "source": "Median of 35 hand-made layouts"
+  },
+  "H_GAP": {
+    "value": 62,
+    "unit": "px",
+    "meaning": "Gap between columns (from the right edge of the left column to the left edge of the right column)",
+    "source": "Median of 35 hand-made layouts"
+  },
+  "RAIL_GAP": {
+    "value": 56,
+    "unit": "px",
+    "meaning": "Vertical distance between two rails",
+    "source": "Measured in a hand-made layout (z-image t2i detail): distance between the positive and negative rails (the smaller of 56 and 58)"
+  },
+  "GROUP_PAD_LEFT": {
+    "value": 17,
+    "unit": "px",
+    "meaning": "From a group's left edge to the left edge of its leftmost node",
+    "source": "Hand-made layouts (116 groups in 44 workflows). Median 17.4"
+  },
+  "GROUP_PAD_RIGHT": {
+    "value": 21,
+    "unit": "px",
+    "meaning": "From the right edge of the rightmost node inside to the group's right edge",
+    "source": "Hand-made layouts (116 groups in 44 workflows). Median 21.1"
+  },
+  "GROUP_PAD_TOP": {
+    "value": 55,
+    "unit": "px",
+    "meaning": "From a group's top edge (including its title) to the top of the title bar of its topmost node",
+    "source": "Hand-made layouts (116 groups in 44 workflows). Lower quartile 55.2 (groups are often given equal heights, which inflates the median, so the tighter side is taken)"
+  },
+  "GROUP_PAD_BOTTOM": {
+    "value": 29,
+    "unit": "px",
+    "meaning": "From the bottom of the lowest node inside to the group's bottom edge",
+    "source": "Hand-made layouts (116 groups in 44 workflows). Lower quartile 28.6 (same reason)"
+  }
+}
