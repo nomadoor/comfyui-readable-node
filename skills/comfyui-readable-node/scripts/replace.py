@@ -8,6 +8,8 @@ What the code replaces:
      up among the deprecated nodes (the agent decides).
 2. Replacement by a newer node with the same computation (SAME_COMPUTATION). Only pairs whose computation was
    checked to be the same in the ComfyUI source.
+2b. Replacement of a custom node by a core node that does the same job (CORE_REPLACEMENTS: Image Comparer (rgthree)
+   by ImageCompare). Recorded with by "core_node".
 
 How list entries are read (behaviour matched to ComfyUI's server and frontend):
 - input_mapping: {"new_id", "old_id"} copies an old input (a link or a widget value) to a new input.
@@ -25,7 +27,7 @@ How list entries are read (behaviour matched to ComfyUI's server and frontend):
 
 A replaced node keeps its id, mode and properties (properties["Node name for S&R"] becomes the new type).
 Each replacement is recorded:
-    {"id", "from", "to", "by": "node_replacements" / "same_computation" (also "primitive" for 3 and
+    {"id", "from", "to", "by": "node_replacements" / "same_computation" / "core_node" (also "primitive" for 3 and
      "same_loader" for 4 below), "set_value": {input: value} (values set by the list),
      "dropped_values": {old widget: value} (values not copied), "dropped_links": [descriptions of cut links]}
 
@@ -103,6 +105,9 @@ def _total_pixels_ok(node):
 # - ImageScaleToMaxDimension.execute (comfy_extras/nodes_images.py) and scale_longer_dimension do the same thing.
 # - ImageScaleToTotalPixels is the same only under the conditions in _total_pixels_ok.
 SAME_COMPUTATION = {
+    # ControlNetApplySD3 ("Apply Controlnet with VAE", deprecated with no successor named) and ControlNetApplyAdvanced
+    # (nodes.py) run the same body: same inputs and outputs by name, vae optional in the newer node, extra_concat empty.
+    "ControlNetApplySD3": {"new_node_id": "ControlNetApplyAdvanced", "input_mapping": None, "output_mapping": None},
     "ImageScale": {
         "new_node_id": "ResizeImageMaskNode",
         "input_mapping": [
@@ -136,6 +141,26 @@ SAME_COMPUTATION = {
         "output_mapping": [{"old_idx": 0, "new_idx": 0}],
         "condition": _total_pixels_ok,
         "drops_ok": {"resolution_steps"},  # replaced only when it is 1, so dropping it changes nothing
+    },
+}
+
+
+# Custom nodes replaced by a core node that does the same job (recorded with by "core_node").
+# - Image Comparer (rgthree) and ImageCompare (Compare Images, comfy_extras/nodes_image_compare.py) both only show
+#   image_a and image_b side by side with a slider; neither has outputs. The links into image_a and image_b are kept.
+#   rgthree's widget holds the images of the last run, not the author's values, so it is not copied (old_widget_ids is empty).
+#   ImageCompare's compare_view is a socketless widget that saves no value: a workflow the frontend saves has only the
+#   image_a and image_b inputs and widgets_values [], so the compare_view slot is not made (no_socket).
+CORE_REPLACEMENTS = {
+    "Image Comparer (rgthree)": {
+        "new_node_id": "ImageCompare",
+        "input_mapping": [
+            {"new_id": "image_a", "old_id": "image_a"},
+            {"new_id": "image_b", "old_id": "image_b"},
+        ],
+        "output_mapping": [],
+        "old_widget_ids": [],
+        "no_socket": {"compare_view"},
     },
 }
 
@@ -223,6 +248,7 @@ class Replacer:
         saved = [moves[i["name"]] for i in node.get("inputs") or []
                  if i.get("link") is not None and i["name"] in moves]
         inputs, outputs = comfy_schema.new_node_slots(info, values, saved)
+        inputs = [i for i in inputs if i["name"] not in (entry.get("no_socket") or ())]
         # outputs: when indices stay the same (out_pairs is None), the node cannot be replaced if the new node lacks that output (as in the frontend)
         old_outs = node.get("outputs") or []
         for k, o in enumerate(old_outs):
@@ -471,6 +497,8 @@ class Replacer:
                     cond = entry.get("condition")
                     if cond is None or cond(node)[0]:
                         self.replace(nid, entry, "same_computation")
+                elif t in CORE_REPLACEMENTS:
+                    self.replace(nid, CORE_REPLACEMENTS[t], "core_node")
                 break
         self.merge_same_loaders()
         replaced = {r["id"] for r in self.records}

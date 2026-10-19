@@ -1,16 +1,16 @@
 {
   "_about": "Tunable layout values (parameters), read by canvas.py and notes.py. Fixed sizes of the frontend (title bar height, Reroute size, etc.) do not belong here.",
   "V_GAP": {
-    "value": 44,
+    "value": 45,
     "unit": "px",
     "meaning": "Gap between nodes stacked in the same column (from the bottom of the upper node to the top of the lower node's title bar)",
-    "source": "Median of 35 hand-made layouts"
+    "source": "Set by the skill author (nomadoor) as a round value (2026-10-19), from the median of 35 hand-made layouts (44)"
   },
   "H_GAP": {
-    "value": 62,
+    "value": 60,
     "unit": "px",
     "meaning": "Gap between columns (from the right edge of the left column to the left edge of the right column)",
-    "source": "Median of 35 hand-made layouts"
+    "source": "Set by the skill author (nomadoor) as a round value (2026-10-19), from the median of 35 hand-made layouts (62)"
   },
   "RAIL_GAP": {
     "value": 56,
@@ -41,5 +41,23 @@
     "unit": "px",
     "meaning": "From the bottom of the lowest node inside to the group's bottom edge",
     "source": "Hand-made layouts (116 groups in 44 workflows). Lower quartile 28.6 (same reason)"
+  },
+  "IMAGE_AREA_SAVE": {
+    "value": [500, 520],
+    "unit": "px (width, height)",
+    "meaning": "Image area of a node that saves images (an output node that takes an IMAGE or VIDEO input and saves files: \"save\" in its category or name, or a filename_prefix input). Added below the node's initial size: width = max(initial width, area width), height = initial height + area height",
+    "source": "The skill author (nomadoor), 2026-10-19, rounded from the hand-made medians"
+  },
+  "IMAGE_AREA_PREVIEW": {
+    "value": [340, 320],
+    "unit": "px (width, height)",
+    "meaning": "Image area of a node that previews images (another output node that takes an IMAGE input and puts out nothing but IMAGE). Added the same way",
+    "source": "The skill author (nomadoor), 2026-10-19, rounded from the hand-made medians"
+  },
+  "IMAGE_AREA_LOAD": {
+    "value": [300, 320],
+    "unit": "px (width, height)",
+    "meaning": "Image area of a node that loads an image or video (an input with image_upload or video_upload). Added the same way",
+    "source": "The skill author (nomadoor), 2026-10-19, rounded from the hand-made medians"
   }
 }

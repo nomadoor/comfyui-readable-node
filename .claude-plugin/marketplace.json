@@ -1,0 +1,11 @@
+{
+  "name": "comfyui-readable-node",
+  "owner": { "name": "nomadoor" },
+  "plugins": [
+    {
+      "name": "comfyui-readable-node",
+      "source": "./",
+      "description": "Rebuilds ComfyUI workflows into a form people can read (Readable Node)."
+    }
+  ]
+}

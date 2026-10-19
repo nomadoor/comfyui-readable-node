@@ -1,0 +1,7 @@
+{
+  "name": "comfyui-readable-node",
+  "description": "Rebuilds ComfyUI workflows into a form people can read (Readable Node).",
+  "author": { "name": "nomadoor" },
+  "license": "MIT",
+  "repository": "https://github.com/nomadoor/comfyui-readable-node"
+}

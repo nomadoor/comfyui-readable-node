@@ -12,8 +12,9 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# scripts/ next to tests/ (the published repo) or ../skill/scripts (the development folder)
-SCRIPTS = next(p for p in (HERE.parent / "scripts", HERE.parent / "skill" / "scripts") if p.is_dir())
+# skills/comfyui-readable-node/scripts (the published repo) or ../skill/scripts (the development folder)
+SCRIPTS = next(p for p in (HERE.parent / "skills" / "comfyui-readable-node" / "scripts", HERE.parent / "skill" / "scripts")
+               if p.is_dir())
 sys.path.insert(0, str(SCRIPTS))
 import canvas as C  # noqa: E402
 import geometry as G  # noqa: E402
@@ -345,11 +346,31 @@ rail 10.VAE above 12 to 8.vae
         r = self.rect("13")
         self.assertLess(abs((col[1] + col[3]) / 2 - (r[1] + r[3]) / 2), 1)
 
-    def test_image_nodes_min_size(self):
-        self.do("add SaveImage sv")
-        w, h = self.cv().node("sv")["size"]
-        self.assertGreaterEqual(w, 503)
-        self.assertGreaterEqual(h, 574)
+    def test_image_area_is_added_to_initial_size(self):
+        import nodesize
+        for t, kind in (("SaveImage", "save"), ("PreviewImage", "preview"), ("LoadImage", "load")):
+            self.do(f"add {t} x_{kind}")
+            n = self.cv().node(f"x_{kind}")
+            self.assertEqual(C.image_kind(t, self.cv().oi), kind)
+            w0, h0 = nodesize.default_size(n, self.cv().oi, title=C.display_title(n, self.cv().oi))
+            aw, ah = C.IMAGE_AREA[kind]
+            self.assertEqual(n["size"], [round(max(w0, aw)), round(h0 + ah)])
+        self.assertIsNone(C.image_kind("VAEDecode", self.cv().oi))
+
+    def test_image_kind_from_object_info(self):
+        img = ["IMAGE", {}]
+        oi = {
+            "VideoCombine": {"output_node": True, "category": "Video Helper Suite",
+                             "input": {"required": {"images": img, "filename_prefix": ["STRING", {"default": "x"}]}}},
+            "SaveAnimatedWEBP": {"output_node": True, "category": "image", "input": {"required": {"images": img}}},
+            "Viewer": {"output_node": True, "category": "image", "input": {"optional": {"image_a": img}}},
+            "LoadVideo": {"output_node": False, "category": "video",
+                          "input": {"required": {"file": ["COMBO", {"options": ["a.mp4"], "video_upload": True}]}}},
+            "SaveVideo": {"output_node": True, "category": "video", "input": {"required": {"video": ["VIDEO", {}]}}},
+        }
+        self.assertEqual({t: C.image_kind(t, oi) for t in oi},
+                         {"VideoCombine": "save", "SaveAnimatedWEBP": "save", "Viewer": "preview", "LoadVideo": "load",
+                          "SaveVideo": "save"})
 
     def test_column_gap_and_consecutive_reroute(self):
         self.do("copy 25 16")
@@ -472,6 +493,241 @@ rail 10.VAE above 12 to 8.vae
         n = self.cv().node("note_models")
         self.assertEqual((n["color"], n["bgcolor"]), C.COLORS["purple"])
 
+    def test_other_note_is_yellow(self):
+        md = self.dir / "note_how.md"
+        md.write_text("## how to use\n\n- load an image\n", encoding="utf-8")
+        self.do("put 12 origin")
+        self.do(f"note {md} left 12")
+        n = self.cv().node("note_how")
+        self.assertEqual((n["color"], n["bgcolor"]), C.COLORS["yellow"])
+
+    def test_title_with_type_name_is_pointed_out(self):
+        out = self.do("add PrimitiveInt")
+        nid = self.cv().s["nodes"][-1]["id"]
+        out = "\n".join(self.do(f"title {nid} PrimitiveInt: fps"))
+        self.assertIn("the name shown on screen is Int", out)
+        out = "\n".join(self.do(f"title {nid} Int: fps"))
+        self.assertNotIn("shown on screen", out)
+
+    def test_tool_wire_not_horizontal_is_reported(self):
+        self.do("put 10 origin")
+        self.do("put 8 right 10")
+        self.do("move 8 0 100")
+        lines, counts = C.full_check(self.cv())
+        tilt = [x for x in lines if x.startswith("non-horizontal wire (VAE,")]
+        self.assertTrue(tilt)
+        self.assertFalse([x for x in lines if "allowed; count only" in x])
+        self.assertGreaterEqual(counts["non-horizontal wires"], 1)
+        self.assertEqual(C.RPL.problem_text({"r": tilt[0]}, "en")["k"], "tilt")
+
+    def _two_loader_rails(self, model_spec, vae_spec):
+        # model loader above the vae loader, a tall node right of both (so the rails cannot run at the output height)
+        self.do("put 12 origin")
+        self.do("put 10 below 12")
+        self.do("put 6 right 12")
+        self.do("put 30 right 6")
+        self.do("put 8 right 30")
+        return self._rails(model_spec, vae_spec)
+
+    def _rails(self, model_spec, vae_spec):
+        self.do(f"rail 12.MODEL {model_spec} to 30.model")
+        self.do(f"rail 10.VAE {vae_spec} to 8.vae")
+        return C.full_check(self.cv())[0]
+
+    def test_rail_order_against_loader_order(self):
+        lines = self._two_loader_rails("below 10", "above 12")
+        bad = [x for x in lines if x.startswith("rail order differs from loader order")]
+        self.assertEqual(len(bad), 1)
+        self.assertTrue(bad[0].endswith("rail of 12 and rail of 10"))
+        self.assertEqual(C.RPL.problem_text({"r": bad[0]}, "en")["k"], "order")
+        self.do("undo")
+        self.do("undo")
+        lines = self._rails("above 12", "below 10")
+        self.assertFalse([x for x in lines if x.startswith("rail order differs from loader order")])
+
+    def test_raising_reroute_right_of_loader(self):
+        lines = self._two_loader_rails("above 12", "below 10")
+        raise_lines = [x for x in lines if x.startswith("raising Reroute right of a loader")]
+        self.assertEqual({x.rsplit(": ", 1)[1] for x in raise_lines}, {"12", "10"})
+        self.assertIn("`move 12 0 ", raise_lines[0] + raise_lines[1])
+        self.assertEqual(C.RPL.problem_text({"r": raise_lines[0]}, "en")["k"], "reroute")
+        self.do("undo")
+        self.do("undo")
+        self.do("rail 12.MODEL out to 30.model")   # at the output height: no raising Reroute
+        lines = C.full_check(self.cv())[0]
+        self.assertFalse([x for x in lines if x.startswith("raising Reroute right of a loader")])
+
+    def test_loader_rail_below_its_targets(self):
+        lines = self._two_loader_rails("above 12", "below 10")
+        bad = [x for x in lines if x.startswith("loader rail runs below its targets")]
+        self.assertEqual(bad, ["loader rail runs below its targets (model, vae and clip rails go above): rail of 10"])
+        self.assertEqual(C.RPL.problem_text({"r": bad[0]}, "en")["k"], "order")
+        self.assertIn("のレールが、配る先のノードより下を通っています", C.RPL.problem_text({"r": bad[0]}, "ja")["t"])
+        self.do("undo")
+        self.do("undo")
+        lines = self._rails("above 12", "above 12")
+        self.assertFalse([x for x in lines if x.startswith("loader rail runs below its targets")])
+
+    def test_sampler_custom_advanced_side_inputs_are_not_tilt(self):
+        self.do("copy 25 16 17")
+        self.do("link 25.0 13.noise 16.0 13.sampler 17.0 13.sigmas")
+        self.do("put 13 origin")
+        for nid, dy in (("25", -300), ("22", -150), ("16", 150), ("17", 300), ("27", 450)):
+            self.do(f"put {nid} left 13")
+            self.do(f"move {nid} 0 {dy}")
+        lines = C.full_check(self.cv())[0]
+        into13 = {x.rsplit(".", 1)[1] for x in lines if x.startswith("non-horizontal wire") and " → 13." in x}
+        self.assertEqual(into13, {"latent_image"})
+
+    def test_controlnet_apply_sd3_becomes_apply_controlnet(self):
+        import json
+        oi = json.loads(OI.read_text(encoding="utf-8"))
+        cond = lambda: {"positive": ["CONDITIONING"], "negative": ["CONDITIONING"], "control_net": ["CONTROL_NET"]}
+        floats = {"strength": ["FLOAT", {"default": 1.0}], "start_percent": ["FLOAT", {"default": 0.0}], "end_percent": ["FLOAT", {"default": 1.0}]}
+        oi["ControlNetApplySD3"] = {"display_name": "Apply Controlnet with VAE", "category": "model/conditioning/controlnet",
+                                    "python_module": "comfy_extras.nodes_sd3", "deprecated": True, "output": ["CONDITIONING", "CONDITIONING"],
+                                    "output_name": ["positive", "negative"],
+                                    "input": {"required": {**cond(), "vae": ["VAE"], "image": ["IMAGE"], **floats}}}
+        oi["ControlNetApplyAdvanced"] = {"display_name": "Apply ControlNet", "category": "model/conditioning/controlnet",
+                                         "python_module": "nodes", "output": ["CONDITIONING", "CONDITIONING"], "output_name": ["positive", "negative"],
+                                         "input": {"required": {**cond(), "image": ["IMAGE"], **floats}, "optional": {"vae": ["VAE"]}}}
+        node = {"id": 5, "type": "ControlNetApplySD3", "pos": [0, 0], "mode": 0, "widgets_values": [0.4, 0, 0.6],
+                "inputs": [{"name": n, "type": t, "link": None} for n, t in
+                           (("positive", "CONDITIONING"), ("negative", "CONDITIONING"), ("control_net", "CONTROL_NET"), ("vae", "VAE"), ("image", "IMAGE"))],
+                "outputs": [{"name": "positive", "type": "CONDITIONING", "links": []}, {"name": "negative", "type": "CONDITIONING", "links": []}]}
+        wf = {"nodes": [node], "links": [], "last_node_id": 5, "last_link_id": 0}
+        d = Path(tempfile.mkdtemp())
+        try:
+            (d / "wf.json").write_text(json.dumps(wf), encoding="utf-8")
+            (d / "oi.json").write_text(json.dumps(oi), encoding="utf-8")
+            out = C.run_cmd(C.Work(d / "w"), f"open {d / 'wf.json'} {d / 'oi.json'}")
+            self.assertTrue(any(x.startswith("replaced: 5 ControlNetApplySD3 → ControlNetApplyAdvanced") for x in out), out)
+            flat = json.loads((d / "w" / "src.flat.json").read_text(encoding="utf-8"))
+            n = {str(x["id"]): x for x in flat["nodes"]}["5"]
+            self.assertEqual(n["type"], "ControlNetApplyAdvanced")
+            self.assertEqual(n["widgets_values"][:3], [0.4, 0, 0.6])
+        finally:
+            shutil.rmtree(d)
+
+    def test_rgthree_comparer_becomes_core_image_compare(self):
+        import json
+        oi = json.loads(OI.read_text(encoding="utf-8"))
+        oi["ImageCompare"] = {"display_name": "Compare Images", "category": "image", "output_node": True,
+                              "python_module": "comfy_extras.nodes_image_compare", "output": [], "output_name": [],
+                              "input": {"required": {"compare_view": ["IMAGECOMPARE", {"socketless": True}]},
+                                        "optional": {"image_a": ["IMAGE", {}], "image_b": ["IMAGE", {}]}}}
+        oi["Image Comparer (rgthree)"] = {"display_name": "Image Comparer (rgthree)", "category": "rgthree", "output_node": True,
+                                          "python_module": "custom_nodes.rgthree-comfy", "output": [], "output_name": [],
+                                          "input": {"required": {}, "optional": {"image_a": ["IMAGE"], "image_b": ["IMAGE"]}}}
+        img_out = {"name": "IMAGE", "type": "IMAGE", "links": [1, 2, 3]}
+        ab = lambda a, b: [{"name": "image_a", "type": "IMAGE", "link": a, "shape": 7}, {"name": "image_b", "type": "IMAGE", "link": b, "shape": 7}]
+        wf = {"nodes": [
+            {"id": 1, "type": "LoadImage", "pos": [0, 0], "mode": 0, "inputs": [], "widgets_values": ["example.png", "image"],
+             "outputs": [img_out, {"name": "MASK", "type": "MASK", "links": []}]},
+            {"id": 2, "type": "Image Comparer (rgthree)", "pos": [400, 0], "mode": 0, "inputs": ab(1, 2), "outputs": [],
+             "widgets_values": [[{"name": "A", "selected": True, "url": "/api/view?filename=a.png"}]]},
+            {"id": 3, "type": "ImageCompare", "pos": [400, 400], "mode": 0, "inputs": ab(3, None), "outputs": [], "widgets_values": []}],
+            "links": [[1, 1, 0, 2, 0, "IMAGE"], [2, 1, 0, 2, 1, "IMAGE"], [3, 1, 0, 3, 0, "IMAGE"]],
+            "last_node_id": 3, "last_link_id": 3}
+        d = Path(tempfile.mkdtemp())
+        try:
+            (d / "wf.json").write_text(json.dumps(wf), encoding="utf-8")
+            (d / "oi.json").write_text(json.dumps(oi), encoding="utf-8")
+            out = C.run_cmd(C.Work(d / "w"), f"open {d / 'wf.json'} {d / 'oi.json'}")
+            self.assertTrue(any(x.startswith("replaced: 2 Image Comparer (rgthree) → ImageCompare") for x in out))
+            self.assertFalse([x for x in out if x.startswith("removed:")])
+            flat = json.loads((d / "w" / "src.flat.json").read_text(encoding="utf-8"))
+            nodes = {str(n["id"]): n for n in flat["nodes"]}
+            self.assertEqual(nodes["2"]["type"], "ImageCompare")
+            self.assertEqual([i["name"] for i in nodes["2"]["inputs"]], ["image_a", "image_b"])
+            self.assertEqual(nodes["2"]["widgets_values"], [])
+            into2 = {l["target_input"] for l in flat["links"] if str(l["target_id"]) == "2"}
+            self.assertEqual(into2, {"image_a", "image_b"})
+            self.assertEqual(nodes["3"]["type"], "ImageCompare")
+        finally:
+            shutil.rmtree(d)
+
+    def test_refs_and_models_read_the_shipped_copy(self):
+        import json
+        d = Path(tempfile.mkdtemp())
+        old = C.SITE_CATALOG
+        try:
+            C.SITE_CATALOG = d / "index.json"
+            with self.assertRaises(C.Stop) as e:
+                C.do_refs(["flux"])
+            self.assertIn("missing", str(e.exception))
+            C.SITE_CATALOG.write_text(json.dumps({"workflows": [
+                {"url": "https://example.invalid/workflows/flux-t2i.json", "updated": "2026-01-02",
+                 "articles": [{"lang": "en", "title": "Flux", "heading": "text to image"}],
+                 "models": [{"name": "ae.safetensors", "directory": "vae", "url": "https://example.invalid/ae.safetensors"}]}]}),
+                encoding="utf-8")
+            self.assertEqual(C.do_refs(["flux"]), ["2026-01-02  https://example.invalid/workflows/flux-t2i.json  (Flux / text to image)"])
+            self.assertEqual(C._site_models()["ae.safetensors"]["directory"], "vae")
+        finally:
+            C.SITE_CATALOG = old
+            shutil.rmtree(d)
+        self.assertEqual(C.SITE_CATALOG, Path(C.__file__).resolve().parent.parent / "references" / "site" / "index.json")
+        self.assertTrue(C.SITE_CATALOG.is_file())   # the copy is shipped with the skill
+
+    def test_null_proxy_widget_value_keeps_inner_value(self):
+        import json
+        sgid = "11111111-2222-3333-4444-555555555555"
+        wf = {"nodes": [
+            {"id": 1, "type": sgid, "pos": [0, 0], "mode": 0, "inputs": [],
+             "outputs": [{"name": "NOISE", "type": "NOISE", "links": []}],
+             "properties": {"proxyWidgets": [["5", "noise_seed"], ["5", "control_after_generate"], ["6", "noise_seed"]]},
+             "widgets_values": [None, None, 7]}],
+            "links": [], "last_node_id": 1, "last_link_id": 0,
+            "definitions": {"subgraphs": [{
+                "id": sgid, "name": "S", "inputs": [],
+                "outputs": [{"id": "o", "name": "NOISE", "type": "NOISE", "linkIds": [1]}],
+                "nodes": [
+                    {"id": 5, "type": "RandomNoise", "pos": [0, 0], "mode": 0, "inputs": [],
+                     "outputs": [{"name": "NOISE", "type": "NOISE", "links": [1]}], "widgets_values": [1, "randomize"]},
+                    {"id": 6, "type": "RandomNoise", "pos": [0, 200], "mode": 0, "inputs": [],
+                     "outputs": [{"name": "NOISE", "type": "NOISE", "links": []}], "widgets_values": [3, "fixed"]}],
+                "links": [{"id": 1, "origin_id": 5, "origin_slot": 0, "target_id": -20, "target_slot": 0, "type": "NOISE"}]}]}}
+        d = Path(tempfile.mkdtemp())
+        try:
+            (d / "wf.json").write_text(json.dumps(wf), encoding="utf-8")
+            C.run_cmd(C.Work(d / "w"), f"open {d / 'wf.json'} {OI}")
+            flat = json.loads((d / "w" / "src.flat.json").read_text(encoding="utf-8"))
+            values = {str(n["id"]): n.get("widgets_values") for n in flat["nodes"]}
+            self.assertEqual(values["1:5"], [1, "randomize"])   # null on the instance: the inner value stays
+            self.assertEqual(values["1:6"], [7, "fixed"])       # a non-null value is still written in
+        finally:
+            shutil.rmtree(d)
+
+    def test_models_skip_generic_file_names(self):
+        import json
+        d = Path(tempfile.mkdtemp())
+        old = C.SITE_CATALOG
+        try:
+            C.SITE_CATALOG = d / "index.json"
+            site = "https://example.invalid/"
+            C.SITE_CATALOG.write_text(json.dumps({"workflows": [
+                {"url": site + "a.json", "models": [
+                    {"name": "diffusion_pytorch_model.safetensors", "directory": "controlnet", "url": site + "other/diffusion_pytorch_model.safetensors"},
+                    {"name": "ae.safetensors", "directory": "vae", "url": site + "flux/resolve/main/ae.safetensors"},
+                    {"name": "t5.safetensors", "directory": "text_encoders", "url": site + "one/t5.safetensors"}]},
+                {"url": site + "b.json", "models": [
+                    {"name": "ae.safetensors", "directory": "vae", "url": site + "flux/blob/main/ae.safetensors?download=true"},
+                    {"name": "t5.safetensors", "directory": "text_encoders", "url": site + "two/t5.safetensors"}]}]}),
+                encoding="utf-8")
+            cv = self.cv()
+            cv.node("12")["widgets_values"][0] = "Union-Pro/diffusion_pytorch_model.safetensors"
+            cv.node("11")["widgets_values"][0] = "t5.safetensors"
+            cv.node("10")["widgets_values"][0] = "ae.safetensors"
+            cv.save()
+            out = self.do("models")
+            line = lambda name: next(x for x in out if x.startswith(f"- {name} "))
+            self.assertIn("URL: ?  (file name too generic to look up)", line("Union-Pro/diffusion_pytorch_model.safetensors"))
+            self.assertIn("URL: ?  (file name too generic to look up)", line("t5.safetensors"))   # two different URLs
+            self.assertIn("URL: " + site + "flux/resolve/main/ae.safetensors  (from", line("ae.safetensors"))   # the same file twice
+        finally:
+            C.SITE_CATALOG = old
+            shutil.rmtree(d)
+
     def test_set_on_dict_values(self):
         cv = self.cv()
         n = cv.node("12")
@@ -529,6 +785,32 @@ rail 10.VAE above 12 to 8.vae
         self.assertIn('id="data"', text)
         self.assertNotIn("<script src", text)   # one file, nothing loaded from the network
 
+    def _replay_data(self, path):
+        import json
+        import re
+        text = path.read_text(encoding="utf-8")
+        return json.loads(re.search(r'id="data">(.*?)</script>', text, re.S).group(1).replace("<\\/", "</"))
+
+    def test_replay_page_in_japanese(self):
+        plan = self.dir / "plan.txt"
+        plan.write_text("put 12 origin\nput 30 right 12 wire\n", encoding="utf-8")
+        self.do(f"layout {plan}")
+        self.do("put 11 below 12")
+        out = self.dir / "replay.html"
+        self.do(f"replay {out} ja")
+        text = out.read_text(encoding="utf-8")
+        self.assertIn('<html lang="ja">', text)
+        self.assertNotIn("<script src", text)
+        data = self._replay_data(out)
+        steps = data["canvases"][0]["steps"]
+        self.assertEqual(steps[0]["kind"], "build")          # copy and link changed nothing on the drawing: one step
+        self.assertEqual(steps[1]["kind"], "layout")
+        self.assertIn("（2 行）", steps[1]["s"])              # the plan's line count was recorded by layout
+        self.assertTrue(any("水平" in d for d in steps[1]["d"]))   # and what its lines did, in plain words
+        self.assertIn("の下に", steps[2]["s"])
+        with self.assertRaises(C.Stop):
+            self.do(f"replay {out} fr")
+
     def test_layout_reports_what_lines_did(self):
         plan = self.dir / "plan.txt"
         plan.write_text("put 12 origin\nput 30 right 12 wire\n", encoding="utf-8")
@@ -544,6 +826,24 @@ rail 10.VAE above 12 to 8.vae
         cv = self.cv()
         for i in ("11", "10"):
             self.assertGreaterEqual(cv.node(i)["size"][0], C.LOADER_MIN_W)
+
+    def test_width_in_plan_is_not_undone_by_loader_widths(self):
+        plan = self.dir / "plan.txt"
+        plan.write_text("put 12 origin\nput 10 below 12\nwidth 10 42\nput 42 right 10 gap 400\n", encoding="utf-8")
+        self.do(f"layout {plan}")
+        # the plan is edited: the loader now starts again from its initial width, narrower than the aligned loaders
+        plan.write_text("put 12 origin\nput 10 below 12\nwidth 10 26\nput 26 below 10\nput 9 right 12 gap 400\n", encoding="utf-8")
+        self.do(f"layout {plan}")
+        cv = self.cv()
+        widths = {i: cv.node(i)["size"][0] for i in ("10", "26", "12")}
+        self.assertEqual(widths["10"], widths["26"])
+        self.assertGreaterEqual(widths["10"], C.LOADER_MIN_W)   # a loader is still never below the minimum
+        self.do(f"layout {plan}")   # the same plan again gives the same widths
+        self.assertEqual({i: self.cv().node(i)["size"][0] for i in widths}, widths)
+        self.do("move 9 0 10")   # a later command aligns loaders again
+        cv = self.cv()
+        self.assertEqual(cv.node("10")["size"][0], cv.node("26")["size"][0])
+        self.assertGreaterEqual(cv.node("12")["size"][0], C.LOADER_MIN_W)   # loaders not named in width are still aligned
 
     def test_sampler_custom_advanced_is_a_sampler(self):
         self.assertTrue(C.is_sampler(self.cv().node("13")))
@@ -574,6 +874,40 @@ rail 10.VAE above 12 to 8.vae
         lines, _ = C.full_check(self.cv())
         self.assertFalse([x for x in lines if x.startswith("gap inside a column") and " 12 and 6" in x])
 
+
+    def test_rail_counts_a_target_in_the_way_of_a_later_target(self):
+        # 6 stands at the output height of 11, and 42 is further right at the same height: a rail drawn at the
+        # output height would run on behind 6 to reach 42, so 6 is an obstacle (the wire into 6 itself is fine)
+        self.do("put 11 origin")
+        self.do("put 6 right 11 wire")
+        self.do("put 42 right 6 top")
+        self.do("unlink 6.clip 42.clip")
+        out = self.do("rail 11.CLIP above 6 to 6.clip 42.clip")
+        self.assertFalse([x for x in out if x.startswith("drawn at the output height")])
+        cv = self.cv()
+        self.assertEqual(C.hidden_wires(cv), [])
+        lines = C.full_check(cv)[0]
+        self.assertFalse([x for x in lines if x.startswith("rail needs no raising Reroute")])
+
+    def test_layout_says_how_to_start_a_block(self):
+        f = self.write_plan("block load 12 11\nput 11 below 12\n")
+        with self.assertRaises(C.Stop) as e:
+            self.do(f"layout {f}")
+        msg = str(e.exception)
+        self.assertIn("Place the first node of block load first: put 12 origin", msg)
+        self.assertIn("put 12 right <placed node>", msg)
+        ok = self.write_plan("block load 12 11\nput 12 origin\nput 11 below 12\n")
+        self.do(f"layout {ok}")
+        self.assertTrue(self.cv().placed(self.cv().node("11")))
+
+    def test_set_before_copy_stops_and_says_copy_first(self):
+        self.do("new u")
+        with self.assertRaises(C.Stop) as e:
+            self.do("set 6 text=hello")
+        self.assertIn("copy 6 first", str(e.exception))
+        self.do("copy 6")
+        self.do("set 6 text=hello")
+        self.assertEqual(self.cv().node("6")["widgets_values"][0], "hello")
 
 if __name__ == "__main__":
     unittest.main()

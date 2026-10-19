@@ -305,6 +305,13 @@ class Flattener:
             sg = self.graphs[gid]
             if proxy and values:
                 for (entry, value) in zip(proxy, values):
+                    if value is None:
+                        # a null proxy value keeps the inner node's own widget value. The frontend would use null
+                        # (an empty value the node cannot run with), so say so
+                        if str(entry[0]) != "-1" and entry[1] != "control_after_generate":
+                            self.warn(f"subgraph {scope}: the promoted widget {entry[1]} of node {entry[0]} is empty in the file "
+                                      f"(the frontend would use it empty); the inner node's own value was kept")
+                        continue
                     src, wname = str(entry[0]), entry[1]
                     wname = re.sub(r"^\d+:\s*", "", wname)
                     if src == "-1":

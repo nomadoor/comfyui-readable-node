@@ -10,9 +10,9 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
 ■ Reading the source
   open <workflow.json> <object_info URL or JSON>
       Reads the source, turns wireless connections back into wires (Set/Get, Anything Everywhere, subgraph, Reroute),
-      applies the official replacement list and replacements that compute the same thing, returns value nodes into
-      their targets or turns them into typed ones, and merges identical loaders.
-      Removes outputs that only compare (Image Comparer) and Preview Image nodes that only show what was loaded.
+      applies the official replacement list and replacements that compute the same thing, replaces Image Comparer (rgthree)
+      with the core Compare Images (ImageCompare), returns value nodes into their targets or turns them into typed ones,
+      and merges identical loaders. Removes Preview Image nodes that only show what was loaded.
       Reports everything it did. Discards positions, sizes, colors, titles and groups (the author's words are returned separately).
   src outputs              output nodes and the size of each one's upstream
   src list [part of type]  list of source nodes
@@ -56,6 +56,7 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
                            For laying out similar stages, or giving split workflows the same layout
   level <A>.<output> <B>.<input> [move <unit>]   moves so that this wire is horizontal (default: moves B)
   width <id> ...           sets all widths to the widest (left edges stay; in a right-aligned column the right edges stay).
+                           A model, clip or vae loader among them is never narrower than the loader minimum (301).
                            Widening does not move neighbours: write width before the put that places the next node, or the gap shrinks
   move <unit> ... <dx> <dy>    shifts
   gap <A> <B> <N> [h|v]     sets the gap between A and B to N (moves B's unit. h horizontal, v vertical. Default h)
@@ -90,25 +91,32 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
                            Given a plan file, it reads only that file's block lines and counts (nothing needs to be placed yet).
                            Look at this before deciding the arrangement (whether to use rails, how to stack stages)
   refs <word> ...          workflows on the skill author's site (Comfy with ComfyUI) for the same use, newest first: date, URL and article. A reference for how to build the core
+                           (read from the copy of the site's list in references/site/index.json)
 
 ■ Placing with a plan file (usually this, to save round trips)
   layout <plan file>       applies the file from the top and re-places everything (positions, blocks, groups, rails and Notes are rebuilt).
                            Allowed commands: block put row stack align level inputs shape width move gap group group-align
                            color rail note title. Write the inside of each block first (make the block, then lay out its inside),
-                           and the blocks relative to each other last (put <block> ...). If any line stops, nothing changes. Returns the checks grouped by block.
+                           and the blocks relative to each other last (put <block> ...).
+                           The first line inside a block gives its first node a position (put <id> origin; row and stack
+                           do this for an unplaced first unit): put ... right <id> and inputs <id> need <id> placed. If any line stops, nothing changes. Returns the checks grouped by block.
                            To fix things, edit the lines of the file and run layout again. One run can fix any number of places
 
 ■ Viewing and checking
   show                     nodes on the current canvas (position, size, block, color, mode) and what is not placed
   node <id>                a node's inputs/outputs, values and slot positions
   check                    the checks (unplaced, overlaps, narrow gaps, wires behind nodes, crossings, non-horizontal wires, backward wires,
-                           right edges of sampler inputs, Preview above its source, spacing in a row, Reroutes doing nothing,
-                           overlapping rails, wires over group titles, nodes overlapping groups, types and required inputs).
+                           right edges of sampler inputs, empty band across everything, width differences and value node tops,
+                           Preview above its source, gaps inside a column, gap to a wired neighbour, spacing in a row,
+                           consecutive Reroutes, Reroutes doing nothing, model Note top edge, rails that can run at the output height,
+                           rails with a single target, overlapping rails, rail order against loader order, raising Reroutes right of a loader,
+                           loader rails above their targets, wires over group titles, nodes overlapping groups, types and required inputs).
                            Items marked "cannot be kept even with a reason" must be fixed before you finish
   diff                     compares the source with all canvases (values, inputs the user fills in, outputs, mode, model Note)
   render <png>             picture
   export <json>            writes a workflow that ComfyUI can open
-  replay <html>            writes a page that steps through every command on every canvas (for the user to see what was done)
+  replay <html> [en|ja]    writes a page that steps through every command on every canvas (for the user to see what was done).
+                           The page's words are in English (en, default) or Japanese (ja)
   undo                     reverts one command. A command that stopped changed nothing and is not recorded, so undo after it reverts the command before
   history                  all commands
 """
@@ -119,8 +127,6 @@ import json
 import re
 import shlex
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -144,8 +150,9 @@ FRONTEND_MIN = json.loads((Path(__file__).resolve().parent / "frontend_min_sizes
 PAD_L, PAD_T, PAD_R, PAD_B = P["GROUP_PAD_LEFT"], P["GROUP_PAD_TOP"], P["GROUP_PAD_RIGHT"], P["GROUP_PAD_BOTTOM"]
 GROUP_TITLE_H = 34          # height of the frontend's group title bar (font_size 24 x 1.4)
 TEXT_MIN_H = 100            # minimum height of a text area (a number set by the skill author)
-# minimum size of nodes that show an image (median of 433 hand-made workflows on Comfy-with-ComfyUI)
-IMAGE_MIN = {"SaveImage": (503, 574), "LoadImage": (300, 424), "PreviewImage": (338, 344)}
+# image area added to the initial size of nodes that show an image (layout_params.json), by the kind image_kind returns
+IMAGE_AREA = {"save": P["IMAGE_AREA_SAVE"], "preview": P["IMAGE_AREA_PREVIEW"], "load": P["IMAGE_AREA_LOAD"]}
+IMAGE_UPLOAD_FLAGS = tuple(f for f in CS.UPLOAD_FLAGS if f in ("image_upload", "video_upload"))
 LOADER_MIN_W = 301          # minimum loader width (median of 734 loaders in hand-made layouts)
 REROUTE_W, REROUTE_H = 75, 26
 COLORS = {
@@ -154,15 +161,13 @@ COLORS = {
     "yellow": ("#432", "#653"), "black": ("#222", "#000"),
 }
 LOADER_COLOR = {"MODEL": "purple", "CLIP": "yellow", "VAE": "red"}
-IMAGE_VIEW = {"SaveImage", "PreviewImage", "LoadImage"}
 PRODUCT_TYPES = {"IMAGE", "LATENT", "VIDEO", "MASK", "AUDIO"}   # what the workflow produces step by step (readable-form.md)
-COMPARE_TYPES = {"ImageCompare", "Image Comparer (rgthree)"}
 SELF_PREVIEW_LOADERS = {"LoadImage", "LoadVideo", "VHS_LoadVideo"}
 NOTE_TYPES = CS.NOTE_TYPES
 # working keys from reading, dropped when copying from the source. orig_size is kept (used for the size of custom nodes that are not installed)
 WORK_KEYS = WW.NODE_WORK_KEYS - {"orig_size"}
 # marks only the canvas adds. Dropped on export
-CANVAS_MARKS = {"size_min", "loader_base", "canvas_note", "layout_prev"}
+CANVAS_MARKS = {"size_min", "width_set", "loader_base", "canvas_note", "layout_prev"}
 
 
 class Stop(Exception):
@@ -182,6 +187,29 @@ def display_title(n, oi):
         return n["title"]
     info = oi.get(n.get("type")) or {}
     return info.get("display_name") or n.get("type")
+
+
+def image_kind(t, oi):
+    """Whether a node type shows an image, recognised from object_info (not from the type name):
+    "save" for an output node that takes an IMAGE or VIDEO input and saves files ("save" in its category or name, or a
+    filename_prefix input), "preview" for another output node that takes an IMAGE input and puts out nothing but IMAGE, "load" for a node with an
+    input carrying image_upload or video_upload. None otherwise (also for a type not in object_info)."""
+    info = oi.get(t)
+    if not info:
+        return None
+    specs = [(nm, CS._spec_type_and_opts(sp)) for nm, sp, _ in CS.ordered_input_specs(info) if isinstance(sp, (list, tuple)) and sp]
+    if any(any(opts.get(f) for f in IMAGE_UPLOAD_FLAGS) for _, (_, opts) in specs):
+        return "load"
+    if not info.get("output_node") or not any(typ in ("IMAGE", "VIDEO") for _, (typ, _) in specs):
+        return None
+    words = " ".join(str(info.get(k) or "") for k in ("category", "name", "display_name")) + " " + t
+    if "save" in words.lower() or any(nm == "filename_prefix" for nm, _ in specs):
+        return "save"
+    # a preview shows the image it gets and passes on at most that image (API nodes, prompt helpers and tiling helpers
+    # that are output nodes put out other types)
+    if any(typ == "IMAGE" for _, (typ, _) in specs) and all(o == "IMAGE" for o in info.get("output") or []):
+        return "preview"
+    return None
 
 
 def is_custom(t, oi):
@@ -282,7 +310,8 @@ class Canvas:
     def same_loader_width(self):
         """Loaders of diffusion model, clip and vae get the same width: the widest one, and never narrower than LOADER_MIN_W.
         Other loaders (upscale models etc.) are not aligned. A loader that would overlap another node when widened
-        (sticking out of its column) is not widened.
+        (sticking out of its column) is not widened. A loader whose width was set with width (width_set) is not
+        widened either: it would no longer match the nodes it was made as wide as.
         The width before widening is kept in loader_base and the width is recomputed from it every time."""
         for n in self.s["nodes"]:
             if "loader_base" in n:
@@ -292,7 +321,7 @@ class Canvas:
             return
         w = max([LOADER_MIN_W] + [n["size"][0] for n in ls])
         for n in ls:
-            if n["size"][0] == w:
+            if n["size"][0] == w or n.get("width_set"):
                 continue
             base = n["size"][0]
             # widest first; if that overlaps a neighbour, at least the minimum width; else leave it as it is
@@ -334,13 +363,26 @@ class Canvas:
     def placed(self, n):
         return n.get("pos") is not None
 
+    def unplaced_msg(self, nid):
+        """Why a node used as a reference cannot be used yet, and what line places it."""
+        msg = f"{nid} is not placed yet"
+        blk = next((b for b, ids in self.s["blocks"].items() if nid in ids), None)
+        if blk is None:
+            return msg + f": place it first (put {nid} origin, or put {nid} right <placed node>)"
+        placed = [i for i in self.s["blocks"][blk] if i in self.nodes and self.placed(self.nodes[i])]
+        if not placed:
+            # nothing in the block is placed: the first line inside a block has to give it a position
+            return (msg + f": nothing in block {blk} is placed yet. Place the first node of block {blk} first:"
+                    f" put {nid} origin (or put {nid} right <placed node>)")
+        return msg + f": place it first (e.g. put {nid} right {placed[-1]})"
+
     def bbox(self, ids, need_all=True):
         rs = []
         for i in ids:
             n = self.node(i)
             if not self.placed(n):
                 if need_all:
-                    raise Stop(f"{i} is not placed yet")
+                    raise Stop(self.unplaced_msg(i))
                 continue
             rs.append(G.rect(n))
         if not rs:
@@ -456,6 +498,10 @@ class Canvas:
             if o:
                 size = [max(size[0], o[0]), max(size[1], o[1])]
         w, h = size
+        kind = image_kind(n.get("type"), self.oi)
+        if kind:
+            # the image area goes below the initial size: as wide as the area at least, and that much taller
+            w, h = max(w, IMAGE_AREA[kind][0]), h + IMAGE_AREA[kind][1]
         fm = FRONTEND_MIN.get(n.get("type"))
         if fm:
             # e.g. nodes the frontend adds widgets to later. Never smaller than the size the frontend makes (it would grow and break the layout when opened in ComfyUI)
@@ -471,13 +517,6 @@ class Canvas:
                 start = rows * G.SLOT + 6
                 fixed = sum(G.WIDGET for x in names if x not in grow)
                 h = max(h, start + fixed + TEXT_MIN_H * len(grow))
-        if n.get("type") in IMAGE_MIN:
-            w, h = max(w, IMAGE_MIN[n["type"]][0]), max(h, IMAGE_MIN[n["type"]][1])
-        if n.get("type") in IMAGE_VIEW:
-            names, _ = RD.widget_info(n, self.oi)
-            sock = [i for i in n.get("inputs") or [] if not i.get("widget")]
-            rows = max(len(sock), len(n.get("outputs") or []), 1)
-            h = max(h, rows * G.SLOT + 6 + len(names) * G.WIDGET + w)
         old = n.get("size")
         n["size"] = [round(w), round(h)]
         if old and old != n["size"]:
@@ -812,8 +851,8 @@ def _chk_cross(cv, c):
                 continue
             if poly_cross(pa, pb):
                 cross.append((la, lb))
-    # crossings and slants: those involving a product wire (image, video, latent, mask, audio) are listed one by one.
-    # Tool wires (VAE, CLIP, conditioning, values etc.) may slant, so only their count is given (a short list keeps what to fix visible)
+    # crossings involving a product wire (image, video, latent, mask, audio) are listed one by one.
+    # Crossings between tool wires (VAE, CLIP, conditioning, values etc.) are only counted (a short list keeps what to fix visible)
     tool_cross = 0
     for la, lb in cross:
         if la["type"] in PRODUCT_TYPES or lb["type"] in PRODUCT_TYPES:
@@ -826,23 +865,25 @@ def _chk_cross(cv, c):
     return out
 
 
+SCA_SIDE_INPUTS = ("noise", "guider", "sampler", "sigmas")   # inputs of SamplerCustomAdvanced not checked for tilt
+
+
 @check_rule("non-horizontal wires")
 def _chk_tilt(cv, c):
     out = []
     nodes, ws = c.nodes, c.ws  # noqa: F841
+    # every wire that is not horizontal, whatever its type (a wire that could be made horizontal)
     tilt = []
-    tool_tilt = {}
     for l, pts in ws:
         dy = pts[-1][1] - pts[0][1]
         if abs(dy) < 1:
             continue
+        # SamplerCustomAdvanced sits in the vertical middle of its sources, so the wires into noise, guider, sampler and
+        # sigmas are slanted by design. Reporting them would bury the wires that can be fixed (latent_image is still reported)
+        if nodes.get(l["target_id"], {}).get("type") == "SamplerCustomAdvanced" and l["target_input"] in SCA_SIDE_INPUTS:
+            continue
         tilt.append(l)
-        if l["type"] in PRODUCT_TYPES:
-            out.append(f"non-horizontal wire (product {l['type']}, input at {dy:+.0f}px): {lname(cv, l)}")
-        else:
-            tool_tilt[l["type"]] = tool_tilt.get(l["type"], 0) + 1
-    if tool_tilt:
-        out.append("slanted tool wires (allowed; count only): " + ", ".join(f"{k} {v}" for k, v in sorted(tool_tilt.items())))
+        out.append(f"non-horizontal wire ({l['type']}, input at {dy:+.0f}px): {lname(cv, l)}")
     c.count["non-horizontal wires"] = len(tilt)
     return out
 
@@ -1126,8 +1167,10 @@ def _chk_rail_at_output(cv, c):
                         ends.add(m["target_id"])
                         xmax = max(xmax, G.rect(nodes[m["target_id"]])[0] - H_GAP / 2)
             band = (a0[0] + 1, a0[1] - REROUTE_H / 2, xmax, a0[1] + REROUTE_H / 2)
+            # targets before the rightmost one count as in the way, as in rail (the line would run on behind them)
+            last = {e for e in ends if G.rect(nodes[e])[0] - H_GAP / 2 >= xmax - 0.5}
             blocked = any(rect_overlap(G.rect(m), band) for m in cv.s["nodes"]
-                          if cv.placed(m) and m["id"] != n["id"] and m["id"] not in ends and m.get("type") != "Reroute")
+                          if cv.placed(m) and m["id"] != n["id"] and m["id"] not in last and m.get("type") != "Reroute")
             if not blocked:
                 out.append(f"rail needs no raising Reroute ({r['id']}) if drawn at the output height: output of {n['id']} (draw it with `rail ... out`)")
     return out
@@ -1186,6 +1229,88 @@ def _chk_rail_overlap(cv, c):
         for b in spans[i + 1:]:
             if a[3] != b[3] and abs(a[0] - b[0]) < P["RAIL_GAP"] and min(a[2], b[2]) > max(a[1], b[1]):
                 out.append(f"rails too close or overlapping (vertical gap {abs(a[0] - b[0]):.0f}px, min {P['RAIL_GAP']}): rail of {a[3]} and rail of {b[3]}")
+    return out
+
+
+def rail_starts(cv):
+    """Where each rail leaves its source: [(source node, output index, first Reroute)], for every wire from a node that is
+    not a Reroute into a Reroute (both placed). The rail height is the height of that Reroute's output slot."""
+    nodes = cv.nodes
+    out = []
+    for l in cv.s["links"]:
+        o, r = nodes.get(l["origin_id"]), nodes.get(l["target_id"])
+        if not o or not r or o.get("type") == "Reroute" or r.get("type") != "Reroute" or not cv.placed(o) or not cv.placed(r):
+            continue
+        out.append((o, l["origin_slot"], r))
+    return out
+
+
+@check_rule("rail order and loader order")
+def _chk_rail_order(cv, c):
+    out = []
+    nodes, ws = c.nodes, c.ws  # noqa: F841
+    # rails carrying MODEL, CLIP or VAE from loaders run top to bottom in the same order as their loaders are stacked.
+    # A pair whose vertical order is the reverse of their loaders' order is reported (rails of one loader are not compared)
+    rails = [(o, r, cv.out_xy(r["id"], 0)[1]) for o, _, r in rail_starts(cv) if cv.is_model_loader(o)]
+    seen = set()
+    for i, (oa, ra, ya) in enumerate(rails):
+        for ob, rb, yb in rails[i + 1:]:
+            if oa["id"] == ob["id"] or (oa["id"], ob["id"]) in seen:
+                continue
+            ta, tb = G.rect(oa)[1], G.rect(ob)[1]
+            if abs(ya - yb) < 1 or abs(ta - tb) < 1 or (ya < yb) == (ta < tb):
+                continue
+            seen |= {(oa["id"], ob["id"]), (ob["id"], oa["id"])}
+            up, down = (oa, ob) if ta < tb else (ob, oa)
+            out.append(f"rail order differs from loader order (loader {up['id']} is above {down['id']}, but its rail runs below): "
+                       f"rail of {up['id']} and rail of {down['id']}")
+    return out
+
+
+@check_rule("raising Reroutes right of a loader")
+def _chk_loader_raise(cv, c):
+    out = []
+    nodes, ws = c.nodes, c.ws  # noqa: F841
+    # a rail from a loader (MODEL, CLIP or VAE) with a raising Reroute just to the right of the loader: the loader can sit
+    # at the rail height instead, and then the Reroute is not needed
+    for o, slot, r in rail_starts(cv):
+        if not cv.is_model_loader(o):
+            continue
+        ay, ry = cv.out_xy(o["id"], slot)[1], cv.out_xy(r["id"], 0)[1]
+        rx, ox1 = G.rect(r)[0], G.rect(o)[2]
+        if abs(ay - ry) < 1 or not (ox1 <= rx <= ox1 + H_GAP):
+            continue
+        out.append(f"raising Reroute right of a loader ({r['id']}): move the loader to the rail height "
+                   f"(`move {o['id']} 0 {ry - ay:+.0f}`, or place it there) so the Reroute is not needed: {o['id']}")
+    return out
+
+
+@check_rule("loader rails above their targets")
+def _chk_loader_rail_above(cv, c):
+    out = []
+    nodes, ws = c.nodes, c.ws  # noqa: F841
+    # a rail from a loader (MODEL, CLIP or VAE) runs above the nodes it hands out to. Reported when the rail height is
+    # below the top edge of the highest target (the first nodes that are not Reroutes down the chain)
+    for o, _, r in rail_starts(cv):
+        if not cv.is_model_loader(o):
+            continue
+        ry = cv.out_xy(r["id"], 0)[1]
+        ends, seen, stack = [], set(), [r["id"]]
+        while stack:
+            x = stack.pop()
+            if x in seen:
+                continue
+            seen.add(x)
+            for m in cv.s["links"]:
+                if m["origin_id"] != x:
+                    continue
+                t = nodes.get(m["target_id"], {})
+                if t.get("type") == "Reroute":
+                    stack.append(m["target_id"])
+                elif cv.placed(t):
+                    ends.append(t)
+        if ends and ry > min(G.rect(t)[1] for t in ends):
+            out.append(f"loader rail runs below its targets (model, vae and clip rails go above): rail of {o['id']}")
     return out
 
 
@@ -1283,13 +1408,11 @@ def do_open(work, args):
         out.append(f"warning: {w}")
     for nid, t, wname, value in return_typed_values(flat, oi):
         out.append(f"returned value: {nid} ({json.dumps(value, ensure_ascii=False)[:40]}) → {t}.{wname} (value node wired to a single target)")
-    # outputs that are only for looking
+    # Preview Image nodes that only show what was loaded
     nodes = {n["id"]: n for n in flat["nodes"]}
     gone = []
     for n in flat["nodes"]:
-        if n["type"] in COMPARE_TYPES:
-            gone.append((n["id"], "output that only compares"))
-        elif n["type"] == "PreviewImage":
+        if n["type"] == "PreviewImage":
             src = next((l for l in flat["links"] if l["target_id"] == n["id"]), None)
             if src and nodes.get(src["origin_id"], {}).get("type") in SELF_PREVIEW_LOADERS:
                 gone.append((n["id"], f"only shows {src['origin_id']} {nodes[src['origin_id']]['type']} as loaded"))
@@ -1531,20 +1654,23 @@ def flat_order(flat):
 
 
 
-SITE_CATALOG = "https://comfyui.nomadoor.net/workflows/index.json"
+# the list of workflows on the skill author's site, shipped with the skill (a copy of https://comfyui.nomadoor.net/workflows/index.json)
+SITE_CATALOG = Path(__file__).resolve().parent.parent / "references" / "site" / "index.json"
 
 
 def site_catalog():
     """The skill author's site (Comfy with ComfyUI) publishes one list of its workflows: for each, the URL,
     the articles that explain it (title and heading per language), the date it was last updated, the models
-    it needs (file name, models/ folder, download URL) and its custom nodes. One request; a static file."""
-    req = urllib.request.Request(SITE_CATALOG, headers={"User-Agent": "comfyui-readable-node"})
+    it needs (file name, models/ folder, download URL) and its custom nodes. The skill carries a copy of it
+    (references/site/index.json); this reads the copy and never the network."""
+    if not SITE_CATALOG.is_file():
+        raise Stop(f"the copy of the workflow list of the skill author's site is missing ({SITE_CATALOG}). "
+                   "Build the core without a reference")
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read().decode("utf-8"))
-    except (urllib.error.URLError, OSError, ValueError) as e:
-        raise Stop(f"cannot read the workflow list of the skill author's site ({SITE_CATALOG}): {e}. "
-                   "Check the network, or build the core without a reference")
+        return jload(SITE_CATALOG)
+    except (OSError, ValueError) as e:
+        raise Stop(f"cannot read the copy of the workflow list of the skill author's site ({SITE_CATALOG}): {e}. "
+                   "Build the core without a reference")
 
 
 def do_refs(args):
@@ -1567,13 +1693,36 @@ def do_refs(args):
     return out or ["nothing found (try other words; the site may have no workflow for this use)"]
 
 
+# File names that many repositories use for different models (diffusers and transformers layouts).
+# The file name alone does not tell which model it is.
+GENERIC_MODEL_NAMES = {
+    "diffusion_pytorch_model.safetensors", "diffusion_pytorch_model.fp16.safetensors", "diffusion_pytorch_model.bin",
+    "model.safetensors", "model.fp16.safetensors", "model.bin", "model.pt", "model.pth", "model.ckpt", "model.onnx",
+    "pytorch_model.bin", "pytorch_model.fp16.bin", "adapter_model.safetensors", "adapter_model.bin",
+    "pytorch_lora_weights.safetensors", "config.json",
+}
+SHARD_RE = re.compile(r"-\d+-of-\d+\.[^.]+$")
+
+
+def _same_file_url(url):
+    """A download URL without what does not change the file (the query, and /blob/ for /resolve/ on Hugging Face)."""
+    return url.split("?")[0].replace("/blob/", "/resolve/")
+
+
 def _site_models():
-    """{file name: {directory, url}} from the site's list, for models whose download URL is known."""
-    out = {}
+    """{file name: {directory, url}} from the site's list, for models whose download URL is known.
+    A file name that is too generic to tell the model maps to {"generic": True}: a name in GENERIC_MODEL_NAMES,
+    a sharded file, or a name that the list gives two or more different URLs."""
+    out, urls = {}, {}
     for w in site_catalog().get("workflows") or []:
         for m in w.get("models") or []:
             if m.get("name") and m.get("url"):
-                out.setdefault(m["name"].replace("\\", "/").split("/")[-1], m)
+                base = m["name"].replace("\\", "/").split("/")[-1]
+                out.setdefault(base, m)
+                urls.setdefault(base, set()).add(_same_file_url(m["url"]))
+    for base in out:
+        if base.lower() in GENERIC_MODEL_NAMES or SHARD_RE.search(base) or len(urls[base]) > 1:
+            out[base] = {"generic": True}
     return out
 
 
@@ -1599,14 +1748,20 @@ def do_models(work):
             site = {}
             out.append(f"warning: {e}")
         for m in found.values():
-            hit = site.get(m["name"].replace("\\", "/").split("/")[-1])
+            base = m["name"].replace("\\", "/").split("/")[-1]
+            hit = site.get(base)
+            if hit and hit.get("generic"):
+                if not m["url"]:
+                    m["too_generic"] = True
+                continue
             if hit and (not m["url"] or not m["directory"]):
                 m["url"] = m["url"] or hit.get("url")
                 m["directory"] = m["directory"] or hit.get("directory")
                 m["from_site"] = True
     for m in found.values():
         out.append(f"- {m['name']}  folder: {m['directory'] or '?'}  URL: {m['url'] or '?'}"
-                   + ("  (from the skill author's site)" if m.get("from_site") else ""))
+                   + ("  (from the skill author's site)" if m.get("from_site") else "")
+                   + ("  (file name too generic to look up)" if m.get("too_generic") else ""))
     out.append("draft of the model Note text (fill in unknown folders and URLs from the author's Notes, or search for the file):")
     out.append(NT.model_note_text(list(found.values())))
     return out
@@ -1738,6 +1893,7 @@ def _run_cmd(work, line):
             cv.s = copy.deepcopy(base.s)
             cv.s["name"] = args[0]
             cv.s["history"] = [f"new {args[0]} from {args[2]}"]
+            cv.s.pop("layout_notes", None)   # keyed by the other canvas's undo snapshots
         cv.save()
         work.cfg["current"] = args[0]
         work.save_cfg()
@@ -1815,10 +1971,10 @@ def _run_cmd(work, line):
         return out
 
     if cmd == "replay":
-        if not args:
-            raise Stop("replay <html>")
+        if not args or (len(args) > 1 and args[1] not in RPL.LANGS):
+            raise Stop(f"replay <html> [{'|'.join(RPL.LANGS)}]")
         Path(args[0]).parent.mkdir(parents=True, exist_ok=True)
-        Path(args[0]).write_text(replay_page(work), encoding="utf-8")
+        Path(args[0]).write_text(replay_page(work, args[1] if len(args) > 1 else "en"), encoding="utf-8")
         return [f"replay page: {args[0]}"]
 
     # from here on, commands change the state. A command that stops changes nothing
@@ -1890,6 +2046,9 @@ def _op_add(cv, work, args):
 def _op_set(cv, work, args):
     if len(args) < 2:
         raise Stop("set <id> <widget>=<value> ...")
+    if args[0] not in cv.nodes and args[0] in {n["id"] for n in work.src()["nodes"]}:
+        # set works on the canvas only: a value set before the copy would not reach the node the copy makes
+        raise Stop(f"no node {args[0]} on this canvas yet (it is in the source): copy {args[0]} first, then set it")
     n = cv.node(args[0])
     info = cv.oi.get(n["type"])
     vals = n.get("widgets_values")
@@ -2019,6 +2178,12 @@ def _op_title(cv, work, args):
     n["title"] = " ".join(args[1:])
     cv.size_node(n)
     cv.out.append(f"title {n['id']}: {n['title']}")
+    # a value node's title starts with the name shown on screen (Int), not the type name (PrimitiveInt)
+    t = n.get("type") or ""
+    shown = (work.oi.get(t) or {}).get("display_name") or t
+    head = n["title"].split(":", 1)[0].strip()
+    if ":" in n["title"] and head == t and shown != t:
+        cv.out.append(f"  the title starts with the type name {t}; the name shown on screen is {shown} (write \"{shown}: …\")")
 
 
 def _op_put(cv, work, args):
@@ -2108,7 +2273,7 @@ def _op_inputs(cv, work, args):
     opt = parse_opts(args[1:], keyed=("gap",))[1]
     t = cv.node(tid)
     if not cv.placed(t):
-        raise Stop(f"{tid} is not placed yet")
+        raise Stop(cv.unplaced_msg(tid))
     order = [i["name"] for i in t.get("inputs") or []]
     srcs = []
     for name in order:
@@ -2198,7 +2363,9 @@ def _op_level(cv, work, args):
 
 def _op_width(cv, work, args):
     ns = [cv.node(i) for i in args]
-    w = max(n["size"][0] for n in ns)
+    # a model loader is never narrower than LOADER_MIN_W. Counted here, because the loader width alignment
+    # does not widen a node whose width is set with width (the group would no longer be equal)
+    w = max([n["size"][0] for n in ns] + [LOADER_MIN_W for n in ns if cv.is_model_loader(n)])
     # if the placed nodes share a right edge (an inputs column etc.), keep the right edge and widen to the left.
     # Keeping the left edge would break the column's right alignment
     placed = [n for n in ns if cv.placed(n)]
@@ -2206,6 +2373,7 @@ def _op_width(cv, work, args):
         and len({round(G.rect(n)[0]) for n in ns}) > 1
     for n in ns:
         n.pop("loader_base", None)   # so the loader width alignment does not undo a width set by hand
+        n["width_set"] = True
         if n["size"][0] != w:
             n["size_min"] = [w, 0]
             cv.out.append(f"width {n['id']}: {n['size'][0]} → {w}" + (" (kept the right edge)" if keep_right else ""))
@@ -2322,9 +2490,9 @@ def _op_note(cv, work, args):
     cv.s["next_id"] += 1
     n = {"id": nid, "type": "MarkdownNote", "mode": 0, "inputs": [], "outputs": [], "properties": {},
          "widgets_values": [text], "pos": None, "size": [w, round(h)], "canvas_note": True}
-    if re.search(r"^#+\s*models\s*$", text, re.M):
-        # the model Note is purple (notes.md). There is only one right answer, so the canvas sets it
-        n["color"], n["bgcolor"] = COLORS["purple"]
+    # the model Note is purple and every other Note yellow (notes.md). There is only one right answer, so the canvas sets it
+    model_note = re.search(r"^#+\s*models\s*$", text, re.M)
+    n["color"], n["bgcolor"] = COLORS["purple" if model_note else "yellow"]
     cv.s["nodes"].append(n)
     put_rel(cv, [nid], pos[1], cv.unit(pos[2]), None, num(opt["gap"], "gap") if "gap" in opt else None)
     cv.out.append(f"Note {nid}: width {w}, height {round(h)}")
@@ -2423,7 +2591,8 @@ def do_layout(cv, work, args):
                         n.pop(k, None)
                     else:
                         n[k] = v
-        if n.pop("size_min", None) is not None:
+        widened = n.pop("size_min", None) is not None
+        if n.pop("width_set", None) or widened:
             # also clear widths widened by the plan's width and start again from the initial size (a leftover width would not go back when the plan is edited)
             cv.size_node(n)
     cv.s["blocks"], cv.s["groups"], cv.s["group_align"] = {}, [], []
@@ -2451,6 +2620,9 @@ def do_layout(cv, work, args):
         notes += [f"  line {k}: {m}" for m in cv.out[mark:]]
         count += 1
     cv.s["next_id"] = keep_next
+    # kept for the replay page (keyed by this command's undo snapshot; undo drops it with the state)
+    snaps = len(list(cv.hist.glob("*.json"))) if cv.hist.exists() else 0
+    cv.s.setdefault("layout_notes", {})[str(snaps - 1)] = {"lines": count, "notes": [m[2:] for m in notes]}
     cv.out = [f"applied {count} lines of the plan and re-placed everything"]
     if notes:
         cv.out.append("what the lines did besides placing (as a single command would report):")
@@ -2559,9 +2731,11 @@ def do_rail(cv, args):
         # to another rail, no raising or lowering Reroute is needed, so the rail is drawn at the output height
         x1 = max(x for x, _, _ in tg)
         band = (ox1 + 1, a[1] - REROUTE_H / 2, x1 - H_GAP / 2, a[1] + REROUTE_H / 2)
-        tids = {t for _, t, _ in tg}
+        # a target standing between the source and a later target is in the way too (the rail would run on behind it);
+        # only the rightmost targets, which the band stops short of, are left out
+        last = {t for x, t, _ in tg if x == x1}
         blocked = any(rect_overlap(G.rect(m), band) for m in cv.s["nodes"]
-                      if cv.placed(m) and m["id"] != oid and m["id"] not in tids and m.get("type") != "Reroute")
+                      if cv.placed(m) and m["id"] != oid and m["id"] not in last and m.get("type") != "Reroute")
         near = [sy for sy, sx0, sx1, root in rail_spans(cv) if root != (oid, slot)
                 and min(sx1, x1) > max(sx0, ox1) and abs(sy - a[1]) < P["RAIL_GAP"]]
         if not blocked and not near:
@@ -2732,71 +2906,356 @@ def node_lines(cv, nid):
 
 # ---------------------------------------------------------------- replay
 
-def _view(cv):
-    """What the replay page draws for one state: placed nodes, wires, groups."""
-    nodes = [{"id": n["id"], "label": f"{n['id']} {n.get('title') or n.get('type')}", "x": round(n["pos"][0]),
-              "y": round(n["pos"][1]), "w": round(n["size"][0]), "h": round(n["size"][1]), "fg": n.get("color"),
-              "bg": n.get("bgcolor"), "reroute": n.get("type") == "Reroute"}
+def _short(v, limit):
+    """A widget value as the page shows it: numbers and booleans as they are, anything else as text cut to limit."""
+    if v is None or isinstance(v, (bool, int)):
+        return v
+    if isinstance(v, float):
+        return float(f"{v:.6g}")
+    s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+    return s if len(s) <= limit else s[:limit] + "…"
+
+
+def _node_def(n, oi, title=None):
+    """What does not move: type, title, slots (name, type, wired), widget rows (name, kind, value), colours, mode."""
+    t = n.get("type") or "?"
+    d = {"t": t, "n": title or display_title(n, oi)}
+    for k, src in (("c", "color"), ("bg", "bgcolor")):
+        if n.get(src):
+            d[k] = n[src]
+    if n.get("mode"):
+        d["m"] = n["mode"]
+    outs = [[o.get("label") or o.get("name") or o.get("type") or "", o.get("type") or "*"] for o in n.get("outputs") or []]
+    if t == "Reroute":
+        d["rr"] = 1
+        d["o"] = outs[:1] or [["", "*"]]
+        return d
+    if t in NOTE_TYPES:
+        d["note"] = _short(str((n.get("widgets_values") or [""])[0]), 1500)
+        return d
+    names, grow = RD.widget_info(n, oi)
+    linked_w = {(i.get("widget") or {}).get("name") for i in n.get("inputs") or [] if i.get("widget") and i.get("link") is not None}
+    d["i"] = [[i.get("label") or i["name"], i.get("type") or "*", 1 if i.get("link") is not None else 0]
+              for i in n.get("inputs") or [] if not i.get("widget")]
+    d["o"] = outs
+    info = oi.get(t)
+    vals = n.get("widgets_values")
+    rows = []
+    if info and names:
+        mapping = CS.map_widget_values(t, vals, oi)[0] or {}
+        for nm in names:
+            spec = CS.widget_spec(info, nm, mapping)
+            kind = "combo"
+            if nm == "upload":
+                kind = "btn"
+            elif spec is not None:
+                typ, opts = CS._spec_type_and_opts(spec)
+                kind = {"BOOLEAN": "bool", "INT": "num", "FLOAT": "num", "COMBO": "combo",
+                        "COMFY_DYNAMICCOMBO_V3": "combo"}.get(typ, "text")
+                if nm in grow:
+                    kind = "area"
+            v = mapping.get(nm)
+            rows.append([nm, kind, _short(v, 600 if kind == "area" else 120), 1 if nm in linked_w else 0])
+    elif isinstance(vals, list):
+        rows = [["", "text", _short(v, 120), 0] for v in vals]   # a type not in object_info: values without names
+    if rows:
+        d["w"] = rows
+    if image_kind(t, oi):
+        d["img"] = 1
+    return d
+
+
+class _Intern:
+    """Stores each distinct value once and returns its index (the page is small because states repeat)."""
+
+    def __init__(self):
+        self.items, self.index = [], {}
+
+    def __call__(self, v):
+        k = json.dumps(v, ensure_ascii=False, sort_keys=True)
+        if k not in self.index:
+            self.index[k] = len(self.items)
+            self.items.append(v)
+        return self.index[k]
+
+
+def wire_key(origin, slot, target, inp):
+    return f"{origin}|{slot}|{target}|{inp}"
+
+
+def _view(cv, defs):
+    """One state as the page draws it: placed nodes [id, x, y, w, h, def], wires [x0, y0, x1, y1, type, key],
+    groups [title, x, y, w, h, colour]. Positions are the body's top-left (the title bar is above, as in ComfyUI)."""
+    nodes = [[n["id"], round(n["pos"][0]), round(n["pos"][1]), round(n["size"][0]), round(n["size"][1]), defs(_node_def(n, cv.oi))]
              for n in cv.s["nodes"] if n.get("pos") is not None and n.get("size")]
     wires = []
     for l in cv.s["links"]:
         pts = cv.wire_pts(l)
         if pts:
-            wires.append({"p": [round(pts[0][0]), round(pts[0][1]), round(pts[-1][0]), round(pts[-1][1])], "t": l.get("type")})
-    groups = [{"title": g.get("title", ""), "box": [round(v) for v in g["bounding"]], "color": g.get("color") or "#3f789e"}
+            wires.append([round(pts[0][0], 1), round(pts[0][1], 1), round(pts[-1][0], 1), round(pts[-1][1], 1), l.get("type") or "*",
+                          wire_key(l["origin_id"], l["origin_slot"], l["target_id"], l["target_input"])])
+    groups = [[g.get("title", "")] + [round(v) for v in g["bounding"]] + [g.get("color") or "#3f789e"]
               for g in cv.s.get("groups") or [] if g.get("bounding")]
-    return {"nodes": nodes, "wires": wires, "groups": groups}
+    return nodes, wires, groups
 
 
-def _original_view(path):
-    """The source workflow's top level as saved (positions are the author's)."""
+def _original_view(path, oi, defs):
+    """The source workflow's top level as saved (positions are the author's), in the same form as _view."""
     raw = jload(path)
-    nodes = [{"id": str(n["id"]), "label": f"{n['id']} {n.get('title') or n.get('type')}", "x": round(n["pos"][0]),
-              "y": round(n["pos"][1]), "w": round(n["size"][0]), "h": round(n["size"][1]), "fg": n.get("color"),
-              "bg": n.get("bgcolor"), "reroute": n.get("type") == "Reroute"}
-             for n in raw.get("nodes") or [] if isinstance(n.get("pos"), list) and isinstance(n.get("size"), list)]
-    by_id = {n["id"]: n for n in nodes}
+    subs = {s.get("id"): s.get("name") for s in (raw.get("definitions") or {}).get("subgraphs") or []}
+    by_id, nodes = {}, []
+    for n in raw.get("nodes") or []:
+        if not (isinstance(n.get("pos"), (list, dict)) and isinstance(n.get("size"), (list, dict))):
+            continue
+        m = dict(n)
+        m["id"] = str(n["id"])
+        m["pos"] = list(n["pos"].values())[:2] if isinstance(n["pos"], dict) else n["pos"][:2]
+        m["size"] = list(n["size"].values())[:2] if isinstance(n["size"], dict) else n["size"][:2]
+        by_id[m["id"]] = m
+        nodes.append([m["id"], round(m["pos"][0]), round(m["pos"][1]), round(m["size"][0]), round(m["size"][1]),
+                      defs(_node_def(m, oi, title=n.get("title") or subs.get(n.get("type"))))])
     wires = []
     for l in raw.get("links") or []:
-        l = l if isinstance(l, list) else [l["id"], l["origin_id"], l["origin_slot"], l["target_id"], l["target_slot"], l["type"]]
+        l = l if isinstance(l, list) else [l.get("id"), l.get("origin_id"), l.get("origin_slot"), l.get("target_id"), l.get("target_slot"), l.get("type")]
         o, t = by_id.get(str(l[1])), by_id.get(str(l[3]))
-        if o and t:
-            wires.append({"p": [o["x"] + o["w"], o["y"] + G.SLOT / 2 + G.SLOT * l[2], t["x"], t["y"] + G.SLOT / 2 + G.SLOT * l[4]],
-                          "t": l[5]})
-    groups = [{"title": g.get("title", ""), "box": [round(v) for v in g.get("bounding") or [0, 0, 0, 0]],
-               "color": g.get("color") or "#3f789e"} for g in raw.get("groups") or []]
+        if not o or not t or not isinstance(l[2], int) or not isinstance(l[4], int) or l[4] >= len(t.get("inputs") or []):
+            continue
+        names, grow = RD.widget_info(t, oi)
+        a, b = G.output_pos(o, l[2]), G.input_pos(t, t["inputs"][l[4]]["name"], names, grow)
+        if a and b:
+            wires.append([round(a[0], 1), round(a[1], 1), round(b[0], 1), round(b[1], 1), l[5] if isinstance(l[5], str) else "*",
+                          wire_key(o["id"], l[2], t["id"], t["inputs"][l[4]]["name"])])
+    groups = [[g.get("title", "")] + [round(v) for v in (g.get("bounding") or [0, 0, 0, 0])[:4]] + [g.get("color") or "#3f789e"]
+              for g in raw.get("groups") or []]
     return {"nodes": nodes, "wires": wires, "groups": groups}
 
 
-def replay_page(work):
-    """Every command of every canvas that moved, added or removed nodes, with the problems it introduced or resolved."""
-    steps, names = [], work.names()
+def _plan_rerun(work, name, before, cmd):
+    """The per-line notes of a `layout` run that did not record them (made by an older canvas): applies the plan file as it is
+    now to the state before. Returns (lines, notes), or None when the file is gone or no longer gives the same result."""
+    import os
+    import tempfile
+    toks = shlex.split(cmd)
+    if len(toks) < 2:
+        return None
+    rel = Path(toks[1])
+    parts = rel.parts
+    # the agent may have run the canvas from another folder ("out/w/layout.txt"): find the part of the path that is inside the work folder
+    for k in range(len(parts)):
+        if (work.dir / Path(*parts[k:])).is_file():
+            prefix = Path(*parts[:k]) if k else None
+            break
+    else:
+        return None
+    cwd = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "base"
+        base.mkdir()
+        if prefix is not None:
+            (base / prefix).parent.mkdir(parents=True, exist_ok=True)
+            (base / prefix).symlink_to(work.dir.resolve(), target_is_directory=True)
+            run_dir = base
+        else:
+            run_dir = work.dir.resolve()
+        cv = Canvas(work, name)
+        cv.s = copy.deepcopy(before)
+        cv.path = Path(tmp) / "canvas.json"
+        cv.hist = Path(tmp) / "none.hist"
+        try:
+            os.chdir(run_dir)
+            do_layout(cv, work, [str(rel)])
+        except Exception:  # noqa: BLE001  the plan as it is now does not run on that state: no notes
+            return None
+        finally:
+            os.chdir(cwd)
+        rec = cv.s.get("layout_notes", {}).get("-1")
+        return cv.s, rec
+
+
+def _replay_order(work):
+    """Canvases made with `new X from Y` follow the one they were made from; the one the most others came from is first."""
+    names = work.names()
+    parent = {}
     for name in names:
+        try:
+            first = (Canvas(work, name).s.get("history") or [""])[0].split()
+        except Exception:
+            continue
+        if len(first) == 4 and first[0] == "new" and first[2] == "from" and first[3] in names and first[3] != name:
+            parent[name] = first[3]
+    kids = {n: [m for m in names if parent.get(m) == n] for n in names}
+    size = {}
+
+    def count(n, seen=()):
+        if n not in size:
+            size[n] = 1 + sum(count(m, seen + (n,)) for m in kids[n] if m not in seen)
+        return size[n]
+    out = []
+
+    def walk(n):
+        if n in out:
+            return
+        out.append(n)
+        for m in sorted(kids[n], key=lambda m: (-count(m), m)):
+            walk(m)
+    for n in sorted((n for n in names if n not in parent), key=lambda n: (-count(n), n)):
+        walk(n)
+    out += [n for n in names if n not in out]   # a loop of `from`s
+    return out
+
+
+def replay_page(work, lang="en"):
+    """Every command of every canvas, the state after it, and the check problems at that point.
+    Commands that change nothing on the drawing (building before anything is placed) are shown together as one step."""
+    canvases = []
+    oi = work.oi
+    for name in _replay_order(work):
         final = Canvas(work, name)
         snaps = sorted(final.hist.glob("*.json")) if final.hist.exists() else []
         states = [json.loads(p.read_text(encoding="utf-8")) for p in snaps] + [final.s]
         cmds = final.s["history"]
-        prev = set()
-        for k in range(1, len(states)):
-            before, after = states[k - 1], states[k]
-            bpos = {n["id"]: n.get("pos") for n in before["nodes"]}
-            changed = sorted(n["id"] for n in after["nodes"]
-                             if n.get("pos") is not None and bpos.get(n["id"], "new") != n.get("pos"))
-            gone = sorted(set(bpos) - {n["id"] for n in after["nodes"]})
+        off = len(cmds) - len(snaps)   # a canvas made with `new ... from` starts with a command that has no snapshot
+        defs, nodes_t, wires_t, groups_t, probs = _Intern(), _Intern(), _Intern(), _Intern(), _Intern()
+        steps = []
+        pending = []
+
+        def state_of(s):
             cv = Canvas(work, name)
-            cv.s = copy.deepcopy(after)
+            cv.s = copy.deepcopy(s)
             cv.update_groups()
+            n, w, g = _view(cv, defs)
             lines, counts = full_check(cv)
-            cur = set(lines)
-            if changed or gone:
-                steps.append({"canvas": name, "k": k, "cmd": cmds[k - 1] if k - 1 < len(cmds) else "?",
-                              "changed": changed, "gone": gone, "counts": counts,
-                              "problems_added": sorted(cur - prev)[:40], "problems_removed": sorted(prev - cur)[:40],
-                              "state": _view(cv)})
-            prev = cur
+            return cv, (nodes_t(n), wires_t(w), groups_t(g)), lines, counts
+
+        def problem_refs(cv, lines):
+            ids = {n["id"] for n in cv.s["nodes"]}
+            wires = {lname(cv, l): wire_key(l["origin_id"], l["origin_slot"], l["target_id"], l["target_input"]) for l in cv.s["links"]}
+            out = []
+            for ln in lines:
+                found = [t for t in dict.fromkeys(re.findall(r"[\w:~]+", ln)) if t in ids]
+                ws = [k for s, k in wires.items() if s in ln]
+                out.append(probs({"r": ln, "ids": found, "w": ws, "names": {i: _plain_name(cv, i) for i in found}}))
+            return out
+
+        cv0, sig0, lines0, counts0 = state_of(states[0])
+        prev_sig = sig0
+        if off > 0 and cmds and any(n.get("pos") is not None for n in states[0]["nodes"]):
+            steps.append({"c": cmds[:off], "x": [_explain(cv0, cv0, c, None) for c in cmds[:off]], "kind": "cmd",
+                          "v": sig0, "p": problem_refs(cv0, lines0), "counts": counts0})
+        before_cv = cv0
+        for k in range(1, len(states)):
+            cmd = cmds[off + k - 1] if off + k - 1 < len(cmds) else "?"
+            cv, sig, lines, counts = state_of(states[k])
+            is_layout = cmd.split(" ", 1)[0] == "layout"
+            notes = None
+            if is_layout:
+                notes = (states[k].get("layout_notes") or {}).get(str(k - 1))
+                if notes is None:
+                    rerun = _plan_rerun(work, name, states[k - 1], cmd)
+                    if rerun and rerun[1] and [n.get("pos") for n in rerun[0]["nodes"]] == [n.get("pos") for n in states[k]["nodes"]]:
+                        notes = rerun[1]
+            x = _explain(before_cv, cv, cmd, notes)
+            if sig == prev_sig and not is_layout:
+                pending.append((cmd, x, sig, cv, lines, counts))
+            else:
+                if pending:
+                    _flush(steps, pending, problem_refs)
+                    pending = []
+                steps.append({"c": [cmd], "x": [x], "kind": "layout" if is_layout else "cmd", "v": sig,
+                              "p": problem_refs(cv, lines), "counts": counts})
+            prev_sig, before_cv = sig, cv
+        if pending:
+            _flush(steps, pending, problem_refs)
+        canvases.append({"name": name, "defs": defs.items, "nodes": nodes_t.items, "wires": wires_t.items,
+                         "groups": groups_t.items, "problems": probs.items, "steps": steps})
     src = work.cfg.get("source")
-    original = _original_view(src) if src and Path(src).is_file() else {"nodes": [], "wires": [], "groups": []}
-    return RPL.build(steps, names, original)
+    odefs = _Intern()
+    original = None
+    if src and Path(src).is_file():
+        original = _original_view(src, oi, odefs)
+        original["defs"] = odefs.items
+        original.update(_original_counts(work, src))
+    return RPL.build(canvases, original, lang)
+
+
+def _original_counts(work, path):
+    """The check counts of the source workflow's top level as saved (the author's positions), to compare the canvases with."""
+    raw = jload(path)
+    nodes, by = [], {}
+    for n in raw.get("nodes") or []:
+        if not (isinstance(n.get("pos"), (list, dict)) and isinstance(n.get("size"), (list, dict))):
+            continue
+        m = dict(n)
+        m["id"] = str(n["id"])
+        for k in ("pos", "size"):
+            m[k] = list(n[k].values())[:2] if isinstance(n[k], dict) else list(n[k])[:2]
+        for k in ("inputs", "outputs"):
+            m[k] = [dict(x, type=x.get("type") if isinstance(x.get("type"), str) else "COMBO") for x in n.get(k) or []]
+        by[m["id"]] = m
+        nodes.append(m)
+    links = []
+    for l in raw.get("links") or []:
+        l = l if isinstance(l, list) else [l.get("id"), l.get("origin_id"), l.get("origin_slot"), l.get("target_id"), l.get("target_slot"), l.get("type")]
+        t = by.get(str(l[3]))
+        if str(l[1]) not in by or not t or not isinstance(l[4], int) or l[4] >= len(t["inputs"]):
+            continue
+        links.append({"id": l[0], "origin_id": str(l[1]), "origin_slot": l[2], "target_id": str(l[3]),
+                      "target_input": t["inputs"][l[4]]["name"], "type": l[5]})
+    cv = Canvas(work, "original (not saved)", fresh=True)
+    cv.s.update(nodes=nodes, links=links)
+    try:
+        counts = full_check(cv)[1]
+    except Exception:   # a source the checks cannot read: no comparison rather than no page
+        return {}
+    return {"counts": counts}
+
+
+def _flush(steps, pending, problem_refs):
+    """Commands that changed nothing on the drawing, shown as one step (the problems are those after the last one)."""
+    cmd, x, sig, cv, lines, counts = pending[-1]
+    steps.append({"c": [p[0] for p in pending], "x": [p[1] for p in pending], "kind": "build" if len(pending) > 1 else "cmd",
+                  "v": sig, "p": problem_refs(cv, lines), "counts": counts})
+
+
+def _plain_name(cv, nid):
+    n = cv.nodes.get(nid)
+    if not n:
+        return nid
+    if n.get("type") == "Reroute":
+        return "Reroute"
+    return display_title(n, cv.oi)
+
+
+def _explain(before, after, cmd, notes):
+    """What the page needs to explain one command: the parsed words and the names of the nodes and blocks it mentions
+    (replay.py writes the sentence in the page's language)."""
+    try:
+        toks = shlex.split(cmd, comments=True)
+    except ValueError:
+        toks = cmd.split()
+    names, before_names, blocks = {}, {}, {}
+    for cv in (after, before):
+        for b, ids in cv.s.get("blocks", {}).items():
+            blocks.setdefault(b, list(ids))
+    for t in toks:
+        for part in {t, t.split(".", 1)[0]}:
+            if part in after.nodes:
+                names.setdefault(part, _plain_name(after, part))
+            if part in before.nodes:
+                before_names.setdefault(part, _plain_name(before, part))
+                names.setdefault(part, before_names[part])
+    groups = sorted({g["title"] for cv in (after, before) for g in cv.s.get("groups") or []})
+    x = {"toks": toks, "names": names, "before": before_names, "blocks": {b: v for b, v in blocks.items() if b in toks},
+         "groups": [g for g in groups if g in toks]}
+    if notes is not None:
+        x["lines"], x["notes"] = notes.get("lines"), notes.get("notes") or []
+        for ln in x["notes"]:
+            for t in re.findall(r"[\w:~]+", ln):
+                if t in after.nodes:
+                    names.setdefault(t, _plain_name(after, t))
+                if t in after.s.get("blocks", {}):
+                    x["blocks"].setdefault(t, list(after.s["blocks"][t]))
+    return x
 
 
 def main():

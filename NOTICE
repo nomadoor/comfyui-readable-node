@@ -5,6 +5,9 @@ reproduces the frontend's behaviour (subgraph expansion, widget value order, leg
 node sizes). That behaviour was checked against prompts produced by the running frontend; no frontend
 source code is included.
 
-scripts/ue.py reproduces the link rules of the Anything Everywhere custom nodes
+skills/comfyui-readable-node/scripts/ue.py reproduces the link rules of the Anything Everywhere custom nodes
 (cg-use-everywhere by chrisgoringe, Apache License 2.0). It was written from a description of
 that behaviour; no source code of that project is included.
+
+skills/comfyui-readable-node/scripts/fonts/PlusJakartaSans-latin.woff2 is Plus Jakarta Sans (Latin subset), embedded in the replay page.
+It is licensed under the SIL Open Font License 1.1; see skills/comfyui-readable-node/scripts/fonts/OFL-PlusJakartaSans.txt.
