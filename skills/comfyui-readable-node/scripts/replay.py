@@ -52,6 +52,7 @@ CHROME = {
 UI = {
     "en": {
         "original_note": "The workflow as its author saved it, in the author's positions. Press O or Rebuilt to go back.",
+        "original_note_api": "The original was in API format, which has no positions. It is shown as ComfyUI places it when it opens the file. Press O or Rebuilt to go back.",
         "appeared": "New at this step", "solved": "Solved at this step", "all_problems": "All problems at this step",
         "details": "Details", "command": "Command", "commands": "Commands",
         "keys_note": {"moved": "position changed", "added": "on the canvas for the first time", "changed": "size or contents changed", "removed": "gone at this step (shown faint)", "behind": "the dashed wire runs behind the node in the red dashed outline"},
@@ -62,6 +63,7 @@ UI = {
     },
     "ja": {
         "original_note": "作者が保存したままの workflow です（位置も作者のもの）。O か「組み直し」で戻ります。",
+        "original_note_api": "元は API 形式で、位置がありません。ComfyUI がこのファイルを開いたときと同じ並べ方で表示しています。O か「組み直し」で戻ります。",
         "appeared": "この手で出た問題", "solved": "この手で消えた問題", "all_problems": "この時点の問題すべて",
         "details": "詳しく", "command": "命令", "commands": "命令",
         "keys_note": {"moved": "位置が変わった", "added": "この手で初めて置いた", "changed": "大きさや中身が変わった", "removed": "この手でなくなった（薄く表示）", "behind": "点線の線が、赤い点線で囲んだノードの裏を通っている"},
@@ -474,6 +476,15 @@ PROBLEMS = [
     ("align", r"^value nodes side by side have unaligned tops \((\d+)px\): (\S+) and (\S+)$",
      lambda S, m: S.L(f"The value nodes {S.node(m.group(2))} and {S.node(m.group(3))} side by side have tops {m.group(1)} px apart",
                       f"横に並んだ値のノード {S.node(m.group(2))} と {S.node(m.group(3))} の上端が {m.group(1)} px ずれています")),
+    ("order", r"^(vae|clip) loader (\S+) is above the model loader (\S+):",
+     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (loaders go model first, then vae and clip)",
+                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（loader は上から model、その下に vae と clip）")),
+    ("order", r"^vae loader (\S+) is used only by VAE Decode and sits below the sampler (\S+):",
+     lambda S, m: S.L(f"{S.node(m.group(1))} is used only by VAE Decode but sits below the sampler {S.node(m.group(2))}",
+                      f"VAE Decode にだけ使う {S.node(m.group(1))} が、サンプラー {S.node(m.group(2))} より下にあります")),
+    ("space", r"^(\S+) is directly below (\S+) \((sampler|image|value-sized)\), which grows in ComfyUI",
+     lambda S, m: S.L(f"{S.node(m.group(1))} is directly below {S.node(m.group(2))}, which grows in ComfyUI",
+                      f"{S.node(m.group(1))} が、ComfyUI で伸びる {S.node(m.group(2))} の真下にあります")),
     ("order", r"^(\S+) is above its source (\S+) .*: (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(3))} sits above its source {S.node(m.group(2))}", f"{S.node(m.group(3))} が入力元 {S.node(m.group(2))} より上にあります")),
     ("space", r"^gap inside a column \((\d+)px tall, min (\d+)\): nothing between (\S+) and (\S+)$",
@@ -1323,7 +1334,7 @@ function panel(){
   if (!T) makeTiles();
   stepNo(); updateTiles();
   const B = $('pbody'); B.innerHTML = '';
-  if (orig){ B.appendChild(el('p', 'quiet', U.original_note)); return; }
+  if (orig){ B.appendChild(el('p', 'quiet', D.original && D.original.api ? U.original_note_api : U.original_note)); return; }
   const c = C(), st = c.steps[k];
   if (st.kind !== 'layout'){ const say = el('p', 'say'); rich(say, st.s); B.appendChild(say); }
   const cur = new Set(st.p.filter(x => real(c, x))), prev = new Set(k > 0 ? c.steps[k - 1].p.filter(x => real(c, x)) : []);

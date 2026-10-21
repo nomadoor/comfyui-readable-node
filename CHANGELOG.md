@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Reads API-format workflows. They have no positions, so the original is shown as ComfyUI places it when it opens the file.
+- `put … right|left` and `row` make the wire horizontal by default when the two nodes are wired (`top` aligns the tops).
+- New checks: loader order (model loader on top, then vae and clip), a Load VAE used only by VAE Decode placed below the sampler, and a node placed directly below a node that grows in ComfyUI (samplers, image nodes, Create Bounding Boxes).
+- `canvas finish` deletes the working folder once every canvas is exported and the replay page is up to date.
+- README: install as a plugin first (Claude Code, Codex), then `npx skills`; a section on models.
+
 ## 0.0.1 (2026-10-20)
 
 - First version. Not announced yet.

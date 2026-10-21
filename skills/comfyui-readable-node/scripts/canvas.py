@@ -41,12 +41,13 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
 
 ■ Laying out (<unit> is a node id or a block name. A block moves all its nodes together)
   put <unit> origin                         top-left at (0, 0)
-  put <unit> right <ref> [top|wire|bottom|middle] [gap N]   to the right of ref. Default: tops aligned, gap H_GAP
+  put <unit> right <ref> [top|wire|bottom|middle] [gap N]   to the right of ref. Default: wire if a wire connects them, else top; gap H_GAP
   put <unit> left <ref> [top|wire|bottom|middle] [gap N]
   put <unit> below <ref> [left|right|center] [gap N]       below ref. Default: left edges aligned, gap V_GAP
   put <unit> above <ref> [left|right|center] [gap N]
       wire: at the height where the (first) wire between ref and unit is horizontal
-  row <unit> ... [right <ref>] [top|wire] [gap N]   one row from left to right (the first goes right of ref, or stays where it is)
+  row <unit> ... [right <ref>] [top|wire] [gap N]   one row from left to right (the first goes right of ref, or stays where it is).
+                           Default: wire between neighbours that are wired, top between those that are not
   stack <unit> ... [below <ref>] [left|right] [gap N]  one column from top to bottom
   align <top|bottom|left|right|middle|center> <unit> ...   aligns to the first unit (the first does not move)
   inputs <id> [gap N]      puts the sources wired directly into that node in one right-aligned column on its left (in input order, top to bottom). Only the sources move.
@@ -117,19 +118,26 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
   export <json>            writes a workflow that ComfyUI can open
   replay <html> [en|ja]    writes a page that steps through every command on every canvas (for the user to see what was done).
                            The page's words are in English (en, default) or Japanese (ja)
-  undo                     reverts one command. A command that stopped changed nothing and is not recorded, so undo after it reverts the command before
+  finish                   deletes the working folder once every canvas is exported and the replay page is up to date
+                           (otherwise it stops, says what is missing and deletes nothing). Only files the canvas knows are deleted:
+                           what it wrote, the plan and Note files it was given, understanding.md. Other files are left, and so is the folder.
+                           With the environment variable CANVAS_KEEP_WORK=1 nothing is deleted; the files are only listed
+  undo                   reverts one command. A command that stopped changed nothing and is not recorded, so undo after it reverts the command before
   history                  all commands
 """
 
 import argparse
 import copy
+import hashlib
 import json
 import re
+import os
 import shlex
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import api_format as AF  # noqa: E402
 import comfy_schema as CS  # noqa: E402
 import compare as CMP  # noqa: E402
 import flatten as FL  # noqa: E402
@@ -237,6 +245,15 @@ class Work:
 
     def save_cfg(self):
         jdump(self.cfg_path, self.cfg)
+
+    def consume(self, path):
+        """Remembers a file the canvas was given (plan, Note), by its absolute path, so that finish can delete it."""
+        p = os.path.abspath(path)
+        lst = self.cfg.setdefault("consumed", [])
+        if p not in lst:
+            lst.append(p)
+            self.dir.mkdir(parents=True, exist_ok=True)
+            self.save_cfg()
 
     def src(self):
         p = self.dir / "src.flat.json"
@@ -992,6 +1009,138 @@ def _chk_output_above_source(cv, c):
     return out
 
 
+def single_loader_kind(cv, n):
+    """"MODEL", "CLIP" or "VAE" for a loader that outputs only that type (a checkpoint loader, which outputs several, is None)."""
+    if not cv.is_model_loader(n):
+        return None
+    kinds = {o.get("type") for o in n.get("outputs") or []}
+    return next(iter(kinds)) if len(kinds) == 1 else None
+
+
+def ends_through_reroutes(cv, nid):
+    """The wires out of nid, followed through Reroutes: the wires that end at a node that is not a Reroute."""
+    nodes, ends, seen, stack = cv.nodes, [], set(), [nid]
+    while stack:
+        x = stack.pop()
+        if x in seen:
+            continue
+        seen.add(x)
+        for l in cv.s["links"]:
+            if l["origin_id"] == x:
+                (stack.append(l["target_id"]) if nodes.get(l["target_id"], {}).get("type") == "Reroute" else ends.append(l))
+    return ends
+
+
+def source_through_reroutes(cv, tid, name):
+    """The node that feeds input name of tid, followed back through Reroutes (None if not wired)."""
+    nodes, seen = cv.nodes, set()
+    while tid not in seen:
+        seen.add(tid)
+        l = next((l for l in cv.s["links"] if l["target_id"] == tid and (name is None or l["target_input"] == name)), None)
+        if not l:
+            return None
+        o = nodes.get(l["origin_id"])
+        if not o or o.get("type") != "Reroute":
+            return o
+        tid, name = o["id"], None
+    return None
+
+
+def is_decode(n):
+    """A node that decodes a latent with a vae: takes LATENT and VAE, outputs IMAGE (VAE Decode, VAE Decode (Tiled) and so on)."""
+    ins = {i.get("type") for i in n.get("inputs") or []}
+    return {"LATENT", "VAE"} <= ins and "IMAGE" in {o.get("type") for o in n.get("outputs") or []}
+
+
+@check_rule("loader order")
+def _chk_loader_order(cv, c):
+    out = []
+    nodes, ws = c.nodes, c.ws  # noqa: F841
+    # loaders go from the top: model first, then vae and clip (checkpoint loaders are not counted)
+    kinds = {}
+    for n in cv.s["nodes"]:
+        k = single_loader_kind(cv, n) if cv.placed(n) else None
+        if k:
+            kinds.setdefault(k, []).append(n)
+    if not kinds.get("MODEL"):
+        return out
+    top = min(kinds["MODEL"], key=lambda n: G.rect(n)[1])
+    for k in ("VAE", "CLIP"):
+        for n in kinds.get(k, []):
+            if G.rect(n)[1] < G.rect(top)[1]:
+                out.append(f"{k.lower()} loader {n['id']} is above the model loader {top['id']}: "
+                           f"loaders go model first, then vae and clip below it")
+    return out
+
+
+@check_rule("VAE loader below the sampler")
+def _chk_vae_below_sampler(cv, c):
+    out = []
+    nodes, ws = c.nodes, c.ws  # noqa: F841
+    # a vae loader used only by decodes goes above the sampler (compared with the topmost sampler it reaches)
+    for n in cv.s["nodes"]:
+        if not cv.placed(n) or single_loader_kind(cv, n) != "VAE":
+            continue
+        ends = ends_through_reroutes(cv, n["id"])
+        targets = [nodes.get(l["target_id"]) for l in ends]
+        if not targets or not all(t and is_decode(t) for t in targets):
+            continue
+        samplers = []
+        for t in targets:
+            lat = next((i["name"] for i in t.get("inputs") or [] if i.get("type") == "LATENT"), None)
+            s = source_through_reroutes(cv, t["id"], lat)
+            if s and is_sampler(s) and cv.placed(s):
+                samplers.append(s)
+        if not samplers:
+            continue
+        s = min(samplers, key=lambda x: G.rect(x)[1])
+        if G.rect(n)[1] > G.rect(s)[1]:
+            out.append(f"vae loader {n['id']} is used only by VAE Decode and sits below the sampler {s['id']}: "
+                       f"put it above the sampler")
+    return out
+
+
+# nodes whose drawing area follows their values, so they grow in ComfyUI (Create Bounding Boxes follows width and height).
+# Others may exist; add them when found
+GROWS_WITH_VALUES = {"CreateBoundingBoxes"}
+
+
+def grows(cv, n):
+    """Why node n grows in ComfyUI ("sampler", "image", "value-sized"), or None."""
+    if is_sampler(n):
+        return "sampler"
+    if image_kind(n.get("type"), cv.oi):
+        return "image"
+    if n.get("type") in GROWS_WITH_VALUES:
+        return "value-sized"
+    return None
+
+
+@check_rule("below a node that grows")
+def _chk_below_growing(cv, c):
+    out = []
+    nodes, ws = c.nodes, c.ws  # noqa: F841
+    # the nearest node directly below a node that grows (overlapping by more than half of the narrower width)
+    body = [n for n in cv.s["nodes"] if cv.placed(n) and n.get("type") not in {"Reroute"} | NOTE_TYPES]
+    for a in body:
+        why = grows(cv, a)
+        if not why:
+            continue
+        ra = G.rect(a)
+        best = None
+        for b in body:
+            if b is a:
+                continue
+            rb = G.rect(b)
+            ov = min(ra[2], rb[2]) - max(ra[0], rb[0])
+            if ov >= min(ra[2] - ra[0], rb[2] - rb[0]) / 2 and rb[1] >= ra[3] - 1 and (best is None or rb[1] < G.rect(best)[1]):
+                best = b
+        if best:
+            out.append(f"{best['id']} is directly below {a['id']} ({why}), which grows in ComfyUI: "
+                       f"move it out from below (staircase, another column)")
+    return out
+
+
 @check_rule("gaps inside a column")
 def _chk_column_gap(cv, c):
     out = []
@@ -1378,6 +1527,75 @@ def load_source(path, oi):
     return flat, warns
 
 
+def workflow_hash(wf):
+    return hashlib.sha256(json.dumps(wf, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def canvases_hash(work):
+    """One hash of every canvas's current state (what the replay page is made from)."""
+    h = hashlib.sha256()
+    for name in work.names():
+        h.update(name.encode("utf-8"))
+        h.update(work.canvas_path(name).read_bytes())
+    return h.hexdigest()
+
+
+# files the canvas writes in the working folder, and the understanding document SKILL.md names
+WORK_FILES = ("object_info.json", "src.flat.json", "source.ui.json", "canvas.config.json", "understanding.md")
+
+
+def do_finish(work):
+    """Deletes the working folder once every canvas is exported and the replay page is up to date.
+    Only files the canvas knows are deleted, one by one: what it wrote, the plan and Note files it was given (if they are
+    inside the working folder) and understanding.md. Anything else is left, and then the folder is left too.
+    With the environment variable CANVAS_KEEP_WORK=1 nothing is deleted; the files are only listed."""
+    if not work.names():
+        raise Stop("no canvas (nothing to finish). Nothing is deleted")
+    missing = []
+    exported = work.cfg.get("exported") or {}
+    for name in work.names():
+        if exported.get(name) != workflow_hash(Canvas(work, name).workflow()[0]):
+            missing.append(f"canvas {name} has changed since it was exported (or was never exported): `use {name}` and `export <name>.json`")
+    if work.cfg.get("replayed") != canvases_hash(work):
+        missing.append("the replay page is older than the canvases: `replay <html> <lang>`")
+    if missing:
+        raise Stop("not finished. Nothing is deleted:\n  " + "\n  ".join(missing))
+    root = os.path.abspath(work.dir)
+
+    def inside(p):
+        try:
+            return os.path.commonpath([root, os.path.abspath(p)]) == root and os.path.abspath(p) != root
+        except ValueError:   # another drive (Windows): outside
+            return False
+
+    # every path absolute, so that the same file given two ways is listed once
+    files = [Path(root) / f for f in WORK_FILES]
+    for name in work.names():
+        cv_path = Path(root) / "canvas" / f"{name}.json"
+        files.append(cv_path)
+        files += sorted(cv_path.with_suffix(".hist").glob("*.json"))
+    files += [Path(os.path.abspath(p)) for p in work.cfg.get("consumed") or []]
+    files = [f for f in dict.fromkeys(files) if inside(f) and (f.is_file() or f.is_symlink())]
+    dirs = [Path(root) / "canvas" / f"{n}.hist" for n in work.names()] + [Path(root) / "canvas", Path(root)]
+    if os.environ.get("CANVAS_KEEP_WORK") == "1":
+        return ["CANVAS_KEEP_WORK=1: nothing deleted. finish would delete:"] + [f"  {os.path.relpath(f, root)}" for f in files]
+    for f in files:
+        f.unlink(missing_ok=True)   # a symlink: only the link
+    for d in dirs:
+        try:
+            d.rmdir()
+        except OSError:
+            pass
+    if os.path.exists(root):
+        left = sorted(os.path.relpath(os.path.join(dp, f), root) for dp, _, fs in os.walk(root) for f in fs)
+        if not left:
+            return [f"deleted {len(files)} files. The working folder {root} is empty but could not be removed "
+                    f"(it is the current directory?): remove it from outside"]
+        return [f"deleted {len(files)} files. The canvas does not know these, so they and the working folder were left: "
+                + ", ".join(left)]
+    return [f"deleted the working folder {root} ({len(files)} files)"]
+
+
 def do_open(work, args):
     if len(args) < 2:
         raise Stop("open <workflow.json> <object_info URL or JSON>")
@@ -1386,8 +1604,18 @@ def do_open(work, args):
     work.dir.mkdir(parents=True, exist_ok=True)
     jdump(work.dir / "object_info.json", oi)
     work._oi = oi
+    out = []
+    raw = jload(wf_path)
+    if AF.is_api(raw):
+        # no positions in API format: read it as ComfyUI opens it (the original view and diff use this file)
+        ui, warns = AF.to_ui(raw, oi)
+        wf_path = str(work.dir / "source.ui.json")
+        jdump(wf_path, ui)
+        out.append(f"API format: {len(ui['nodes'])} nodes. There were no positions, sizes, groups, Notes or bypassed nodes; "
+                   f"placed as ComfyUI places them when it opens an API-format file (source.ui.json). Say so in the report")
+        out += [f"warning: {w}" for w in warns]
     flat, warns = load_source(wf_path, oi)
-    out = [f"read: {len(flat['nodes'])} nodes, {len(flat['links'])} wires"]
+    out.append(f"read: {len(flat['nodes'])} nodes, {len(flat['links'])} wires")
     out += [f"warning: {w}" for w in warns]
     repl, warn = {}, []
     if oi_src.startswith("http"):
@@ -1879,6 +2107,8 @@ def _run_cmd(work, line):
         return do_models(work)
     if cmd == "refs":
         return do_refs(args)
+    if cmd == "finish":
+        return do_finish(work)
     if cmd == "list":
         cur = work.cfg.get("current")
         return [("* " if n == cur else "  ") + n for n in work.names()] or ["no canvases"]
@@ -1964,6 +2194,8 @@ def _run_cmd(work, line):
         wf, ids = cv.workflow()
         Path(args[0]).parent.mkdir(parents=True, exist_ok=True)
         jdump(args[0], wf)
+        work.cfg.setdefault("exported", {})[cv.name] = workflow_hash(wf)
+        work.save_cfg()
         un = [n["id"] for n in cv.s["nodes"] if not cv.placed(n)]
         out = [f"exported: {args[0]} ({len(wf['nodes'])} nodes, {len(wf['links'])} wires)"]
         if un:
@@ -1975,17 +2207,33 @@ def _run_cmd(work, line):
             raise Stop(f"replay <html> [{'|'.join(RPL.LANGS)}]")
         Path(args[0]).parent.mkdir(parents=True, exist_ok=True)
         Path(args[0]).write_text(replay_page(work, args[1] if len(args) > 1 else "en"), encoding="utf-8")
+        work.cfg["replayed"] = canvases_hash(work)
+        work.save_cfg()
         return [f"replay page: {args[0]}"]
 
     # from here on, commands change the state. A command that stops changes nothing
     snap = cv.snapshot(line.strip())
     cv.before = problems(cv)
     try:
-        return change(cv, work, cmd, args)
+        out = change(cv, work, cmd, args)
     except Exception:
         # a stopped command changes nothing and leaves no undo record (otherwise the next undo would say "undone" and restore nothing)
         snap.unlink()
         raise
+    consume_given_files(work, cmd, args)
+    return out
+
+
+def consume_given_files(work, cmd, args):
+    """After a layout or note that succeeded: remember the plan file and the Note files it used (finish deletes them)."""
+    if cmd == "note":
+        work.consume(args[0])
+    elif cmd == "layout":
+        work.consume(args[0])
+        for raw in Path(args[0]).read_text(encoding="utf-8").splitlines():
+            toks = shlex.split(raw, comments=True)
+            if len(toks) >= 2 and toks[0] == "note":
+                work.consume(toks[1])
 
 
 def change(cv, work, cmd, args):
@@ -2199,7 +2447,10 @@ def _op_put(cv, work, args):
         if rest:
             raise Stop(f"unreadable arguments: {' '.join(rest)}")
         al = next((a for a in ALIGNS if a in opt), None)
-        put_rel(cv, ids, args[1], cv.unit(args[2]), al, num(opt["gap"], "gap") if "gap" in opt else None)
+        ref = cv.unit(args[2])
+        if al is None and args[1] in ("right", "left") and cv.link_between(ref, ids):
+            al = "wire"   # side by side and wired: the wire is made horizontal, not the tops aligned
+        put_rel(cv, ids, args[1], ref, al, num(opt["gap"], "gap") if "gap" in opt else None)
 
 
 def _op_row(cv, work, args):
@@ -2207,14 +2458,14 @@ def _op_row(cv, work, args):
     units = [cv.unit(t) for t in pos]
     if not units:
         raise Stop("row <unit> ...")
-    al = "wire" if "wire" in opt else "top"
+    al = "top" if "top" in opt else "wire"
     gap = num(opt["gap"], "gap") if "gap" in opt else None
     start = 0
     if "right" in opt:
         ref = cv.unit(opt["right"])
         a = al if al == "top" or cv.link_between(ref, units[0]) else "top"
         if a != al:
-            cv.out.append(f"no wire between {opt['right']} and {pos[0]}: aligned their tops instead")
+            cv.out.append(f"no wire between {opt['right']} and {pos[0]}: aligned their tops")
         put_rel(cv, units[0], "right", ref, a, gap)
     elif not all(cv.placed(cv.node(i)) for i in units[0]):
         cv.place_unit(units[0], 0, 0)
@@ -2222,7 +2473,7 @@ def _op_row(cv, work, args):
     for k, (prev, u) in enumerate(zip(units, units[1:])):
         a = al if (al == "top" or cv.link_between(prev, u)) else "top"
         if a != al:
-            cv.out.append(f"no wire between {pos[k]} and {pos[k + 1]}: aligned their tops instead")
+            cv.out.append(f"no wire between {pos[k]} and {pos[k + 1]}: aligned their tops")
         put_rel(cv, u, "right", prev, a, gap)
 
 
@@ -3027,7 +3278,7 @@ def _original_view(path, oi, defs):
                           wire_key(o["id"], l[2], t["id"], t["inputs"][l[4]]["name"])])
     groups = [[g.get("title", "")] + [round(v) for v in (g.get("bounding") or [0, 0, 0, 0])[:4]] + [g.get("color") or "#3f789e"]
               for g in raw.get("groups") or []]
-    return {"nodes": nodes, "wires": wires, "groups": groups}
+    return {"nodes": nodes, "wires": wires, "groups": groups, "api": bool((raw.get("extra") or {}).get("api_format"))}
 
 
 def _plan_rerun(work, name, before, cmd):
@@ -3272,6 +3523,7 @@ def main():
             print("Stopped (nothing changed): run <file of commands> (no such file)")
             sys.exit(1)
         lines = Path(a.rest[1]).read_text(encoding="utf-8").splitlines()
+        work.consume(a.rest[1])
         for line in lines:
             if not line.strip() or line.strip().startswith("#"):
                 continue
