@@ -1,9 +1,9 @@
 ---
 name: comfyui-readable-node
-description: Builds a ComfyUI workflow (JSON) into a form people can read easily (Readable Node). Use it when taking an existing workflow apart and rebuilding it to be readable, or when building a new workflow. Do not hide nodes, do not hide wires (turn wireless links back into wires), left to right, 1 task per workflow, fewer custom nodes, appropriate colouring.
+description: Builds a ComfyUI workflow (JSON) into a form people can read easily (Readable Node). Use it when the user mentions Readable Node, asks to make a ComfyUI workflow readable or tidy, takes an existing workflow apart to rebuild it, or builds a new workflow. Do not hide nodes, do not hide wires (turn wireless links back into wires), left to right, 1 task per workflow, fewer custom nodes, appropriate colouring.
 license: MIT
 metadata:
-  version: "0.0.1"
+  version: "0.0.2"
 ---
 
 # Readable Node
@@ -173,6 +173,7 @@ Moves marked "(when there is an original)" are only for rebuilding a given workf
 9. **Report.** Write it in the user's language.
    - First, a few lines of summary: what was produced, what was changed, what the user should check. The path of the replay page.
    - Below that, the details: the understanding document, how it was split, what was changed and why (what was removed, what was replaced, the author's mistakes that were fixed), the diff differences and their reasons, and what was left in check and why.
+   - `canvas finish` deletes the working folder, including the understanding document. Take what the report needs from it first, then run `canvas finish`, then give the report. If a canvas is not exported or the replay page is out of date, it stops, says what is missing and deletes nothing.
 
 ## References
 

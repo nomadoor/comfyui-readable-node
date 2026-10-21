@@ -26,7 +26,7 @@ What is written here is what form to aim for.
 - Pre-processing (image pre-processing and so on) and loaders are often outside the band.
 
 **Make the positive conditioning enter the node that receives it (KSampler, CFGGuider and so on) horizontally.**
-- Making it horizontal is `put … wire`, `level`.
+- Making it horizontal is `put … right|left` (when the two are wired, the wire is made horizontal by default), `put … wire`, `level`.
 - Nodes that make conditioning (CLIP Text Encode, Apply … Conditioning, WanImageToVideo and so on) are placed on the same row as the sampler.
 - The negative side goes below it.
 - When the latent of the input image and the conditioning collide, take the conditioning horizontal and lower the chain of the input image to the row one below.
@@ -56,6 +56,9 @@ What is written here is what form to aim for.
 
 **Place a loader near and to the left of the node that first uses it, and connect it directly.** However, a loader (model, vae, clip) that is handed out to several stages on a rail goes on top, at the head of the rail (the section "Rails"). Even when the node that uses it first is in a lower row, bring the wire down to it from the rail.
 - Example: Load VAE goes to the left of the node that first uses it (VAE Encode, InpaintModelConditioning, WanImageToVideo and so on). If it is used only for VAE Decode, above the KSampler.
+
+**Loaders go from the top: the model loader first, then the vae and clip loaders below it.** Either of vae and clip may come first (Load VAE sometimes sits below the eye line).
+- A checkpoint loader (one node that loads model, clip and vae together) is not counted in this order. Neither are loaders of other kinds (SAM, detection, upscale models and so on).
 
 **Move the whole thing forward (right), and do not make backward wires (wires going back from right to left).**
 - The only one allowed is a backward wire of one node's width into a node with little content (but needed for clarity) (Conditioning Zero Out and so on). Do not connect to nodes that went back further than that.
@@ -105,7 +108,9 @@ What is written here is what form to aim for.
 
 **Nodes that show images (saving, preview, loading) are placed by the canvas at their initial size plus the image area, and overlaps are counted at that size.** (The image areas are in "Size and width".)
 - Samplers (KSampler, SamplerCustomAdvanced and so on) grow when run, with a progress preview inside. The canvas does not add this, so keep the space for that growth yourself.
+- Nodes that draw an area whose size follows their values grow too (Create Bounding Boxes follows width and height).
 - Do not stack other nodes directly below such nodes. When they grow, they hide the nodes below. When lining them up, follow the section "Staircase".
+- The canvas reports a node placed directly below them.
 
 ### Groups
 

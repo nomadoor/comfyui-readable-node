@@ -1,7 +1,10 @@
 {
   "name": "comfyui-readable-node",
+  "version": "0.0.2",
   "description": "Rebuilds ComfyUI workflows into a form people can read (Readable Node).",
-  "author": { "name": "nomadoor" },
+  "author": {
+    "name": "nomadoor"
+  },
   "license": "MIT",
   "repository": "https://github.com/nomadoor/comfyui-readable-node"
 }

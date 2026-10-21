@@ -1,0 +1,4 @@
+# Reviews are requested by hand with "@coderabbitai review" on a pull request.
+reviews:
+  auto_review:
+    enabled: false
