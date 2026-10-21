@@ -194,7 +194,8 @@ def _x_put(S, a, x, d):
     al_ja = {"top": "上端をそろえて", "bottom": "下端をそろえて", "middle": "上下の真ん中をそろえて",
              "wire": "間の線が水平になる高さで", "left": "左端をそろえて", "right": "右端をそろえて", "center": "左右の真ん中をそろえて"}
     if align is None:
-        align = "top" if how in ("right", "left") else "left"
+        # put right|left without a word: the canvas made the wire horizontal when the two are wired, otherwise aligned the tops
+        align = ("wire" if x.get("wired") else "top") if how in ("right", "left") else "left"
     if S.ja:
         g = f"（間隔 {opt['gap']} px）" if "gap" in opt else ""
         return f"{u} を {r} {where_ja}に、{al_ja.get(align, '')}置きました{g}"
@@ -204,11 +205,16 @@ def _x_put(S, a, x, d):
 def _x_row(S, a, x, d):
     pos, opt = _opts(a, keyed=("right", "gap"))
     units = [p for p in pos if p not in ("top", "wire")]
-    wire = "wire" in pos
+    # without top or wire, the canvas makes the wire horizontal between wired neighbours and aligns the tops of the others
+    w = x.get("wired")
+    wire = "wire" in pos or (isinstance(w, list) and w and all(w))
+    some = "top" not in pos and not wire and isinstance(w, list) and any(w)
     start = (S.L(f", starting to the right of {S.unit(opt['right'])}", f"（{S.unit(opt['right'])} の右から）")) if "right" in opt else ""
     if S.ja:
-        return f"{S.many(units, 4, d=d)} を左から右へ一列に並べました{start}" + ("。線は水平にしました" if wire else "")
-    return f"Lined up {S.many(units, 4, d=d)} in one row from left to right{start}" + (", with horizontal wires" if wire else "")
+        tail = "。線は水平にしました" if wire else ("。線でつながる隣どうしは線を水平に、ほかは上端をそろえました" if some else "")
+        return f"{S.many(units, 4, d=d)} を左から右へ一列に並べました{start}{tail}"
+    tail = ", with horizontal wires" if wire else (", wires horizontal between wired neighbours and tops aligned elsewhere" if some else "")
+    return f"Lined up {S.many(units, 4, d=d)} in one row from left to right{start}{tail}"
 
 
 def _x_stack(S, a, x, d):

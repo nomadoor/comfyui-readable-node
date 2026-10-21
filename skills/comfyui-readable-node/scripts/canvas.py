@@ -1540,6 +1540,16 @@ def canvases_hash(work):
     return h.hexdigest()
 
 
+def _file_hash(path, json_workflow=False):
+    """The hash of a file the canvas wrote (of the workflow it holds, for an exported workflow). None if it cannot be read."""
+    try:
+        if json_workflow:
+            return workflow_hash(jload(path))
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except (OSError, TypeError, ValueError):
+        return None
+
+
 # files the canvas writes in the working folder, and the understanding document SKILL.md names
 WORK_FILES = ("object_info.json", "src.flat.json", "source.ui.json", "canvas.config.json", "understanding.md")
 
@@ -1554,10 +1564,17 @@ def do_finish(work):
     missing = []
     exported = work.cfg.get("exported") or {}
     for name in work.names():
-        if exported.get(name) != workflow_hash(Canvas(work, name).workflow()[0]):
+        rec = exported.get(name)
+        now = workflow_hash(Canvas(work, name).workflow()[0])
+        if not isinstance(rec, dict) or rec.get("hash") != now:
             missing.append(f"canvas {name} has changed since it was exported (or was never exported): `use {name}` and `export <name>.json`")
-    if work.cfg.get("replayed") != canvases_hash(work):
+        elif _file_hash(rec.get("path"), json_workflow=True) != now:
+            missing.append(f"the exported file of canvas {name} is missing or was changed ({rec.get('path')}): `use {name}` and `export <name>.json`")
+    rep_ = work.cfg.get("replayed")
+    if not isinstance(rep_, dict) or rep_.get("canvases") != canvases_hash(work):
         missing.append("the replay page is older than the canvases: `replay <html> <lang>`")
+    elif _file_hash(rep_.get("path")) != rep_.get("file"):
+        missing.append(f"the replay page is missing or was changed ({rep_.get('path')}): `replay <html> <lang>`")
     if missing:
         raise Stop("not finished. Nothing is deleted:\n  " + "\n  ".join(missing))
     root = os.path.abspath(work.dir)
@@ -2194,7 +2211,7 @@ def _run_cmd(work, line):
         wf, ids = cv.workflow()
         Path(args[0]).parent.mkdir(parents=True, exist_ok=True)
         jdump(args[0], wf)
-        work.cfg.setdefault("exported", {})[cv.name] = workflow_hash(wf)
+        work.cfg.setdefault("exported", {})[cv.name] = {"path": os.path.abspath(args[0]), "hash": workflow_hash(wf)}
         work.save_cfg()
         un = [n["id"] for n in cv.s["nodes"] if not cv.placed(n)]
         out = [f"exported: {args[0]} ({len(wf['nodes'])} nodes, {len(wf['links'])} wires)"]
@@ -2207,7 +2224,8 @@ def _run_cmd(work, line):
             raise Stop(f"replay <html> [{'|'.join(RPL.LANGS)}]")
         Path(args[0]).parent.mkdir(parents=True, exist_ok=True)
         Path(args[0]).write_text(replay_page(work, args[1] if len(args) > 1 else "en"), encoding="utf-8")
-        work.cfg["replayed"] = canvases_hash(work)
+        work.cfg["replayed"] = {"path": os.path.abspath(args[0]), "canvases": canvases_hash(work),
+                                "file": hashlib.sha256(Path(args[0]).read_bytes()).hexdigest()}
         work.save_cfg()
         return [f"replay page: {args[0]}"]
 
@@ -3477,6 +3495,23 @@ def _plain_name(cv, nid):
     return display_title(n, cv.oi)
 
 
+def _wired_pairs(cv, toks):
+    """For put right|left and row without an alignment word: whether each pair placed side by side is wired
+    (then the canvas made the wire horizontal, otherwise it aligned the tops)."""
+    def wired(a, b):
+        try:
+            return bool(cv.link_between(cv.unit(a), cv.unit(b)))
+        except Stop:
+            return False
+    if len(toks) >= 4 and toks[0] == "put" and toks[2] in ("right", "left") and not set(toks[4:]) & set(ALIGNS):
+        return {"wired": wired(toks[1], toks[3])}
+    if toks and toks[0] == "row" and not {"top", "wire"} & set(toks):
+        pos, opt = parse_opts(toks[1:], flags=set(), keyed=("right", "gap"))
+        units = ([opt["right"]] if "right" in opt else []) + pos
+        return {"wired": [wired(a, b) for a, b in zip(units, units[1:])]}
+    return {}
+
+
 def _explain(before, after, cmd, notes):
     """What the page needs to explain one command: the parsed words and the names of the nodes and blocks it mentions
     (replay.py writes the sentence in the page's language)."""
@@ -3498,6 +3533,7 @@ def _explain(before, after, cmd, notes):
     groups = sorted({g["title"] for cv in (after, before) for g in cv.s.get("groups") or []})
     x = {"toks": toks, "names": names, "before": before_names, "blocks": {b: v for b, v in blocks.items() if b in toks},
          "groups": [g for g in groups if g in toks]}
+    x.update(_wired_pairs(after, toks))
     if notes is not None:
         x["lines"], x["notes"] = notes.get("lines"), notes.get("notes") or []
         for ln in x["notes"]:

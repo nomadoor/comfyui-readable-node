@@ -74,6 +74,17 @@ class FinishTest(unittest.TestCase):
         self.assertIn("changed since it was exported", msg)
         self.assertIn("replay page is older", msg)
 
+    def test_a_missing_export_or_replay_page_stops_it(self):
+        self.export_and_replay()
+        (self.out / "t.json").unlink()
+        (self.out / "replay.html").write_text("changed", encoding="utf-8")
+        with self.assertRaises(C.Stop) as e:
+            self.do("finish")
+        msg = str(e.exception)
+        self.assertIn("exported file of canvas t is missing or was changed", msg)
+        self.assertIn("replay page is missing or was changed", msg)
+        self.assertTrue((self.w / "src.flat.json").exists())
+
     def test_unknown_files_and_the_folder_are_left(self):
         self.export_and_replay()
         (self.w / "mine.txt").write_text("x", encoding="utf-8")

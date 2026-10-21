@@ -89,6 +89,16 @@ class CanvasTest(unittest.TestCase):
         self.do("put 13 right 27 top")
         self.assertEqual(self.rect("13")[1], self.rect("27")[1])
 
+    def test_replay_says_the_wire_was_made_horizontal(self):
+        import replay as R
+        self.do("put 27 origin")
+        self.do("put 13 right 27")
+        x = C._explain(self.cv(), self.cv(), "put 13 right 27", None)
+        self.assertTrue(x["wired"])
+        self.assertIn("made the wire between them horizontal", R.explain(x, "en")["s"])
+        x = C._explain(self.cv(), self.cv(), "put 26 right 12", None)
+        self.assertIn("tops aligned", R.explain(x, "en")["s"])
+
     def test_put_side_by_side_without_a_wire_aligns_tops(self):
         self.do("put 12 origin")
         self.do("put 26 right 12")
