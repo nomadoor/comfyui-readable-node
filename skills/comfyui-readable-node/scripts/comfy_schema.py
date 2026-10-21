@@ -292,6 +292,24 @@ def widget_spec(info, name, named=None):
                                                              if k.startswith(parent + ".")}) if "." in child else sub.get(child)
 
 
+# node types whose frontend extension saves widgets_values as {widget name: value} instead of a list. VideoHelperSuite does
+# this for every VHS_ node, and reads a list in an old order of its own (a list in the current order lands in the wrong widgets)
+NAMED_VALUE_PREFIXES = ("VHS_",)
+
+
+def keeps_named_values(node_type):
+    return str(node_type or "").startswith(NAMED_VALUE_PREFIXES)
+
+
+def saved_widgets_values(node_type, info, named):
+    """widgets_values in the form the frontend saves for this type: build_widgets_values, or for the types in
+    NAMED_VALUE_PREFIXES the same values keyed by widget name (the upload button is left out)."""
+    values = build_widgets_values(info, named)
+    if not keeps_named_values(node_type):
+        return values
+    return {nm: v for nm, v in zip(widget_names(info, values), values) if nm != "upload"}
+
+
 def build_widgets_values(info, named):
     """Build widgets_values in the frontend's order from {name: value}. Missing names get default values.
     - Only the selected option's DynamicCombo children are listed (repeated until the choice settles).
