@@ -9,7 +9,7 @@ Behaviour matched to the frontend (loadApiJson, then graph.arrange() and compute
 - Nodes are created in the order of Object.keys: integer-like ids in ascending order first, then the others in file order.
   An id with ":" (a node from inside a subgraph) becomes the same id with "_".
 - The title is _meta.title (written only when it differs from the display name, as the frontend saves it).
-- Values that are not [id, slot] go into the widgets; [id, slot] become wires, in the order of the inputs.
+- Values that are not [id, slot] go into the widgets (keyed by name for the types that save them that way, VHS_ and so on); [id, slot] become wires, in the order of the inputs.
 - arrange(): one column per level (1 + the longest path from a node with no wired input), from x = 100, each column
   as wide as its widest node (at least 100) + 100. In a column, from y = 100 + 30, each node height + 100 + 30 down.
   The order in a column is the topological order (a queue from the nodes with no wired input, outputs in slot order).
@@ -81,9 +81,10 @@ def to_ui(api, oi):
         n = {"id": nid, "type": t, "pos": [0, 0], "size": [0, 0], "flags": {}, "order": 0, "mode": 0,
              "properties": {"Node name for S&R": t}}
         if info:
-            n["widgets_values"] = CS.build_widgets_values(info, named)
-            n["inputs"], n["outputs"] = CS.new_node_slots(info, n["widgets_values"])
-            unknown = [nm for nm in named if nm not in CS.widget_names(info, n["widgets_values"])]
+            values = CS.build_widgets_values(info, named)
+            n["widgets_values"] = CS.saved_widgets_values(t, info, named)
+            n["inputs"], n["outputs"] = CS.new_node_slots(info, values)
+            unknown = [nm for nm in named if nm not in CS.widget_names(info, values)]
             if unknown:
                 warns.append(f"{k} {t}: values for widgets the current definition does not have were dropped: {', '.join(unknown)}")
         else:

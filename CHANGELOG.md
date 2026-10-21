@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: values of VideoHelperSuite nodes (`VHS_`) read from an API-format workflow, or added on the canvas, landed in the wrong widgets (for example `frame_load_cap` in `skip_first_frames`). They are now written by name, as VideoHelperSuite saves them.
+- VideoHelperSuite's loading nodes (Load Video and others) count as nodes that show a preview: their size includes the preview area, and a node under them is reported.
+- A node is reported as directly below a node that grows when it overlaps it horizontally at all (it was more than half of the width).
+
 ## 0.0.2 (2026-10-21)
 
 - Reads API-format workflows. They have no positions, so the original is shown as ComfyUI places it when it opens the file.

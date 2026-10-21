@@ -197,14 +197,21 @@ def display_title(n, oi):
     return info.get("display_name") or n.get("type")
 
 
+# loading nodes whose preview a frontend extension adds, so object_info has no upload flag for them (VideoHelperSuite)
+LOADS_WITH_PREVIEW = {"VHS_LoadVideo", "VHS_LoadVideoFFmpeg", "VHS_LoadVideoPath", "VHS_LoadVideoFFmpegPath",
+                      "VHS_LoadImages", "VHS_LoadImagesPath", "VHS_LoadImagePath"}
+
+
 def image_kind(t, oi):
-    """Whether a node type shows an image, recognised from object_info (not from the type name):
+    """Whether a node type shows an image, recognised from object_info (by type name only for LOADS_WITH_PREVIEW):
     "save" for an output node that takes an IMAGE or VIDEO input and saves files ("save" in its category or name, or a
     filename_prefix input), "preview" for another output node that takes an IMAGE input and puts out nothing but IMAGE, "load" for a node with an
     input carrying image_upload or video_upload. None otherwise (also for a type not in object_info)."""
     info = oi.get(t)
     if not info:
         return None
+    if t in LOADS_WITH_PREVIEW:
+        return "load"
     specs = [(nm, CS._spec_type_and_opts(sp)) for nm, sp, _ in CS.ordered_input_specs(info) if isinstance(sp, (list, tuple)) and sp]
     if any(any(opts.get(f) for f in IMAGE_UPLOAD_FLAGS) for _, (_, opts) in specs):
         return "load"
@@ -1120,7 +1127,7 @@ def grows(cv, n):
 def _chk_below_growing(cv, c):
     out = []
     nodes, ws = c.nodes, c.ws  # noqa: F841
-    # the nearest node directly below a node that grows (overlapping by more than half of the narrower width)
+    # the nearest node directly below a node that grows (any horizontal overlap: even a node that sticks out only a little is hidden when it grows)
     body = [n for n in cv.s["nodes"] if cv.placed(n) and n.get("type") not in {"Reroute"} | NOTE_TYPES]
     for a in body:
         why = grows(cv, a)
@@ -1133,7 +1140,7 @@ def _chk_below_growing(cv, c):
                 continue
             rb = G.rect(b)
             ov = min(ra[2], rb[2]) - max(ra[0], rb[0])
-            if ov >= min(ra[2] - ra[0], rb[2] - rb[0]) / 2 and rb[1] >= ra[3] - 1 and (best is None or rb[1] < G.rect(best)[1]):
+            if ov > 0 and rb[1] >= ra[3] - 1 and (best is None or rb[1] < G.rect(best)[1]):
                 best = b
         if best:
             out.append(f"{best['id']} is directly below {a['id']} ({why}), which grows in ComfyUI: "
@@ -2301,7 +2308,8 @@ def _op_add(cv, work, args):
         raise Stop(f"{nid} already exists")
     vals = CS.build_widgets_values(info, {})
     ins, outs = CS.new_node_slots(info, vals)
-    n = {"id": nid, "type": t, "mode": 0, "inputs": ins, "outputs": outs, "widgets_values": vals,
+    n = {"id": nid, "type": t, "mode": 0, "inputs": ins, "outputs": outs,
+         "widgets_values": CS.saved_widgets_values(t, info, {}),
          "properties": {"Node name for S&R": t}, "pos": None}
     cv.size_node(n)
     cv.default_color(n)
