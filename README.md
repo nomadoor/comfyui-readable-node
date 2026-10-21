@@ -13,34 +13,43 @@ An agent skill that rebuilds ComfyUI workflows into a form people can read: **Re
 
 ## Install
 
-Use one of the two ways below, not both on the same machine (the skill would be listed twice).
+Use one of the ways below. Installing two lists the skill twice.
 
-**Any agent (Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot and others)**
+### Claude Code
 
-```bash
-npx skills add nomadoor/comfyui-readable-node -g
-```
-
-Update:
-
-```bash
-npx skills update -g
-```
-
-This needs Node.js 22.20 or later.
-
-**Claude Code (no Node.js needed)**
-
-In a Claude Code session:
+In a Claude Code session, run:
 
 ```
 /plugin marketplace add nomadoor/comfyui-readable-node
 /plugin install comfyui-readable-node@comfyui-readable-node
 ```
 
-To receive updates automatically, open `/plugin`, go to Marketplaces, select `comfyui-readable-node` and choose Enable auto-update. Without it, update with `/plugin marketplace update comfyui-readable-node`.
+To get updates automatically, open `/plugin`, go to Marketplaces, select `comfyui-readable-node` and choose Enable auto-update.
+
+### Codex
+
+```bash
+codex plugin marketplace add nomadoor/comfyui-readable-node
+codex plugin add comfyui-readable-node@comfyui-readable-node
+```
+
+### Other agents (Gemini CLI, Cursor, GitHub Copilot and others)
+
+```bash
+npx skills add nomadoor/comfyui-readable-node -g
+```
+
+This needs Node.js 22.20 or later.
 
 The scripts need Python 3 (standard library only).
+
+## Models
+
+The skill runs a long job and checks its own work as it goes, so it needs a strong model.
+
+- Claude Opus 5.5 works best.
+- GPT 6.1 works, but may leave some layout problems.
+- With anything below Sonnet, it may not work well.
 
 ## Use
 
@@ -48,6 +57,8 @@ The scripts need Python 3 (standard library only).
 2. Ask your agent, for example:
    - "Make `my_workflow.json` readable with Readable Node. ComfyUI is running at http://127.0.0.1:8188."
    - "Build a Text to Image workflow for Flux with Readable Node."
+
+   To call it directly: `/comfyui-readable-node` (`/comfyui-readable-node:comfyui-readable-node` when installed as a plugin).
 3. You get the rebuilt workflow (`.json`) and a report. Open the workflow in ComfyUI to check it.
 
 As an extra, `replay.html` replays the rebuild step by step.

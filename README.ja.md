@@ -13,44 +13,55 @@ ComfyUI の workflow を、人が読みやすい形（**Readable Node**）に組
 
 ## 導入
 
-下の二つのどちらか一つで入れます。同じ PC で両方を使うと、skill が二重に並びます。
+下のどれか一つで入れてください。二つ入れると、skill が二重に並びます。
 
-**どのエージェントでも（Claude Code、Codex、Gemini CLI、Cursor、GitHub Copilot など）**
+### Claude Code
 
-```bash
-npx skills add nomadoor/comfyui-readable-node -g
-```
-
-更新:
-
-```bash
-npx skills update -g
-```
-
-Node.js 22.20 以上が要ります。
-
-**Claude Code（Node.js は要りません）**
-
-Claude Code のセッションの中で:
+Claude Code のセッションの中で、次を実行してください。
 
 ```
 /plugin marketplace add nomadoor/comfyui-readable-node
 /plugin install comfyui-readable-node@comfyui-readable-node
 ```
 
-自動で更新するには、`/plugin` の Marketplaces で `comfyui-readable-node` を選び、Enable auto-update を選びます。選ばない場合は、`/plugin marketplace update comfyui-readable-node` で更新します。
+自動で更新したいときは、`/plugin` の Marketplaces で `comfyui-readable-node` を選び、Enable auto-update を選んでください。
 
-scripts は Python 3 で動きます（標準ライブラリだけ）。
+### Codex
+
+```bash
+codex plugin marketplace add nomadoor/comfyui-readable-node
+codex plugin add comfyui-readable-node@comfyui-readable-node
+```
+
+### そのほかのエージェント（Gemini CLI、Cursor、GitHub Copilot など）
+
+```bash
+npx skills add nomadoor/comfyui-readable-node -g
+```
+
+Node.js 22.20 以上が必要です。
+
+scripts を動かすには Python 3 が必要です（標準ライブラリだけを使います）。
+
+## モデル
+
+長い作業を自分で確かめながら進める skill なので、強いモデルを使ってください。
+
+- いちばん良いのは Claude Opus 5.5 です。
+- GPT 6.1 でも使えますが、配置の崩れが残ることがあります。
+- 少なくとも Sonnet 以上のモデルでないと、うまくいかないかもしれません。
 
 ## 使い方
 
-1. ComfyUI を起動しておきます。skill は、動いている ComfyUI からノードの定義を読みます。
-2. エージェントに頼みます。たとえば:
+1. ComfyUI を起動しておいてください。skill は、動いている ComfyUI からノードの定義を読みます。
+2. エージェントに頼んでください。たとえば:
    - 「Readable Node で `my_workflow.json` を読みやすくして。ComfyUI は http://127.0.0.1:8188 で動いています。」
    - 「Readable Node で、Flux の Text to Image の workflow を作って。」
-3. 組み直した workflow（`.json`）と、報告が出てきます。workflow を ComfyUI で開いて確かめます。
 
-おまけとして、組み直しを一手ずつたどる `replay.html` も出ます。
+   確実に呼びたいときは `/comfyui-readable-node` と打ってください（plugin で入れたときは `/comfyui-readable-node:comfyui-readable-node`）。
+3. 組み直した workflow（`.json`）と報告が出てきます。workflow を ComfyUI で開いて確かめてください。
+
+おまけとして、組み直しを一手ずつたどれる `replay.html` も出ます。
 
 ## ライセンス
 

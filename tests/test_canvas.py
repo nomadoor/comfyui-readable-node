@@ -78,6 +78,75 @@ class CanvasTest(unittest.TestCase):
         b = cv.in_xy("30", "model")
         self.assertLess(abs(a[1] - b[1]), 1)
 
+    def test_put_side_by_side_levels_the_wire_by_default(self):
+        # 27 goes into the last input of 13 (latent_image): tops aligned would leave the wire diagonal
+        self.do("put 27 origin")
+        self.do("put 13 right 27")
+        cv = self.cv()
+        a, b = cv.out_xy("27", 0), cv.in_xy("13", "latent_image")
+        self.assertLess(abs(a[1] - b[1]), 1)
+        self.assertNotEqual(self.rect("13")[1], self.rect("27")[1])
+        self.do("put 13 right 27 top")
+        self.assertEqual(self.rect("13")[1], self.rect("27")[1])
+
+    def test_replay_says_the_wire_was_made_horizontal(self):
+        import replay as R
+        self.do("put 27 origin")
+        self.do("put 13 right 27")
+        x = C._explain(self.cv(), self.cv(), "put 13 right 27", None)
+        self.assertTrue(x["wired"])
+        self.assertIn("made the wire between them horizontal", R.explain(x, "en")["s"])
+        x = C._explain(self.cv(), self.cv(), "put 26 right 12", None)
+        self.assertIn("tops aligned", R.explain(x, "en")["s"])
+
+    def test_put_side_by_side_without_a_wire_aligns_tops(self):
+        self.do("put 12 origin")
+        self.do("put 26 right 12")
+        self.assertEqual(self.rect("26")[1], self.rect("12")[1])
+
+    def test_row_levels_wired_neighbours_by_default(self):
+        self.do("put 27 origin")
+        self.do("row 27 13")
+        cv = self.cv()
+        a, b = cv.out_xy("27", 0), cv.in_xy("13", "latent_image")
+        self.assertLess(abs(a[1] - b[1]), 1)
+
+    def check_lines(self, rule):
+        cv = self.cv()
+        fn = next(f for n, f in C.CHECKS if n == rule)
+        return fn(cv, C._CheckCtx(cv))
+
+    def test_loader_order_reports_vae_above_model(self):
+        self.do("put 12 origin")
+        self.do("put 10 above 12")
+        self.assertTrue(any(x.startswith("vae loader 10 is above the model loader 12") for x in self.check_lines("loader order")))
+        self.do("put 10 below 12")
+        self.assertEqual(self.check_lines("loader order"), [])
+
+    def test_vae_loader_used_only_by_decode_below_the_sampler(self):
+        self.do("put 13 origin")
+        self.do("put 8 right 13")
+        self.do("put 10 below 13")
+        self.assertTrue(any(x.startswith("vae loader 10 is used only by VAE Decode and sits below the sampler 13")
+                            for x in self.check_lines("VAE loader below the sampler")))
+        self.do("put 10 above 8")
+        self.assertEqual(self.check_lines("VAE loader below the sampler"), [])
+
+    def test_vae_loader_check_follows_reroutes(self):
+        self.do("put 13 origin")
+        self.do("put 8 right 13")
+        self.do("put 10 below 13")
+        self.do("rail 10.VAE below 13 to 8.vae")
+        self.assertTrue(any(x.startswith("vae loader 10 is used only by VAE Decode")
+                            for x in self.check_lines("VAE loader below the sampler")))
+
+    def test_node_directly_below_a_sampler(self):
+        self.do("put 13 origin")
+        self.do("put 8 below 13")
+        self.assertTrue(any(x.startswith("8 is directly below 13 (sampler)") for x in self.check_lines("below a node that grows")))
+        self.do("put 8 right 13")
+        self.assertEqual(self.check_lines("below a node that grows"), [])
+
     def test_below_keeps_left_edge_and_gap(self):
         self.do("put 12 origin")
         self.do("put 11 below 12")
