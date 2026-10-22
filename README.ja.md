@@ -61,7 +61,7 @@ scripts を動かすには Python 3 が必要です（標準ライブラリだ�
    確実に呼びたいときは `/comfyui-readable-node` と打ってください（plugin で入れたときは `/comfyui-readable-node:comfyui-readable-node`）。
 3. 組み直した workflow（`.json`）と報告が出てきます。workflow を ComfyUI で開いて確かめてください。
 
-おまけとして、組み直しを一手ずつたどれる `replay.html` も出ます。
+報告のページ `report.html` も出ます。元の workflow、組み直しの手順、出来上がった workflow の説明（Walkthrough）を見られます。
 
 ## ライセンス
 

@@ -1,15 +1,15 @@
 # Replacement dictionary
 
-Replacements for custom nodes and deprecated core nodes that have been confirmed by reading the source once. Replacements decided by the node's name are here; techniques that rebuild the form of several nodes are in techniques.md. Those listed here may be used without investigating again. For those not listed here, read the source following the steps in SKILL.md and write it in the table of the understanding document.
+Replacements for custom nodes and deprecated core nodes that have been confirmed by reading the source once. Replacements decided by the node's name are here; techniques that rebuild the form of several nodes are in techniques.md. Those listed here may be used without investigating again. For those not listed here, read the source following the steps below and write it in the table of the understanding document.
 
-A custom node not listed here is decided by reading its source. For a custom node that is not installed in ComfyUI, read only the files you need.
+For a custom node that is not installed in ComfyUI, read only the files you need.
 1. Find the repository. If the node's properties have `cnr_id`, use `repository` from `https://api.comfy.org/nodes/<cnr_id>`. Otherwise `aux_id` (if it is `owner/repo`, GitHub). If neither exists, look up `https://api.comfy.org/comfy-nodes/<type>/node` with the node's type name. If it is not there either, search ComfyUI-Manager's `https://raw.githubusercontent.com/Comfy-Org/ComfyUI-Manager/main/extension-node-map.json`.
 2. Read `__init__.py` by its raw URL, and follow `NODE_CLASS_MAPPINGS` to the file that has the node's type name.
 3. Read only that file. If `ver` is a commit, read the one at that commit.
 - Do not clone. Do not run code you fetched. Do not put it into ComfyUI's custom_nodes.
 - If it is found nowhere, leave it unreplaced, and write in the report "the source was not found, so this could not be determined".
 
-For where replacement stops, see SKILL.md.
+For where replacement stops, see content.md.
 
 Write what changes through a replacement in the report (not in a Note). For replacements that change the model file or its location, put the new model in the list of the overview and models Note.
 

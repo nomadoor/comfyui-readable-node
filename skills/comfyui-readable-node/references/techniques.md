@@ -23,7 +23,7 @@ After:  Float(0.6), Float(0.8), Float(1.0) → Create List → LoRA.strength_mod
 - A node that receives a list is executed per element, and everything after it also flows per element.
 - If the same value goes into two places (strength_model and strength_clip), connect the same Create List to both.
 - If the per-branch filenames exist only to tell the files apart, do not make a list of names. Use one filename_prefix and leave it to Save Image's sequence number (within one execution, the number order is the list order).
-- In the Usage of a nearby Note, add one line in the user's language: "One image is generated for each of these values." When you did not make a list of filenames, also add "Files are saved in the order of the list."
+- In the Usage of a nearby Note, add one line: "One image is generated for each of these values." When you did not make a list of filenames, also add "Files are saved in the order of the list."
 - When it does not apply: two or more values differ per branch (both the strength and the prompt, and so on). Different processing has been added per branch.
 - Watch out:
   - If lists go into two places, they are not multiplied. They are paired in element order (1st with 1st, 2nd with 2nd). If the lengths differ, the last element of the shorter one is repeated. The number of executions is the length of the longest list.
@@ -101,6 +101,7 @@ After:  positive conditioning → ConditioningZeroOut → negative
 ```
 
 - With cfg 1.0 the sampler does not use the negative in its calculation. The negative input only needs a conditioning connected; there is no need to encode a text.
+- This holds when the author wrote a negative text too (it has no effect at cfg 1.0). Replace it the same way, and write the author's negative text in the Caution of a Note (it is needed if cfg is raised).
 - Does not apply: cfg is higher than 1.0 (encoding an empty text and a zeroed conditioning then give different results).
 - Checked in: comfy/samplers.py (with cfg 1.0 the negative is not calculated), nodes.py ConditioningZeroOut (only sets the conditioning it receives to zero).
 
@@ -190,7 +191,7 @@ After:  candidates A, B, C → Create List → Get Item From List(index) → …
 ```
 
 - Keep the ability to choose as a whole. Do not keep only the one that is currently chosen.
-- A switch that chooses between ways of doing it is merged into the one the workflow's author chose, as in "Split" in SKILL.md.
+- A switch that chooses between ways of doing it is merged into the one the workflow's author chose, as in "Split" in content.md.
 - Where verified: comfy_extras/nodes_toolkit.py (Create List, Get Item From List). Whether the type of the chosen value matches where it plugs in is `canvas check`.
 
 ### Return a build that restricts the output's resolution or shape for no reason to the standard form

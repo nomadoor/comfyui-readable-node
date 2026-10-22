@@ -177,7 +177,11 @@ Before: because of the width of Empty Latent, CLIP Text Encode shifted one colum
 After:  what connects straight into the sampler (Load LoRA, Empty Latent Image, the two CLIP Text Encode) in one column, right-aligned
 ```
 
-**Nodes with many inputs (WanAnimateToVideo, WanSoundImageToVideo)**
+**Nodes with many inputs (WanAnimateToVideo, WanSoundImageToVideo, WanSCAILToVideo)**
+```
+Before: the sources of WanSCAILToVideo (8 inputs) were spread around it, and its wires crossed
+After:  its sources in one column on its left, top to bottom in input order, right edges aligned, as for a sampler (`inputs`): positive, negative, VAE, pose video, its mask, reference image, its mask, CLIP Vision, size (a hand-made layout)
+```
 ```
 Before: put the chain that cuts the face out of the DWPose output above DWPose, to match the slot order (face_video above pose_video)
 After:  put it below DWPose (match the flow of processing)
@@ -367,6 +371,7 @@ After:  ### With cfg at 1.1, most of the Distill version's speed is lost
 - **Make the wire horizontal, or align the top edges.** In the hand-made layout examples, the horizontal wire wins almost everywhere. The only pair with aligned top edges was AnimateDiff's Latent Keyframe Timing → Timestep Keyframe. How to tell when to take the top edge is not known.
 - **Put a node that gathers inputs at the middle of its sources, or align its top edge with its neighbour.** Where Detailer's Simple Detector (three inputs) and SEGS Filter sit side by side, it was corrected because their top edges were not aligned.
 - **How to route a single wire when even the output's height hits a node.** Whether to escape above or below.
+- **Two Preview Image nodes that show what one node made, next to the sampler.** A rebuild stacked them in the column left of KSampler, so one sat directly below the other (Preview grows). Stepping the lower one to the right put it directly below KSampler instead. Side by side, stacked, merged into one Preview: not decided.
 - **When a wire may pass behind nodes.** A wire where it is naturally clear which is where it goes in behind and where it comes out does not need to be lifted with Reroutes (for example, the VAE wire from Load Checkpoint to VAE Decode going in behind KSampler as one wire and coming out as one). Candidate guides are few crossings and no running backwards. It has not been made into a form that can be counted.
 - **Whether to simplify a size calculation the workflow's author built.**
   - In a two-stage LTX 2.3 workflow, the workflow's author passed an empty 64×64 latent through the upscale model to measure the ratio (1.5 or 2), rounded the finished size down to a multiple of 96 or 64, and got the Stage 1 size (6 nodes). Even if the upscale model is swapped between x1.5 and x2, the size matches automatically.
