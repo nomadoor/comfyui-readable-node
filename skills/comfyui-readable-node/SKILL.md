@@ -117,7 +117,7 @@ Moves marked "(when there is an original)" are only for rebuilding a given workf
 
 9. **Write the report page (`report.html`)**  
    Write the page where the user checks the result, as one HTML file. The page has three views. The canvas makes Original (the original workflow) and Rebuilt (what was done on the canvases, one move at a time). You write only the Walkthrough.
-   - For each canvas, write `$W/walk_<canvas>.md` and register it with `canvas walk $W/walk_<canvas>.md` (the file's form is at the top of canvas.py). How to write it is in references/notes.md, "Walkthrough".
+   - For each canvas, write `$W/walk_<canvas>.md`, select the canvas with `canvas use <canvas>`, and register it with `canvas walk $W/walk_<canvas>.md` (the file's form is at the top of canvas.py). How to write it is in references/notes.md, "Walkthrough".
    - Finally, write the page with `canvas report report.html <the user's language code>` (`ja`, `en`, `zh` and so on).
 
 10. **Report in the conversation**  
