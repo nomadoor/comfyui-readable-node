@@ -77,6 +77,12 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
       the height of A's slot is clear up to the last target, the rail is drawn at A's slot height instead (the command says so).
       With above/below, if the vertical gap to another rail would be less than RAIL_GAP (56), the rail is shifted away from it automatically
   note <md file> <right|left|below|above> <ref> [gap N] [width W]   places a MarkdownNote (height from the text)
+  walk <md file>           the walkthrough of the current canvas, for the report page: the workflow cut into parts in processing order.
+                           File: "# <one sentence: what the workflow does>", then for each part "## <title>", a line
+                           "nodes: <id> ... block:<name> group:<title>" (a group title with spaces: write its ids), one sentence on what
+                           the part does, and "- " bullets (`node names`, the values that matter, what to change; indent to nest).
+                           Stops on an unknown id, block or group, on a Note or Reroute id, on a node in two parts, and
+                           on a part without text; names the nodes in no part
 
 ■ Syntax
   Quote names that contain spaces (group titles etc.): group "Upscale x2" 12 13
@@ -116,9 +122,11 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
   diff                     compares the source with all canvases (values, inputs the user fills in, outputs, mode, model Note)
   render <png>             picture
   export <json>            writes a workflow that ComfyUI can open
-  replay <html> [en|ja]    writes a page that steps through every command on every canvas (for the user to see what was done).
-                           The page's words are in English (en, default) or Japanese (ja)
-  finish                   deletes the working folder once every canvas is exported and the replay page is up to date
+  report <html> [<language code>]
+                           writes the report page: it steps through every command on every canvas (for the user to see
+                           what was done). Give the user's language code (en, ja, zh, fr, ...; en by default). The page's
+                           own sentences are in Japanese for ja and in English for every other code
+  finish                   deletes the working folder once every canvas is exported and the report page is up to date
                            (otherwise it stops, says what is missing and deletes nothing). Only files the canvas knows are deleted:
                            what it wrote, the plan and Note files it was given, understanding.md. Other files are left, and so is the folder.
                            With the environment variable CANVAS_KEEP_WORK=1 nothing is deleted; the files are only listed
@@ -148,7 +156,7 @@ import notes as NT  # noqa: E402
 import read_workflow as RW  # noqa: E402
 import render as RD  # noqa: E402
 import replace as RP  # noqa: E402
-import replay as RPL  # noqa: E402
+import report as RPT  # noqa: E402
 import validate as VD  # noqa: E402
 import write_workflow as WW  # noqa: E402
 from layout_params import P  # noqa: E402
@@ -172,6 +180,7 @@ LOADER_COLOR = {"MODEL": "purple", "CLIP": "yellow", "VAE": "red"}
 PRODUCT_TYPES = {"IMAGE", "LATENT", "VIDEO", "MASK", "AUDIO"}   # what the workflow produces step by step (readable-form.md)
 SELF_PREVIEW_LOADERS = {"LoadImage", "LoadVideo", "VHS_LoadVideo"}
 NOTE_TYPES = CS.NOTE_TYPES
+NOT_PROCESSING = {"Reroute"} | NOTE_TYPES   # on the canvas but not a step of the processing (left out of walkthrough parts)
 # working keys from reading, dropped when copying from the source. orig_size is kept (used for the size of custom nodes that are not installed)
 WORK_KEYS = WW.NODE_WORK_KEYS - {"orig_size"}
 # marks only the canvas adds. Dropped on export
@@ -1372,19 +1381,20 @@ def _chk_rail_overlap(cv, c):
     for l, pts in ws:
         o, t = nodes.get(l["origin_id"]), nodes.get(l["target_id"])
         if o and t and o.get("type") == "Reroute" and t.get("type") == "Reroute" and abs(pts[0][1] - pts[-1][1]) < 1:
-            root = l["origin_id"]
-            seen = set()
+            # the source of the rail is its node and output (two outputs of one node are two rails, as in rail_spans)
+            root, rslot, seen = l["origin_id"], 0, set()
             while nodes.get(root, {}).get("type") == "Reroute" and root not in seen:
                 seen.add(root)
                 up = next((x for x in cv.s["links"] if x["target_id"] == root), None)
                 if not up:
                     break
-                root = up["origin_id"]
-            spans.append((pts[0][1], min(pts[0][0], pts[-1][0]), max(pts[0][0], pts[-1][0]), root, l))
+                root, rslot = up["origin_id"], up["origin_slot"]
+            spans.append((pts[0][1], min(pts[0][0], pts[-1][0]), max(pts[0][0], pts[-1][0]), root, l, rslot))
     for i, a in enumerate(spans):
         for b in spans[i + 1:]:
-            if a[3] != b[3] and abs(a[0] - b[0]) < P["RAIL_GAP"] and min(a[2], b[2]) > max(a[1], b[1]):
-                out.append(f"rails too close or overlapping (vertical gap {abs(a[0] - b[0]):.0f}px, min {P['RAIL_GAP']}): rail of {a[3]} and rail of {b[3]}")
+            if (a[3], a[5]) != (b[3], b[5]) and abs(a[0] - b[0]) < P["RAIL_GAP"] and min(a[2], b[2]) > max(a[1], b[1]):
+                same = f" (outputs {a[5]} and {b[5]})" if a[3] == b[3] else ""
+                out.append(f"rails too close or overlapping (vertical gap {abs(a[0] - b[0]):.0f}px, min {P['RAIL_GAP']}): rail of {a[3]} and rail of {b[3]}{same}")
     return out
 
 
@@ -1539,7 +1549,7 @@ def workflow_hash(wf):
 
 
 def canvases_hash(work):
-    """One hash of every canvas's current state (what the replay page is made from)."""
+    """One hash of every canvas's current state (what the report page is made from)."""
     h = hashlib.sha256()
     for name in work.names():
         h.update(name.encode("utf-8"))
@@ -1562,7 +1572,7 @@ WORK_FILES = ("object_info.json", "src.flat.json", "source.ui.json", "canvas.con
 
 
 def do_finish(work):
-    """Deletes the working folder once every canvas is exported and the replay page is up to date.
+    """Deletes the working folder once every canvas is exported and the report page is up to date.
     Only files the canvas knows are deleted, one by one: what it wrote, the plan and Note files it was given (if they are
     inside the working folder) and understanding.md. Anything else is left, and then the folder is left too.
     With the environment variable CANVAS_KEEP_WORK=1 nothing is deleted; the files are only listed."""
@@ -1579,9 +1589,9 @@ def do_finish(work):
             missing.append(f"the exported file of canvas {name} is missing or was changed ({rec.get('path')}): `use {name}` and `export <name>.json`")
     rep_ = work.cfg.get("replayed")
     if not isinstance(rep_, dict) or rep_.get("canvases") != canvases_hash(work):
-        missing.append("the replay page is older than the canvases: `replay <html> <lang>`")
+        missing.append("the report page is older than the canvases: `report <html> <language code>`")
     elif _file_hash(rep_.get("path")) != rep_.get("file"):
-        missing.append(f"the replay page is missing or was changed ({rep_.get('path')}): `replay <html> <lang>`")
+        missing.append(f"the report page is missing or was changed ({rep_.get('path')}): `report <html> <language code>`")
     if missing:
         raise Stop("not finished. Nothing is deleted:\n  " + "\n  ".join(missing))
     root = os.path.abspath(work.dir)
@@ -1598,11 +1608,18 @@ def do_finish(work):
         cv_path = Path(root) / "canvas" / f"{name}.json"
         files.append(cv_path)
         files += sorted(cv_path.with_suffix(".hist").glob("*.json"))
-    files += [Path(os.path.abspath(p)) for p in work.cfg.get("consumed") or []]
+    given = [Path(os.path.abspath(p)) for p in work.cfg.get("consumed") or []]
+    files += given
     files = [f for f in dict.fromkeys(files) if inside(f) and (f.is_file() or f.is_symlink())]
+    # plan and Note files the canvas was given from outside the working folder: not deleted, only named
+    outside = [str(f) for f in dict.fromkeys(given) if not inside(f) and f.exists()]
+    note_outside = ([f"these files the canvas was given are outside the working folder, so they were not deleted "
+                     f"(next time, put working files inside it): {', '.join(outside)}"] if outside else [])
     dirs = [Path(root) / "canvas" / f"{n}.hist" for n in work.names()] + [Path(root) / "canvas", Path(root)]
     if os.environ.get("CANVAS_KEEP_WORK") == "1":
-        return ["CANVAS_KEEP_WORK=1: nothing deleted. finish would delete:"] + [f"  {os.path.relpath(f, root)}" for f in files]
+        return (["finished. Everything is exported and the report page is up to date. CANVAS_KEEP_WORK=1 is set, so the working "
+                 "folder is kept as it is (this is expected; go on to the report). Without it, finish would delete:"]
+                + [f"  {os.path.relpath(f, root)}" for f in files] + note_outside)
     for f in files:
         f.unlink(missing_ok=True)   # a symlink: only the link
     for d in dirs:
@@ -1614,10 +1631,11 @@ def do_finish(work):
         left = sorted(os.path.relpath(os.path.join(dp, f), root) for dp, _, fs in os.walk(root) for f in fs)
         if not left:
             return [f"deleted {len(files)} files. The working folder {root} is empty but could not be removed "
-                    f"(it is the current directory?): remove it from outside"]
+                    f"(it is the current directory?): remove it from outside"] + note_outside
         return [f"deleted {len(files)} files. The canvas does not know these, so they and the working folder were left: "
-                + ", ".join(left)]
-    return [f"deleted the working folder {root} ({len(files)} files)"]
+                + ", ".join(left) + f". If you made them, delete those files one by one, then remove the empty folder with "
+                f"`rmdir {root}` (do not delete the folder with its contents)"] + note_outside
+    return [f"deleted the working folder {root} ({len(files)} files)"] + note_outside
 
 
 def do_open(work, args):
@@ -1803,10 +1821,13 @@ def core_like(t, oi):
     for ws, _ in _CORE_WORDS.values():
         for w in ws:
             df[w] = df.get(w, 0) + 1
-    mine = {w for w in words_of(t.split("|")[0].replace("(", " ").replace(")", " ")) if df.get(w, 0) and df[w] <= 30}
-    mine -= {"easy", "rgthree", "pysssss", "crystools", "vhs", "comfy", "any", "kj"}   # names of custom node authors and packs
+    allw = {w for w in words_of(t.split("|")[0].replace("(", " ").replace(")", " ")) if df.get(w, 0)}
+    allw -= {"easy", "rgthree", "pysssss", "crystools", "vhs", "comfy", "any", "kj"}   # names of custom node authors and packs
+    mine = {w for w in allw if df[w] <= 30}
     if not mine:
-        return []
+        # every word is common (Load, Video): the core nodes that have all of them, those with the fewest other words first
+        hits = sorted((len(ws - allw), k, d) for k, (ws, d) in _CORE_WORDS.items() if allw and allw <= ws)
+        return [f"{k} ({d})" for _, k, d in hits][:6]
     hits = sorted(((-len(mine & ws), k, d) for k, (ws, d) in _CORE_WORDS.items() if mine & ws))
     best = hits[0][0] if hits else 0
     return [f"{k} ({d})" for n, k, d in hits if n == best][:6]
@@ -2148,6 +2169,7 @@ def _run_cmd(work, line):
             cv.s["name"] = args[0]
             cv.s["history"] = [f"new {args[0]} from {args[2]}"]
             cv.s.pop("layout_notes", None)   # keyed by the other canvas's undo snapshots
+            cv.s.pop("walk", None)   # the walkthrough of the other canvas; this one gets its own
         cv.save()
         work.cfg["current"] = args[0]
         work.save_cfg()
@@ -2226,15 +2248,15 @@ def _run_cmd(work, line):
             out.append(f"not exported because not placed: {' '.join(un)}")
         return out
 
-    if cmd == "replay":
-        if not args or (len(args) > 1 and args[1] not in RPL.LANGS):
-            raise Stop(f"replay <html> [{'|'.join(RPL.LANGS)}]")
+    if cmd in ("report", "replay"):   # replay: the command's old name
+        if not args:
+            raise Stop("report <html> [<language code>]")
         Path(args[0]).parent.mkdir(parents=True, exist_ok=True)
-        Path(args[0]).write_text(replay_page(work, args[1] if len(args) > 1 else "en"), encoding="utf-8")
+        Path(args[0]).write_text(report_page(work, args[1] if len(args) > 1 else "en"), encoding="utf-8")
         work.cfg["replayed"] = {"path": os.path.abspath(args[0]), "canvases": canvases_hash(work),
                                 "file": hashlib.sha256(Path(args[0]).read_bytes()).hexdigest()}
         work.save_cfg()
-        return [f"replay page: {args[0]}"]
+        return [f"report page: {args[0]}"] + [ln for name in work.names() for ln in walk_gaps(Canvas(work, name))]
 
     # from here on, commands change the state. A command that stops changes nothing
     snap = cv.snapshot(line.strip())
@@ -2250,8 +2272,9 @@ def _run_cmd(work, line):
 
 
 def consume_given_files(work, cmd, args):
-    """After a layout or note that succeeded: remember the plan file and the Note files it used (finish deletes them)."""
-    if cmd == "note":
+    """After a layout, note or walk that succeeded: remember the files it used (the plan and its Note files, a Note file,
+    the walkthrough file); finish deletes them."""
+    if cmd in ("note", "walk"):
         work.consume(args[0])
     elif cmd == "layout":
         work.consume(args[0])
@@ -2432,6 +2455,7 @@ def _op_rm(cv, work, args):
             cv.s["blocks"][k] = [i for i in cv.s["blocks"][k] if i != nid]
         for g in cv.s["groups"]:
             g["members"] = [i for i in g["members"] if i != nid]
+        _walk_forget(cv, nid)
         cv.out.append(f"removed: {nid}")
     cv.relink()
 
@@ -2775,6 +2799,137 @@ def _op_note(cv, work, args):
     cv.out.append(f"Note {nid}: width {w}, height {round(h)}")
 
 
+def _op_walk(cv, work, args):
+    if not args:
+        raise Stop("walk <md file>")
+    if not Path(args[0]).is_file():
+        raise Stop(f"no walkthrough file {args[0]}")
+    intro, parts, cur = "", [], None
+    for raw in Path(args[0]).read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("## "):
+            cur = {"title": line[3:].strip(), "refs": [], "text": []}
+            parts.append(cur)
+        elif line.startswith("# ") and cur is None and not intro:
+            intro = line[2:].strip()
+        elif line.startswith("# "):
+            raise Stop(f"\"{line}\": write one \"# \" line at the top (what the workflow does), then \"## \" for each part")
+        elif cur is None and line:
+            raise Stop(f"\"{line}\" comes before the first part: start with \"# <one sentence>\", then \"## <title>\" for each part")
+        elif cur is not None and line.lower().startswith("nodes:"):
+            cur["refs"] += line.split(":", 1)[1].split()
+        elif cur is not None and line:
+            cur["text"].append(raw.rstrip())   # kept as lines: a lead sentence and "- " bullets (indented bullets nest)
+    if not parts:
+        raise Stop("the walkthrough has no part (write \"## <title>\", \"nodes: ...\" and the text for each part)")
+    groups = {g["title"]: g["members"] for g in cv.s["groups"]}
+    seen, out_parts = {}, []
+    for k, prt in enumerate(parts):
+        ids = []
+        for ref in prt["refs"]:
+            if ref.startswith("block:"):
+                if ref[6:] not in cv.s["blocks"]:
+                    raise Stop(f"part \"{prt['title']}\": no block {ref[6:]}")
+                ids += cv.s["blocks"][ref[6:]]
+            elif ref.startswith("group:"):
+                if ref[6:] not in groups:
+                    raise Stop(f"part \"{prt['title']}\": no group {ref[6:]} (a title with spaces cannot be written here; use the ids)")
+                ids += groups[ref[6:]]
+            elif ref in cv.nodes:
+                if cv.nodes[ref].get("type") in NOT_PROCESSING:
+                    raise Stop(f"part \"{prt['title']}\": {ref} is a {cv.nodes[ref].get('type')}, not a part of the processing "
+                               f"(write only the nodes that do the work)")
+                ids.append(ref)
+            else:
+                raise Stop(f"part \"{prt['title']}\": no node {ref}")
+        ids = [i for i in dict.fromkeys(ids) if cv.nodes[i].get("type") not in NOT_PROCESSING]   # blocks and groups may hold Notes
+        for i in ids:
+            if i in seen:
+                raise Stop(f"{i} is in two parts: \"{parts[seen[i]]['title']}\" and \"{prt['title']}\"")
+            seen[i] = k
+        if not ids:
+            raise Stop(f"part \"{prt['title']}\" has no node")
+        if not any(t.strip() for t in prt["text"]):
+            raise Stop(f"part \"{prt['title']}\" has no text: write one sentence on what the part does under \"nodes:\"")
+        out_parts.append({"title": prt["title"], "text": "\n".join(prt["text"]), "ids": ids})
+    cv.s["walk"] = {"intro": intro, "parts": out_parts}
+    left = [n["id"] for n in cv.s["nodes"] if n["id"] not in seen and n.get("type") not in NOT_PROCESSING]
+    cv.out.append(f"walkthrough: {len(out_parts)} parts" + (f"; in no part: {' '.join(left)}" if left else ""))
+
+
+def _walk_forget(cv, nid):
+    """rm: take a removed node out of its walkthrough part, and say so when the part is left with no node."""
+    for prt in (cv.s.get("walk") or {}).get("parts") or []:
+        if nid in prt["ids"]:
+            prt["ids"] = [i for i in prt["ids"] if i != nid]
+            if not prt["ids"]:
+                cv.out.append(f"walkthrough part \"{prt['title']}\" has no node left: write the walkthrough again")
+
+
+def walk_gaps(cv):
+    """What no longer matches the walkthrough when the report page is made: parts left with no node, and nodes added
+    after `walk` that are in no part."""
+    w = cv.s.get("walk")
+    if not w:
+        return []
+    out, inside = [], set()
+    for prt in w["parts"]:
+        ids = [i for i in prt["ids"] if i in cv.nodes]
+        inside.update(ids)
+        if not ids:
+            out.append(f"walkthrough of {cv.name}: part \"{prt['title']}\" has no node (it is left out of the page)")
+    left = [n["id"] for n in cv.s["nodes"] if n["id"] not in inside and n.get("type") not in NOT_PROCESSING]
+    if left:
+        out.append(f"walkthrough of {cv.name}: in no part: {' '.join(left)}")
+    return out
+
+
+def walk_view(cv):
+    """The walkthrough for the report page: for each part, the nodes and Reroutes to light (lit) and the wires to light
+    (w, keys), following wires through Reroutes. A part whose nodes were all removed is left out (None when none is left)."""
+    w = cv.s.get("walk")
+    if not w:
+        return None
+    nodes = cv.nodes
+    is_rr = lambda i: nodes.get(i, {}).get("type") == "Reroute"
+    key = lambda l: wire_key(l["origin_id"], l["origin_slot"], l["target_id"], l["target_input"])
+    out = []
+    for p in w["parts"]:
+        ids = [i for i in p["ids"] if i in nodes]
+        if not ids:
+            continue
+        lit, keys = set(ids), set()
+
+        def down(nid, path):
+            for l in cv.s["links"]:
+                if l["origin_id"] != nid:
+                    continue
+                if is_rr(l["target_id"]):
+                    if l["target_id"] not in {x["target_id"] for x in path}:   # a broken file may loop
+                        down(l["target_id"], path + [l])
+                    continue
+                chain = path + [l]
+                keys.update(key(x) for x in chain)
+                lit.update(x["target_id"] for x in chain[:-1])
+
+        def up(nid, path):
+            for l in cv.s["links"]:
+                if l["target_id"] != nid:
+                    continue
+                if is_rr(l["origin_id"]):
+                    if l["origin_id"] not in {x["origin_id"] for x in path}:
+                        up(l["origin_id"], [l] + path)
+                    continue
+                chain = [l] + path
+                keys.update(key(x) for x in chain)
+                lit.update(x["origin_id"] for x in chain[1:])
+        for i in ids:
+            down(i, [])
+            up(i, [])
+        out.append({"title": p["title"], "text": p["text"], "ids": ids, "lit": sorted(lit), "w": sorted(keys)})
+    return {"intro": w.get("intro", ""), "parts": out} if out else None
+
+
 OPS = {  # commands that change the state: command name -> function
     "copy": _op_copy,
     "add": _op_add,
@@ -2802,6 +2957,7 @@ OPS = {  # commands that change the state: command name -> function
     "color": _op_color,
     "rail": _op_rail,
     "note": _op_note,
+    "walk": _op_walk,
 }
 
 
@@ -2897,7 +3053,7 @@ def do_layout(cv, work, args):
         notes += [f"  line {k}: {m}" for m in cv.out[mark:]]
         count += 1
     cv.s["next_id"] = keep_next
-    # kept for the replay page (keyed by this command's undo snapshot; undo drops it with the state)
+    # kept for the report page (keyed by this command's undo snapshot; undo drops it with the state)
     snaps = len(list(cv.hist.glob("*.json"))) if cv.hist.exists() else 0
     cv.s.setdefault("layout_notes", {})[str(snaps - 1)] = {"lines": count, "notes": [m[2:] for m in notes]}
     cv.out = [f"applied {count} lines of the plan and re-placed everything"]
@@ -3181,7 +3337,7 @@ def node_lines(cv, nid):
     return out
 
 
-# ---------------------------------------------------------------- replay
+# ---------------------------------------------------------------- report page
 
 def _short(v, limit):
     """A widget value as the page shows it: numbers and booleans as they are, anything else as text cut to limit."""
@@ -3349,7 +3505,7 @@ def _plan_rerun(work, name, before, cmd):
         return cv.s, rec
 
 
-def _replay_order(work):
+def _report_order(work):
     """Canvases made with `new X from Y` follow the one they were made from; the one the most others came from is first."""
     names = work.names()
     parent = {}
@@ -3369,24 +3525,24 @@ def _replay_order(work):
         return size[n]
     out = []
 
-    def walk(n):
+    def visit(n):
         if n in out:
             return
         out.append(n)
         for m in sorted(kids[n], key=lambda m: (-count(m), m)):
-            walk(m)
+            visit(m)
     for n in sorted((n for n in names if n not in parent), key=lambda n: (-count(n), n)):
-        walk(n)
+        visit(n)
     out += [n for n in names if n not in out]   # a loop of `from`s
     return out
 
 
-def replay_page(work, lang="en"):
+def report_page(work, lang="en"):
     """Every command of every canvas, the state after it, and the check problems at that point.
     Commands that change nothing on the drawing (building before anything is placed) are shown together as one step."""
     canvases = []
     oi = work.oi
-    for name in _replay_order(work):
+    for name in _report_order(work):
         final = Canvas(work, name)
         snaps = sorted(final.hist.glob("*.json")) if final.hist.exists() else []
         states = [json.loads(p.read_text(encoding="utf-8")) for p in snaps] + [final.s]
@@ -3444,7 +3600,7 @@ def replay_page(work, lang="en"):
         if pending:
             _flush(steps, pending, problem_refs)
         canvases.append({"name": name, "defs": defs.items, "nodes": nodes_t.items, "wires": wires_t.items,
-                         "groups": groups_t.items, "problems": probs.items, "steps": steps})
+                         "groups": groups_t.items, "problems": probs.items, "steps": steps, "walk": walk_view(final)})
     src = work.cfg.get("source")
     odefs = _Intern()
     original = None
@@ -3452,7 +3608,7 @@ def replay_page(work, lang="en"):
         original = _original_view(src, oi, odefs)
         original["defs"] = odefs.items
         original.update(_original_counts(work, src))
-    return RPL.build(canvases, original, lang)
+    return RPT.build(canvases, original, lang)
 
 
 def _original_counts(work, path):
@@ -3522,7 +3678,7 @@ def _wired_pairs(cv, toks):
 
 def _explain(before, after, cmd, notes):
     """What the page needs to explain one command: the parsed words and the names of the nodes and blocks it mentions
-    (replay.py writes the sentence in the page's language)."""
+    (report.py writes the sentence in the page's language)."""
     try:
         toks = shlex.split(cmd, comments=True)
     except ValueError:

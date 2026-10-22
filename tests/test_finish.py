@@ -1,6 +1,6 @@
 """Tests for `canvas finish` (deleting the working folder). Python standard library only.
 
-What is checked: finish stops and deletes nothing until every canvas is exported and the replay page is up to date
+What is checked: finish stops and deletes nothing until every canvas is exported and the report page is up to date
 (compared by content, so undo cannot fool it). It deletes only the files the canvas knows, never a file outside the
 working folder, and leaves the folder when something it does not know is inside. CANVAS_KEEP_WORK=1 deletes nothing.
 
@@ -45,26 +45,27 @@ class FinishTest(unittest.TestCase):
     def do(self, line):
         return C.run_cmd(C.Work(self.w), line)
 
-    def export_and_replay(self):
+    def export_and_report(self):
         self.do(f"export {self.out / 't.json'}")
-        self.do(f"replay {self.out / 'replay.html'} en")
+        self.do(f"report {self.out / 'report.html'} en")
 
-    def test_stops_before_export_and_replay(self):
+    def test_stops_before_export_and_report(self):
         with self.assertRaises(C.Stop) as e:
             self.do("finish")
         self.assertIn("Nothing is deleted", str(e.exception))
         self.assertTrue((self.w / "src.flat.json").exists())
 
     def test_deletes_the_working_folder_and_keeps_the_outputs(self):
-        self.export_and_replay()
+        self.export_and_report()
         out = self.do("finish")
         self.assertTrue(out[0].startswith("deleted the working folder"), out)
         self.assertFalse(self.w.exists())
-        for f in ("t.json", "replay.html", "outside.md"):
+        for f in ("t.json", "report.html", "outside.md"):
             self.assertTrue((self.out / f).exists(), f)
+        self.assertTrue(any("outside the working folder" in x and "outside.md" in x for x in out), out)
 
     def test_a_change_after_export_stops_it_even_after_undo(self):
-        self.export_and_replay()
+        self.export_and_report()
         self.do("move 30 0 40")
         self.do("undo")
         self.do("move 30 0 80")
@@ -72,33 +73,35 @@ class FinishTest(unittest.TestCase):
             self.do("finish")
         msg = str(e.exception)
         self.assertIn("changed since it was exported", msg)
-        self.assertIn("replay page is older", msg)
+        self.assertIn("report page is older", msg)
+        self.assertIn("`report <html> <language code>`", msg)
 
-    def test_a_missing_export_or_replay_page_stops_it(self):
-        self.export_and_replay()
+    def test_a_missing_export_or_report_page_stops_it(self):
+        self.export_and_report()
         (self.out / "t.json").unlink()
-        (self.out / "replay.html").write_text("changed", encoding="utf-8")
+        (self.out / "report.html").write_text("changed", encoding="utf-8")
         with self.assertRaises(C.Stop) as e:
             self.do("finish")
         msg = str(e.exception)
         self.assertIn("exported file of canvas t is missing or was changed", msg)
-        self.assertIn("replay page is missing or was changed", msg)
+        self.assertIn("report page is missing or was changed", msg)
         self.assertTrue((self.w / "src.flat.json").exists())
 
     def test_unknown_files_and_the_folder_are_left(self):
-        self.export_and_replay()
+        self.export_and_report()
         (self.w / "mine.txt").write_text("x", encoding="utf-8")
         out = self.do("finish")
-        self.assertIn("mine.txt", out[0])
+        self.assertIn("mine.txt", out[0]); self.assertIn("rmdir", out[0])
         self.assertTrue((self.w / "mine.txt").exists())
         self.assertFalse((self.w / "src.flat.json").exists())
         self.assertFalse((self.w / "canvas").exists())
 
     def test_keep_work_deletes_nothing(self):
-        self.export_and_replay()
+        self.export_and_report()
         os.environ["CANVAS_KEEP_WORK"] = "1"
         out = self.do("finish")
-        self.assertTrue(out[0].startswith("CANVAS_KEEP_WORK=1"))
+        self.assertTrue(out[0].startswith("finished.") and "CANVAS_KEEP_WORK=1 is set" in out[0])
+        self.assertIn("the report page is up to date", out[0])
         self.assertTrue((self.w / "src.flat.json").exists())
         self.assertTrue((self.w / "note_a.md").exists())
 
@@ -107,7 +110,7 @@ class FinishTest(unittest.TestCase):
         (self.w / "layout2.txt").write_text(f"put 12 origin\nput 30 right 12\nnote {self.w / 'note_b.md'} below 12\n",
                                             encoding="utf-8")
         self.do(f"layout {self.w / 'layout2.txt'}")
-        self.export_and_replay()
+        self.export_and_report()
         self.do("finish")
         self.assertFalse(self.w.exists())
 
@@ -124,7 +127,7 @@ class FinishTest(unittest.TestCase):
         r = subprocess.run([sys.executable, str(SCRIPTS / "canvas.py"), "--dir", str(self.w), "run", str(plan)],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.export_and_replay()
+        self.export_and_report()
         self.do("finish")
         self.assertFalse(self.w.exists())
 

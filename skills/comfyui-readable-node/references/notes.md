@@ -1,4 +1,4 @@
-# How to write Notes
+# How to write Notes and the Walkthrough
 
 There are two kinds of Notes placed in a workflow.
 - The overview and models Note: one in every workflow.
@@ -20,11 +20,10 @@ Differences from the original workflow (what was tidied, the difference between 
 
 **At the very top, what this workflow does. Below it, the list of models.**
 
-- At the very top, give it the same heading in every workflow. Write the heading "what this workflow does" in the user's language (in English, `## What this workflow does`).
+- At the very top, give it the same heading in every workflow. The heading is "what this workflow does" (in English, `## What this workflow does`).
   - Below it, in one or two sentences, write the essence of this workflow: what goes in and what comes out.
 - Below that, the list of models. The format is exactly the form of the following example (the canvas `models` gives a draft).
   - The heading `## models` is always written exactly like this, in every language. The canvas finds the model Note by it.
-  - Model names and folder names are in English, so they are outside the language rule.
 
 Example (when the user is English-speaking):
 
@@ -66,7 +65,7 @@ Generates an image from a text prompt with Qwen Image 2.1.
 
 **There are three titles. Write only what falls under one of them.** If nothing falls under them, do not place a Note on part of the processing.
 
-The title is "Markdown Note: " followed by one of the following three (set with the canvas `title`). Write the part after "Markdown Note: " in the user's language. When one Note holds two, line them up like "Markdown Note: Author's techniques / Caution".
+The title is "Markdown Note: " followed by one of the following three (set with the canvas `title`). When one Note holds two, line them up like "Markdown Note: Author's techniques / Caution".
 
 **Usage**: places where how to use it, or what it is for, cannot be seen just by looking.
 - Places where the user is likely to stumble.
@@ -83,7 +82,7 @@ The title is "Markdown Note: " followed by one of the following three (set with 
 
 **Caution**: puzzling processing that is kept.
 - What may have been the author's choice, or what is a trade-off between gain and loss. Even if the author had an intent, write it if it is strange.
-- Ways of building that harm the result, and places that could be done better, that were kept without fixing.
+- Ways of building that harm the result, and places that could be done better, that were kept without fixing. Write them in the conversation report too.
 - What can only be a mistake is fixed, and what is plainly meaningless is removed. Neither is written in a Note; both are reported in the conversation.
 
 ### How to check what goes in a Note
@@ -109,8 +108,7 @@ Each "this is what happens" written in a Note is checked, one by one, before wri
 - Indent at most one level.
 
 **Sentences**
-- Write in the language of the person using the skill, in a polite register.
-- Use node names and function names as they are, without rewording. Phrases that people using ComfyUI use normally, such as Text to Image, Image to Video, Hires.fix, are not reworded either.
+- Write in a polite register.
 - When writing that a value should be changed, write the node name and the widget name (for example, "Set sage_attention on Patch Sage Attention KJ to disabled"). Writing "set the node to disabled" can be mistaken for talk about the node's state (bypass, mute).
 - Text you want copied exactly (words to put in a prompt and so on) is enclosed in quotation marks (the ones usual in the user's language). Do not use inline code (`). It does not work in the legacy renderer, it becomes blue text in Nodes 2.0, and it cannot be read on a coloured Note.
 
@@ -131,3 +129,16 @@ What not to do:
 - Do not place Notes on wire paths.
 
 A Note is outside the workflow and does nothing. Even so, it is coloured and catches the eye, and it can be put anywhere. A single placement can clutter the workflow.
+
+## Walkthrough
+
+**The Walkthrough, like Notes, says what the graph does not show.**
+- The groupings are the "Groupings" in B of the understanding document, lined up in processing order. If the groupings are not written, add them to the understanding document first.
+- What to write: what a node or model is, why a step is there, what a value means, what the user changes here.
+- What not to write: what can be read off the graph (which node passes what to which), and what the Notes say.
+- The material is the understanding document, but it is notes for building, so do not copy it; rewrite it as sentences to be read.
+- Say in one sentence what the grouping does, then short bullets below it.
+
+Example:
+- Before: "`TrimVideoLatent` cuts the latent, then passes it to `VAE Decode`."
+- After: "`WanVaceToVideo` adds the reference image to the head of the latent as frames. Those frames are not needed in the result, so `TrimVideoLatent` drops them."

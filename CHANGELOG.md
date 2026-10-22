@@ -5,6 +5,11 @@
 - Fixed: values of VideoHelperSuite nodes (`VHS_`) read from an API-format workflow, or added on the canvas, landed in the wrong widgets (for example `frame_load_cap` in `skip_first_frames`). They are now written by name, as VideoHelperSuite saves them.
 - VideoHelperSuite's loading nodes (Load Video and others) count as nodes that show a preview: their size includes the preview area, and a node under them is reported.
 - A node is reported as directly below a node that grows when it overlaps it horizontally at all (it was more than half of the width).
+- New: the Walkthrough view on the report page. The agent writes, for each canvas, the finished workflow cut into groupings in processing order with what the graph does not show (`canvas walk`), and the page shows one grouping at a time.
+- The page command is now `canvas report` and the page `report.html` (`canvas replay` still works). It takes any language code; built-in sentences exist in English and Japanese, other languages get English.
+- `canvas finish` names files it was given that are outside the working folder, and when it leaves files it does not know, says to delete only those and remove the empty folder with `rmdir`.
+- SKILL.md is shorter: a Language section; the content rules moved to references/content.md, the understanding document to references/understanding.md, how to write the Walkthrough to references/notes.md. Steps 9 (write the report page) and 10 (report in the conversation).
+- Checks: `overlapping rails` tells apart rails from two outputs of one node. Similar core nodes are suggested for a custom node even when every word of its name is common (Load Video).
 
 ## 0.0.2 (2026-10-21)
 

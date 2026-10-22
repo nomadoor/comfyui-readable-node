@@ -26,7 +26,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **added function**: processing added to the core (ControlNet, IP-Adapter, Hires.fix, Upscale, and so on).
 - **preparation**: processing that prepares inputs for the core, before they enter it (switching reference images, compositing a background, assembling text, and so on).
 - **stage**: each step of a multi-stage workflow (the first-stage generation, the second-stage redraw, and so on). A later stage uses the result of an earlier stage.
-- **grouping**: a cluster of nodes that does one job or role. On the canvas it is made a `block`.
+- **grouping**: a cluster of nodes that does one job or role. It is written in B of the understanding document. On the canvas it is made a `block`, and the Walkthrough also explains it grouping by grouping.
 
 ## Layout
 
@@ -45,6 +45,9 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **canvas**: scripts/canvas.py. Both building and arranging are done on it, one move at a time.
 - **understanding document**: the understanding of the workflow, written before building (`$W/understanding.md`).
 - **check list**: the list of layout and content problems returned by the canvas's `check`.
-- **report**: what is told to the user in the conversation when the rebuild is finished. Separate from Notes.
+- **report**: what tells the user the result when the rebuild is finished. Separate from Notes. There are two.
+  - **report page**: `report.html`. It has three views: Original (the original workflow), Rebuilt (what was done on the canvas, one move at a time), Walkthrough.
+  - **conversation report**: what is told in the conversation in step 10.
+- **Walkthrough**: one of the views of the report page. It explains the finished workflow grouping by grouping, in processing order.
 - **Undecided**: something not yet decided.
 - **hand-made layout**: a layout a person arranged by hand.

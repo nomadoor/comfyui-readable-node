@@ -124,6 +124,16 @@ class NamedValuesTest(unittest.TestCase):
         self.assertEqual((v["frame_load_cap"], v["skip_first_frames"], v["force_rate"]), (125, 0, 16))
         self.assertNotIn("upload", v)
 
+    def test_core_like_uses_all_words_when_every_word_is_common(self):
+        oi = {f"Load{i}Video": {"display_name": f"Load Video from Folder {i}", "python_module": "nodes"} for i in range(40)}
+        oi["LoadVideo"] = {"display_name": "Load Video", "python_module": "comfy_extras.nodes_video"}
+        oi["VHS_LoadVideo"] = VHS_LOAD_VIDEO
+        C._CORE_WORDS = None
+        try:
+            self.assertIn("LoadVideo (Load Video)", C.core_like("VHS_LoadVideo", oi))
+        finally:
+            C._CORE_WORDS = None
+
     def test_vhs_load_video_counts_as_a_loading_node_that_shows_a_preview(self):
         self.assertEqual(C.image_kind("VHS_LoadVideo", {"VHS_LoadVideo": VHS_LOAD_VIDEO}), "load")
 

@@ -157,6 +157,7 @@ Colours are chosen from core's 9 colours (red, brown, green, blue, pale_blue, cy
 - green: the part that is the core of that workflow when compared with the basic form (the image input of i2i, the ControlNet of a workflow where ControlNet is the lead, and so on).
 - One colour for each other added function. ControlNet types are pale_blue. Others are chosen from brown, blue, cyan.
 - Apply the colour to every node belonging to that function (that function's loader, preprocessor, down to the Load Image for it).
+- Split functions finely: one colour covers the few nodes that do one job, not a whole preparation chain. Example (SCAIL 2, a hand-made layout): the core (WanSCAILToVideo, SCAIL2ColoredMask) green; taking the person in the input video (Load Video, its text, SAM3 track) pale_blue; taking the person in the reference image (Load Image, its resizes, text, SAM3 track) cyan; CLIP Vision (loader, encode) brown. Splitting never goes past the number of colours below.
 - Usually 1 to 2 colours are added on top of the 3 loader colours. 4 or more is rare. If 5 colours are not enough, the workflow is too large.
 - Coloured nodes, loaders excluded, are up to about a third of the whole. Do not go over half.
 
@@ -164,6 +165,6 @@ Colours are chosen from core's 9 colours (red, brown, green, blue, pale_blue, cy
 
 **Do not change node names.** ComfyUI searches by node name, so if a name has been changed, you cannot tell what node it originally was. If the workflow's author changed them, return them to the original node names.
 
-As an exception, only the following value nodes get information added to the node name. The form is "display name: what the value is" (for example `Float: video length (seconds)`, `Float: fps`, `Int: pixel count for 720p`). The display name is the name shown on the ComfyUI screen (display_name in object_info: Int, Float and so on), not the type name (PrimitiveInt and so on). Write the part after the colon in the user's language.
+As an exception, only the following value nodes get information added to the node name. The form is "display name: what the value is" (for example `Float: video length (seconds)`, `Float: fps`, `Int: pixel count for 720p`). The display name follows "Language" in SKILL.md (Int, Float and so on; not the type name such as PrimitiveInt).
 - Value nodes (Float, Int, String and so on) that reach several nodes from one.
 - Value nodes whose value alone does not tell what the value is (pixel counts lined up in a list and so on).

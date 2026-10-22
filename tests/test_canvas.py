@@ -5,6 +5,8 @@ The subject is a hand-made Flux text to image in fixtures/ and an object_info cu
 
 Usage: python3 -m unittest discover -s tests
 """
+import json
+import re
 import shutil
 import sys
 import tempfile
@@ -22,6 +24,12 @@ import geometry as G  # noqa: E402
 FIX = Path(__file__).resolve().parent / "fixtures"
 SUBJECT = FIX / "flux_t2i.json"
 OI = FIX / "object_info.json"
+
+
+def report_data(path):
+    """The data the report page at path carries (the JSON inside it)."""
+    text = path.read_text(encoding="utf-8")
+    return json.loads(re.search(r'<script type="application/json" id="data">(.*?)</script>', text, re.S).group(1).replace("<\\/", "</"))
 
 
 class CanvasTest(unittest.TestCase):
@@ -89,8 +97,8 @@ class CanvasTest(unittest.TestCase):
         self.do("put 13 right 27 top")
         self.assertEqual(self.rect("13")[1], self.rect("27")[1])
 
-    def test_replay_says_the_wire_was_made_horizontal(self):
-        import replay as R
+    def test_report_says_the_wire_was_made_horizontal(self):
+        import report as R
         self.do("put 27 origin")
         self.do("put 13 right 27")
         x = C._explain(self.cv(), self.cv(), "put 13 right 27", None)
@@ -271,6 +279,27 @@ class CanvasTest(unittest.TestCase):
         self.assertFalse([x for x in lines if x.startswith("rails too close")])   # the second rail shifts automatically
         ys = sorted({round(y) for y, _, _, _ in C.rail_spans(self.cv())})
         self.assertGreaterEqual(ys[-1] - ys[0], C.P["RAIL_GAP"])
+
+    def test_rails_from_two_outputs_of_one_node_are_two_rails(self):
+        # two rails from SamplerCustomAdvanced (output and denoised_output) laid at the same height must be reported
+        self.do("put 13 origin")
+        self.do("add VAEDecode n1")
+        self.do("link 10.VAE n1.vae 13.1 n1.samples")
+        cv = self.cv()
+
+        def reroute(rid, x):
+            cv.s["nodes"].append({"id": rid, "type": "Reroute", "mode": 0, "pos": [x, -200], "size": [C.REROUTE_W, C.REROUTE_H],
+                                  "inputs": [{"name": "", "type": "*", "link": None}], "outputs": [{"name": "", "type": "*", "links": []}]})
+        for rid, x in (("ra", 400), ("rb", 900), ("rc", 450), ("rd", 950)):
+            reroute(rid, x)
+        cv.add_link("13", 0, "ra", "")
+        cv.add_link("ra", 0, "rb", "")
+        cv.add_link("13", 1, "rc", "")
+        cv.add_link("rc", 0, "rd", "")
+        lines = next(f for n, f in C.CHECKS if n == "overlapping rails")(cv, C._CheckCtx(cv))
+        self.assertTrue([x for x in lines if x.startswith("rails too close") and x.endswith("(outputs 0 and 1)")], lines)
+        import report as R
+        self.assertTrue([k for k, p, _ in R.PROBLEMS if p.match(lines[0])])
 
     def test_between_counts_links(self):
         f = self.write_plan(self.PLAN)
@@ -587,7 +616,7 @@ rail 10.VAE above 12 to 8.vae
         self.assertTrue(tilt)
         self.assertFalse([x for x in lines if "allowed; count only" in x])
         self.assertGreaterEqual(counts["non-horizontal wires"], 1)
-        self.assertEqual(C.RPL.problem_text({"r": tilt[0]}, "en")["k"], "tilt")
+        self.assertEqual(C.RPT.problem_text({"r": tilt[0]}, "en")["k"], "tilt")
 
     def _two_loader_rails(self, model_spec, vae_spec):
         # model loader above the vae loader, a tall node right of both (so the rails cannot run at the output height)
@@ -608,7 +637,7 @@ rail 10.VAE above 12 to 8.vae
         bad = [x for x in lines if x.startswith("rail order differs from loader order")]
         self.assertEqual(len(bad), 1)
         self.assertTrue(bad[0].endswith("rail of 12 and rail of 10"))
-        self.assertEqual(C.RPL.problem_text({"r": bad[0]}, "en")["k"], "order")
+        self.assertEqual(C.RPT.problem_text({"r": bad[0]}, "en")["k"], "order")
         self.do("undo")
         self.do("undo")
         lines = self._rails("above 12", "below 10")
@@ -619,7 +648,7 @@ rail 10.VAE above 12 to 8.vae
         raise_lines = [x for x in lines if x.startswith("raising Reroute right of a loader")]
         self.assertEqual({x.rsplit(": ", 1)[1] for x in raise_lines}, {"12", "10"})
         self.assertIn("`move 12 0 ", raise_lines[0] + raise_lines[1])
-        self.assertEqual(C.RPL.problem_text({"r": raise_lines[0]}, "en")["k"], "reroute")
+        self.assertEqual(C.RPT.problem_text({"r": raise_lines[0]}, "en")["k"], "reroute")
         self.do("undo")
         self.do("undo")
         self.do("rail 12.MODEL out to 30.model")   # at the output height: no raising Reroute
@@ -630,8 +659,8 @@ rail 10.VAE above 12 to 8.vae
         lines = self._two_loader_rails("above 12", "below 10")
         bad = [x for x in lines if x.startswith("loader rail runs below its targets")]
         self.assertEqual(bad, ["loader rail runs below its targets (model, vae and clip rails go above): rail of 10"])
-        self.assertEqual(C.RPL.problem_text({"r": bad[0]}, "en")["k"], "order")
-        self.assertIn("のレールが、配る先のノードより下を通っています", C.RPL.problem_text({"r": bad[0]}, "ja")["t"])
+        self.assertEqual(C.RPT.problem_text({"r": bad[0]}, "en")["k"], "order")
+        self.assertIn("のレールが、配る先のノードより下を通っています", C.RPT.problem_text({"r": bad[0]}, "ja")["t"])
         self.do("undo")
         self.do("undo")
         lines = self._rails("above 12", "above 12")
@@ -845,40 +874,50 @@ rail 10.VAE above 12 to 8.vae
         out = self.do("diff")
         self.assertTrue(out and out[0].startswith("differences"))
 
-    def test_replay_page(self):
+    def test_report_page(self):
         self.do("put 12 origin")
         self.do("put 30 right 12 wire")
-        out = self.dir / "replay.html"
-        self.do(f"replay {out}")
+        out = self.dir / "report.html"
+        self.assertEqual(self.do(f"report {out}")[0], f"report page: {out}")
         text = out.read_text(encoding="utf-8")
         self.assertIn('id="data"', text)
+        self.assertIn('<html lang="en">', text)
+        self.assertIn("<title>Readable Node report</title>", text)
         self.assertNotIn("<script src", text)   # one file, nothing loaded from the network
 
-    def _replay_data(self, path):
-        import json
-        import re
-        text = path.read_text(encoding="utf-8")
-        return json.loads(re.search(r'id="data">(.*?)</script>', text, re.S).group(1).replace("<\\/", "</"))
+    def test_replay_is_the_old_name_of_report(self):
+        self.do("put 12 origin")
+        out = self.dir / "old.html"
+        self.assertEqual(self.do(f"replay {out}"), [f"report page: {out}"])
+        self.assertIn('id="data"', out.read_text(encoding="utf-8"))
 
-    def test_replay_page_in_japanese(self):
+    def test_report_page_in_another_language_has_english_sentences(self):
+        self.do("put 12 origin")
+        self.do("put 11 below 12")
+        out = self.dir / "report.html"
+        self.do(f"report {out} zh")
+        self.assertIn('<html lang="zh">', out.read_text(encoding="utf-8"))
+        data = report_data(out)
+        self.assertEqual(data["lang"], "en")
+        self.assertIn("below", data["canvases"][0]["steps"][-1]["s"])
+
+    def test_report_page_in_japanese(self):
         plan = self.dir / "plan.txt"
         plan.write_text("put 12 origin\nput 30 right 12 wire\n", encoding="utf-8")
         self.do(f"layout {plan}")
         self.do("put 11 below 12")
-        out = self.dir / "replay.html"
-        self.do(f"replay {out} ja")
+        out = self.dir / "report.html"
+        self.do(f"report {out} ja")
         text = out.read_text(encoding="utf-8")
         self.assertIn('<html lang="ja">', text)
         self.assertNotIn("<script src", text)
-        data = self._replay_data(out)
+        data = report_data(out)
         steps = data["canvases"][0]["steps"]
         self.assertEqual(steps[0]["kind"], "build")          # copy and link changed nothing on the drawing: one step
         self.assertEqual(steps[1]["kind"], "layout")
         self.assertIn("（2 行）", steps[1]["s"])              # the plan's line count was recorded by layout
         self.assertTrue(any("水平" in d for d in steps[1]["d"]))   # and what its lines did, in plain words
         self.assertIn("の下に", steps[2]["s"])
-        with self.assertRaises(C.Stop):
-            self.do(f"replay {out} fr")
 
     def test_layout_reports_what_lines_did(self):
         plan = self.dir / "plan.txt"
