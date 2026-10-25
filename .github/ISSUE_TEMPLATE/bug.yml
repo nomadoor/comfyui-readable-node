@@ -1,0 +1,44 @@
+name: Other errors or bugs
+description: Install fails, it stops partway, and so on / インストールできない、途中で止まるなど
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Japanese is fine. 日本語でも英語でも構いません。
+
+        Error messages can contain your folder paths. Remove anything you do not want to make public.
+        エラーには、フォルダのパスが入っていることがあります。公開したくないものは消してください。
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / 何が起きたか
+      description: What you did, and where it stopped. 何をして、どこで止まったか。
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Error message / エラー
+      description: The error the agent or the script printed. エージェントや script が出したエラー。
+      render: text
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and model / エージェントとモデル
+      placeholder: Claude Code, Claude Opus 5.5
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Skill version / skill の version
+      description: "`version` in SKILL.md. You can ask the agent. SKILL.md の `version`。エージェントに聞いても分かります。"
+      placeholder: 0.0.2
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS, Python, ComfyUI / OS、Python、ComfyUI
+      placeholder: Windows 11, Python 3.12, ComfyUI 0.x.x
