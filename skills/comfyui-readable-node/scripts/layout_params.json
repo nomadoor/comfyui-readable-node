@@ -4,60 +4,87 @@
     "value": 45,
     "unit": "px",
     "meaning": "Gap between nodes stacked in the same column (from the bottom of the upper node to the top of the lower node's title bar)",
-    "source": "Set by the skill author (nomadoor) as a round value (2026-10-19), from the median of 35 hand-made layouts (44)"
+    "source": "Set by the skill author (nomadoor) as a round value, from the median of 35 hand-made layouts (44)"
   },
   "H_GAP": {
     "value": 60,
     "unit": "px",
     "meaning": "Gap between columns (from the right edge of the left column to the left edge of the right column)",
-    "source": "Set by the skill author (nomadoor) as a round value (2026-10-19), from the median of 35 hand-made layouts (62)"
+    "source": "Set by the skill author (nomadoor) as a round value, from the median of 35 hand-made layouts (62)"
+  },
+  "GAP_WIDE": {
+    "value": 120,
+    "unit": "px",
+    "meaning": "Gap the canvas gives two columns when wires cross each other CROSS_WIDEN times or more in the gap between them (the agent does not choose it)",
+    "source": "Twice H_GAP. The skill author (nomadoor): a crowded gap is about twice the usual"
+  },
+  "CROSS_WIDEN": {
+    "value": 3,
+    "unit": "crossings",
+    "meaning": "Number of wire crossings inside the gap between two columns from which the canvas widens that gap to GAP_WIDE",
+    "source": "The same measurement: gaps with 3 or more crossings are about 90 wide in hand-made layouts. Decided by the skill author (nomadoor)"
   },
   "RAIL_GAP": {
-    "value": 56,
+    "value": 60,
     "unit": "px",
     "meaning": "Vertical distance between two rails",
-    "source": "Measured in a hand-made layout (z-image t2i detail): distance between the positive and negative rails (the smaller of 56 and 58)"
+    "source": "The same as the column gap (H_GAP): two rails stand as far apart as two columns. The skill author (nomadoor)"
   },
   "GROUP_PAD_LEFT": {
-    "value": 17,
+    "value": 20,
     "unit": "px",
     "meaning": "From a group's left edge to the left edge of its leftmost node",
-    "source": "Hand-made layouts (116 groups in 44 workflows). Median 17.4"
+    "source": "The same margin on every side of a group (20). The skill author (nomadoor): reasoned values, not hand-made medians"
   },
   "GROUP_PAD_RIGHT": {
-    "value": 21,
+    "value": 20,
     "unit": "px",
     "meaning": "From the right edge of the rightmost node inside to the group's right edge",
-    "source": "Hand-made layouts (116 groups in 44 workflows). Median 21.1"
+    "source": "The same margin on every side of a group (20). The skill author (nomadoor): reasoned values, not hand-made medians"
   },
   "GROUP_PAD_TOP": {
-    "value": 55,
+    "value": 54,
     "unit": "px",
     "meaning": "From a group's top edge (including its title) to the top of the title bar of its topmost node",
-    "source": "Hand-made layouts (116 groups in 44 workflows). Lower quartile 55.2 (groups are often given equal heights, which inflates the median, so the tighter side is taken)"
+    "source": "The margin of the other sides (20) plus the frontend's group title bar (34: font_size 24 x 1.4). The skill author (nomadoor): reasoned values, not hand-made medians"
   },
   "GROUP_PAD_BOTTOM": {
-    "value": 29,
+    "value": 20,
     "unit": "px",
     "meaning": "From the bottom of the lowest node inside to the group's bottom edge",
-    "source": "Hand-made layouts (116 groups in 44 workflows). Lower quartile 28.6 (same reason)"
+    "source": "The same margin on every side of a group (20). The skill author (nomadoor): reasoned values, not hand-made medians"
   },
   "IMAGE_AREA_SAVE": {
-    "value": [500, 520],
-    "unit": "px (width, height)",
-    "meaning": "Image area of a node that saves images (an output node that takes an IMAGE or VIDEO input and saves files: \"save\" in its category or name, or a filename_prefix input). Added below the node's initial size: width = max(initial width, area width), height = initial height + area height",
-    "source": "The skill author (nomadoor), 2026-10-19, rounded from the hand-made medians"
+    "value": 520,
+    "unit": "px (one side of a square)",
+    "meaning": "Image area of a node that saves images (an output node that takes an IMAGE or VIDEO input and saves files: \"save\" in its category or name, or a filename_prefix input). The result is shown largest. Added below the node's initial size: width = max(initial width, side), height = initial height + side",
+    "source": "The skill author (nomadoor): a large value so the image is easy to see; square, so a landscape image and a portrait one are shown at the same size"
   },
   "IMAGE_AREA_PREVIEW": {
-    "value": [340, 320],
-    "unit": "px (width, height)",
-    "meaning": "Image area of a node that previews images (another output node that takes an IMAGE input and puts out nothing but IMAGE). Added the same way",
-    "source": "The skill author (nomadoor), 2026-10-19, rounded from the hand-made medians"
+    "value": 320,
+    "unit": "px (one side of a square)",
+    "meaning": "Image area of a node that previews images (another output node that takes an IMAGE input and puts out nothing but IMAGE). Added below the node's initial size: width = max(initial width, side), height = initial height + side",
+    "source": "The skill author (nomadoor): a large value so the image is easy to see; square, so a landscape image and a portrait one are shown at the same size"
   },
   "IMAGE_AREA_LOAD": {
-    "value": [300, 320],
-    "unit": "px (width, height)",
-    "meaning": "Image area of a node that loads an image or video (an input with image_upload or video_upload). Added the same way",
-    "source": "The skill author (nomadoor), 2026-10-19, rounded from the hand-made medians"
+    "value": 320,
+    "unit": "px (one side of a square)",
+    "meaning": "Image area of a node that loads an image or video (an input with image_upload or video_upload). Added below the node's initial size: width = max(initial width, side), height = initial height + side",
+    "source": "The skill author (nomadoor): a large value so the image is easy to see; square, so a landscape image and a portrait one are shown at the same size"
+  },
+  "PREVIEW_TEXT_SIZE": {
+    "value": [
+      300,
+      180
+    ],
+    "unit": "px",
+    "meaning": "Initial size of Preview as Text (PreviewAny): width and height of the body, so the text it shows can be read",
+    "source": "The skill author (nomadoor): a clean value, neither too large nor too small, to be checked by looking. Hand-made layouts: 71 Preview as Text, median 264×162; those showing an LLM or caption output 286–388 wide, 154–322 tall"
+  },
+  "VUE_MARGIN": {
+    "value": 30,
+    "unit": "px",
+    "meaning": "How much taller every node (but Reroutes and Notes) is drawn in Nodes 2.0 than its legacy height, added to the legacy height. One margin for every type, not per type",
+    "source": "Set by the skill author (nomadoor): the median of (Nodes 2.0 height - legacy height with the title) over the 1742 node types of the frontend (26), as a round value"
   }
 }

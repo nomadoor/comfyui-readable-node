@@ -1,6 +1,6 @@
 {
   "name": "comfyui-readable-node",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Rebuilds ComfyUI workflows into a form people can read (Readable Node).",
   "author": {
     "name": "nomadoor"

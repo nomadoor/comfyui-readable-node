@@ -1,373 +1,235 @@
 # Examples
 
-Examples of how the rules in readable-form.md, techniques.md and notes.md applied in real workflows. They are taken from layouts nomadoor rebuilt by hand, and from corrections to agents' rebuilds. In the same situation, lean towards this form.
+How the rules applied in real workflows: "Layout" under the section headings of readable-form.md, then "Content" and "Notes" by topic. "Before" is a form an agent built, "After" the corrected form, "Layout" a layout arranged by hand. In the same situation, lean towards this form.
 
-- "Before" is the form an agent built, "After" is the corrected form. "Layout" is the layout rebuilt by hand itself.
+## Layout
 
-## Workflows rebuilt by hand
+### 1. The usual form
 
-### Workflows with SamplerCustomAdvanced
-
-**Flux, HunyuanVideo**
+**Text to image with SamplerCustomAdvanced (Flux, HunyuanVideo, Qwen-Image with hand-made sigmas)**
 ```
 Layout: row 1: UNETLoader → (LoRA) → ModelSampling, RandomNoise
         row 2: DualCLIPLoader → CLIP Text Encode → FluxGuidance → BasicGuider (the conditioning wire is horizontal)
-        SamplerCustomAdvanced at the vertical middle of the column on its left (RandomNoise, BasicGuider, KSamplerSelect, BasicScheduler, Empty Latent)
-        VAELoader above SamplerCustomAdvanced
+        SamplerCustomAdvanced at the vertical middle of the column on its left (RandomNoise, BasicGuider, KSamplerSelect, the sigma node, Empty Latent)
+        Load VAE above SamplerCustomAdvanced (to the upper left of VAE Decode)
+Before: BasicScheduler → SplitSigmas aligned to the model row; the VAE run across the top on a rail
 ```
+- The wire that loads the model and the nodes that make sigmas have different roles; do not put them on one row because they are connected.
 
-**Qwen-Image (hand-arranged sigmas), Flux (TeaCache), Flux Krea (redraw at 2x)**
+**A SamplerCustomAdvanced setup that is one KSampler (MiniMax reference to video)**
 ```
-Before: aligned BasicScheduler → SplitSigmas to the model row. Ran the VAE rail across the top
-After:  to the left of SamplerCustomAdvanced, one column in input order (RandomNoise, BasicGuider, KSamplerSelect, the sigma node, Empty Latent)
-        Load VAE above SamplerCustomAdvanced (to the upper left of VAE Decode). The width and height values below
-        The VAE is carried sideways at its own height below
-```
-
-- The wire that loads the model and the nodes that make sigmas have different roles. Do not align them on the same row just because they are connected.
-- Because the form in which inputs enter the sampler is always the same, the whole can be read.
-- In this workflow, groups are used too (to guide the eye).
-
-**MiniMax reference to video**
-```
-Before: copied the original workflow's SamplerCustomAdvanced + BasicGuider + KSamplerSelect + BasicScheduler as they were
+Before: copied SamplerCustomAdvanced + BasicGuider + KSamplerSelect + BasicScheduler as they were
 After:  one KSampler (the same calculation)
 ```
 
-- Do not be dragged along by the wiring of the original workflow.
-
-### Single-stage workflows
-
-**AnimateDiff**
+**The outputs (VAE Decode → Save Image → Compare)**
 ```
-Layout: Load Checkpoint → LoraLoader → CLIP Text Encode(+) → Apply ControlNet → KSamplerAdvanced at one height (the positive wire)
-        The AnimateDiff nodes above, as a cluster. ADE_UseEvolvedSampling at the vertical middle of the three nodes that connect to it (not aligned to the height of LoraLoader)
+After: Save Image, which matters more, stands next to VAE Decode; Compare where its wires need the fewest Reroutes (right of Save Image or below it)
+       The wire to Compare passed behind Save Image: one of them steps down so the wire passes above
+       When Compare's other input comes on a rail, Compare is set at the rail's height so no Reroute is needed before it
+After: a stage whose result is made by another node than VAE Decode (Merge List of Tiles to Image after redrawing tiles): Save Image next to that node
 ```
 
-**Anima drawn from a pose**
+**Stages in a row (t2i → tiled upscale, t2i → Hires.fix → upscale)**
 ```
-Layout: bottom row: Load Image → AnimaPoseControl → Resize → VAE Encode, Get Image Size, Empty Latent
-        From there, one wire goes up to AnimaControlApply
-        Load VAE below Resize. Connected directly to VAE Encode and VAE Decode. 0 Reroutes
-```
-
-**Anima with two reference images**
-```
-Layout: Load Image → AnimaRefEncode horizontal, each pair side by side, the two pairs stacked vertically
+Before: the upscale stage 500px below the first; the image lifted with Reroutes and lowered again
+After:  the upscale stage's first node level with the first stage's VAE Decode; the image goes straight on
+        Save Image of the first stage steps down so that wire passes above it
 ```
 
-**Head swap with Krea2**
+### 2. Nodes
+
+- Save Image and Load Image are for checking the output and the input: give them a size at which the preview can be seen. Shrinking Load Image to pack a small workflow makes it harder to read than the original.
+- Two Preview Image of one node next to the sampler, stacked in the column left of KSampler: the lower one stood right below the upper. Undecided: side by side, stacked, or merged into one.
+
+### 3. Wires
+
+**A single value going far**
 ```
-Before: meaningless Reroutes were left
-After:  Load VAE to the left of the two VAE Encode. Connected directly to VAE Encode and VAE Decode
-        Load Image → Resize, each pair side by side, the two pairs stacked vertically. Get Image Size and Empty Latent on the bottom row
+Layout: in a single-stage workflow where the loader's VAE goes into both VAE Encode and VAE Decode, no rail; both wired directly
+        Relighting Text to Image: the VAE wire from Load Checkpoint to VAE Decode runs diagonally behind Load Diffusion Model (way in and way out plain to see)
 ```
 
-**Relighting with IC-Light**
+**Reroutes that are not needed**
 ```
-Layout: the foreground chain: Load Image and Resize below; from Remove Background on, it runs sideways on the row above
-        The foreground chain, the IC-Light model and Apply share one colour
-        The only Note is the model Note
-```
-
-- Do not write Notes on things that are clear by looking, such as background removal.
-
-**Cutting out photos, stacking them and redrawing by depth (Create Layered Image and Add Layer)**
-```
-Layout: Add Layer from bottom to top: the background (forest) at the bottom, the person above it, the wolf at the top. layers is connected from bottom to top
-        The LoRA chain and Conditioning (Combine) stay in processing order
-        The ControlNet set (Loader, Depth Anything, Preview Image, Apply ControlNet) shares one colour
-        Two Notes: the model Note, and one saying the stacking positions can be fixed in the editor
+Before: two samplers side by side (KSamplerAdvanced ×2, Wan 2.2 high noise and low noise) took the same positive and negative from a rail
+After:  wired directly; without Reroutes it is still clear where the wires go
+Before: a Reroute right after the source lifting its output, then the rail (a seed, a Wildcard Processor, Load Image → Split Image into List of Tiles)
+After:  the source moved to the height of the rail (or the rail kept at the source's output height)
+Before: the image from an upscaler to Save Image and Compare right after it, through Reroutes
+After:  wired directly
 ```
 
-- A layer has the background at the bottom and things stacked on top. Making the nodes' up and down match that makes it intuitive. Only layers take this over processing order.
-
-### Multi-stage workflows
-
-**The later stage of SVD**
+**Which wire is horizontal**
 ```
-Layout: Image Only Checkpoint Loader and Video Linear CFG Guidance on a row above the main flow
-        SVD_img2vid_Conditioning receives the image from the earlier stage's VAE Decode, horizontal with KSampler's positive input
+Before: Resize Image/Mask (match size) took the image it matches on a horizontal wire, and the Load Image it resizes from below on a slant
+After:  Load Image → Resize Image/Mask → Stitch Images on one horizontal line; the wire into match slants (Wan 2.1 Fun Control)
+Before: LTXV Conditioning set midway between the positive and negative encoders; the AV latent split's VAE Decode midway between its video and audio wires (LTX 2.5)
+After:  the positive wire into LTXV Conditioning horizontal; the video latent into VAE Decode horizontal (midway is a liking, not needed)
 ```
 
-**Z-Image Hires.fix → 4x upscale → face Detailer → person Detailer**
+### 4. Flow and position
+
+**The band is decided from the sampler**
 ```
-Layout: the loaders (Unet → ModelSamplingAuraFlow, Load VAE, Load CLIP) gathered at the upper left
-        The five wires MODEL, VAE, CLIP, positive, negative run horizontally across the top of the whole as rails; each stage drops what it needs down from the rails
-        Eye line: VAE Decode → Upscale Image (using Model) → FaceDetailer → DetailerForEach → Save Image at nearly one height. Large nodes share their top edge
-        The stages left to right, in processing order. The first stage's Hires.fix (KSampler → Upscale Latent By → KSampler) keeps the basic form
-        The face detection loaders and the person mask chain (Load Checkpoint → CLIP Text Encode → SAM3 Detect → MaskFix+ → MaskToSEGS) on the row one below the eye line, in processing order, just before where they are used
+Before (SeedVR2): Load Diffusion Model below the band
+After:  KSampler where Apply SeedVR2 Conditioning's positive and negative enter horizontally; Load Diffusion Model above
+Before (Wan 2.2 I2V): the main flow below CLIP Text Encode (the band too low)
+After:  WanImageToVideo top-aligned with CLIP Text Encode; the main flow continues right on that row
+Before (i2i): Load Image → Resize → VAE Encode moved 300px below VAE Encode's sampler
+After:  Load Image → Resize → VAE Encode level, as part of the main flow
 ```
 
-- No CFG value node is placed. The CFG 1.0 of a distilled model is not changed, so the value goes into each KSampler.
-
-**Wan2.2 t2i, two samplers (low noise and high noise), then upscale and run again**
+**Nodes with many inputs (WanAnimateToVideo, WanSoundImageToVideo, WanSCAILToVideo)**
 ```
-Layout: of the two model chains, the one that connects to the later sampler (low noise) on top. The wires do not cross
-        One Load CLIP and one Load VAE. A rail hands them out to both stages
-        The eye line runs from the first stage's VAE Decode to Color Match, the final output
-        The positive text (Concatenate Text) above, the negative text (Text Multiline) below
-```
-
-**LTX 2.3, two stages (distilled, GGUF)**
-```
-Before: Load VAE and the audio VAE loader at the bottom left, with the VAE rail run under everything
-        the model wire stretched diagonally and far to the second stage's CFGGuider
-        the conditioning rail carried only the positive, with one Reroute; the negative was not on a rail
-        SamplerCustomAdvanced → Separate AV Latent and LTXVCropGuides → LTXVLatentUpsampler diagonal
-After:  VAE and model are handed out to the second stage on rails above (the loader at the head of the rail)
-        positive and negative go on rails as a pair
-        SamplerCustomAdvanced → Separate AV Latent horizontal. LTXVLatentUpsampler level with Concat AV Latent, Load Latent Upscale Model level with it
+After: its sources in one column on its left, top to bottom in input order, right edges aligned (`inputs`)
+Before: the model row (… → Skip Layer Guidance → EasyCache) ending at the right edge of the text encoders, one column left of WanFunControlToVideo, the sampler's source column
+After:  the model row ending at WanFunControlToVideo's right edge; when the gap left of that column is widened, the model row moves with it (Wan 2.1 Fun Control)
+Before: the chain that cuts the face out of the DWPose output above DWPose, to match the slot order
+After:  below DWPose (match the flow of processing)
+Before: WanSoundImageToVideo's 9 input slots in a row left 700px between it and the prompt column
+After:  Load Image and Load Audio pulled close to the node that receives them, even at the cost of some wire overlap
 ```
 
-- Rails of values (fps and so on) may run below.
-
-**Make an image with Kontext, then a video with Wan2.2**
+**The row of an image chain**
 ```
-Layout: the Kontext stage and the Wan stage left to right. The image from the Kontext VAE Decode crosses horizontally to the Wan stage (WanImageToVideo, CLIP Vision Encode, Get Image Size)
-        The size comes from FluxKontextImageScale → Get Image Size → Empty SD3 Latent Image. Values typed by hand are not handed out
-```
-
-**AnimateDiff with a start image and an end image**
-```
-Layout: main flow: CLIP Text Encode(+) → Apply ControlNet (start) → Apply ControlNet (end) → AnimateDiffSampler
-        Load Checkpoint at about the same height as the sampler. The MODEL and VAE wires pass above the nodes of the main flow
-        The two keyframe chains (LatentKeyframeTiming → TimestepKeyframe → ACN ControlNet Loader) above the main flow, one row each. The one that connects to the later Apply ControlNet on top
-        The two Load Image form a staircase at the very bottom. The size is put only in the first Resize Image/Mask (scale dimensions); the second is match size, and Empty Latent takes it from Get Image Size
-```
-
-**InstantID portrait (eye redraw → Hires.fix → eye redraw)**
-```
-Layout: the groups of the three stages share their top edge and height
-        Three Load Image (the face photo, the kps image, the pose image). Which gets what cannot be seen by looking, so a Note is placed there
-Fixed:  in the second eye redraw, positive and negative were connected the wrong way round (the workflow author's mistake)
-        the middle ended in Save Image and the end in Preview Image (save the final one)
-```
-
-**SDXL t2i → skin redraw**
-```
-Layout: the earlier stage's image goes into 4 places in the later stage (VAE Encode, Apply ControlNet, GroundingDinoSAMSegment, ImageCompositeMasked)
-        The whole later stage is lowered below that wire, a rail runs above it, and a wire drops down to each target
-```
-
-## Judgement examples (layout)
-
-### The eye line is decided from the sampler
-
-**SeedVR2 image upscale**
-```
-Before: made the input image's latent (VAE Encode → KSampler) horizontal, and put Load Diffusion Model below the eye line
-After:  KSampler at the height where the positive and negative of Apply SeedVR2 Conditioning enter horizontally
-        Load Diffusion Model above it. The input image chain (Load Image through VAE Encode) on the row one below. Load VAE below VAE Encode
-        Only the one wire carrying the original image to Post-Process is a rail passing below
-```
-
-**Wan 2.2 I2V**
-```
-Before: put the main flow below CLIP Text Encode (the eye line too low)
-After:  WanImageToVideo top-aligned with CLIP Text Encode. The main flow (WanImageToVideo → sampler → … → CreateVideo) continues right on that row
-```
-
-- Putting Load Checkpoint 400px above KSampler was too high (steerable motion). Undecided: how far is acceptable.
-
-### The column of a sampler's sources
-
-```
-Before: because of the width of Empty Latent, CLIP Text Encode shifted one column left, and a gap opened where they should have been in the same column (Krea 2)
-After:  what connects straight into the sampler (Load LoRA, Empty Latent Image, the two CLIP Text Encode) in one column, right-aligned
-```
-
-**Nodes with many inputs (WanAnimateToVideo, WanSoundImageToVideo)**
-```
-Before: put the chain that cuts the face out of the DWPose output above DWPose, to match the slot order (face_video above pose_video)
-After:  put it below DWPose (match the flow of processing)
-```
-```
-Before: WanSoundImageToVideo has 9 input slots in a row, so 700px was left between it and the prompt column
-After:  pull the input loaders, Load Image and Load Audio close to the node that receives them, even at the cost of some wire overlap
-```
-
-- Aligning by the flow of processing is sometimes cleaner than aligning by the order of the input slots.
-
-### Loaders and the model row
-
-- Krea 2: the model row (UNET → LoRA → LoRA) is on top, and Load VAE is bottom-aligned with that row.
-
-```
-Before: ModelSamplingAuraFlow was far below the model loader (loader top y -444, ModelSamplingAuraFlow top y -106)
-After:  Unet Loader (GGUF) and ModelSamplingAuraFlow top-aligned so the wire is horizontal
-```
-```
-Before: lowered Load Checkpoint one row so that the CLIP wire would not pass behind the LoRA
-After (as a preference): Load Checkpoint top-aligned with Load LoRA and FreeU
-```
-```
-Before: bottom-aligned Load VAE with Load Image (height 424)
-After:  Load VAE much higher (there is no point in bottom-aligning)
-```
-
-- MiniMax H3: VAE Decode and VAE Decode Audio go in the same column. There are many exceptions, so this is not made a rule.
-
-### The row of an image chain
-
-```
-Layout: when an image chain starting at Load Image also connects to Get Image Size → Empty Latent Image, that chain goes on the bottom row, in one line with Get Image Size and Empty Latent Image
-        To the other targets (ControlNet-type nodes on the model row, background removal and so on), wires go up from that row
-```
-
-- Nodes whose size tends to change (Load Image and so on) go low.
-
-```
-Before: put the Load Image that makes the depth map to the left of Load Depth Anything 3 (widens by one column)
+Layout: an image chain from Load Image that also goes to Get Image Size → Empty Latent goes on the bottom row, in one line with them;
+        wires go up from that row to other targets (ControlNet, background removal)
+Before: the Load Image for a depth map left of Load Depth Anything 3 (one more column)
 After:  below Load Depth Anything 3
 ```
 
-### A large input that breaks the core
-
+**Preparation**
 ```
-Before: a node that takes 9 reference image slots, and 9 one-to-one Switch nodes. Lined up in input order, the Switch nodes piled up vertically in the same column as Load CLIP, Load VAE and the node that chooses the resolution, and the form of the core broke
-After:  the group of Switch nodes is not lined up in the core's columns; it is built a little away, and only the result is brought into the core
-```
-```
-Layout: Text to Image that composites a background and then applies a depth ControlNet. Load Image, background removal and the layer stacking are placed to the left of Load Checkpoint (up to 1280px), and only the result is drawn into the core
+Before: a node with 9 reference image slots and 9 Switch nodes piled in the column of Load CLIP and Load VAE; the core's form broke
+After:  the Switch nodes built a little away; only the result comes into the core
+Layout: a background composite before a depth ControlNet: Load Image, background removal and layer stacking left of Load Checkpoint
 ```
 
-- Preparation far from the core is not part of the core.
-- The number of inputs changes with autogrow, so it cannot be decided neatly. Judge by how the form breaks.
+**Layers, same-shape chains**
+- Nodes that stack layers (Add Layer → Create Layered Image) go from the bottom up, background at the bottom. Only these.
+- Two chains of the same shape (Wan 2.2 high and low noise; two AnimateDiff keyframe chains): the one for the later node on top, so their wires do not cross.
+- Several large loading nodes (Load Image, Load Video) into one node: a staircase, the first at the upper left at its slot's height, the next lower right.
 
-### One long wire in a single-stage workflow
-
+**Spacing**
 ```
-Layout: in a single-stage workflow where the loader's VAE goes into both VAE Encode and VAE Decode, no rail is used; both are connected directly (0 Reroutes)
-        Text to Image with a pose reference image: the image chain (Load Image → … → VAE Encode, Get Image Size → Empty Latent Image) on the bottom row, Load VAE next to that row's VAE Encode. The wire to VAE Decode runs diagonally between the nodes
-        Relighting Text to Image: the wire from Load Checkpoint's VAE to VAE Decode runs diagonally and passes behind Load Diffusion Model on the way (allowed)
-```
-
-### Spacing and width
-
-```
-Before: in a Kontext + LoRA workflow, 150px was left between Load LoRA and KSampler (gap 150 in the plan)
-After:  do not widen the space to a neighbour connected by a wire without a reason
+Before: 150px between Load LoRA and KSampler
+After:  no wider space to a wired neighbour without a reason
 ```
 
-- KSampler, Load Diffusion Model and the like keep their initial width. Do not make them narrower.
-- CLIP Text Encode (400) and Empty Latent Image (270) do not get their widths aligned even in the same column (the difference is larger than the gap between columns).
-- Conditioning Zero Out goes below the positive CLIP Text Encode. Do not open a large gap for a node that only puts a value into negative at CFG 1.0.
-
-### Nodes that change size
-
-- Save Image and Load Image are nodes for checking the output and the input. Do not pack them; give them a size at which the preview can be seen. Even in a small workflow such as a face swap, shrinking Load Image to pack things makes it harder to read than the original workflow.
-- Do not fold Preview Image back below its source (it breaks the left-to-right flow).
+### 5. Loaders
 
 ```
-Before: lifted the save and Preview nodes upward to avoid wires, and because of that a rail stretched upward
-After:  do not jump them upward (the problem is less putting them above than the rail stretching upward)
+Layout: basic t2i: Load VAE above the KSampler (it is first used by VAE Decode)
+Layout: Load VAE next to the VAE Encode of the bottom row when it is first used there (Anima pose, Krea2 head swap, SeedVR2)
+Before: a second Load Checkpoint used only from the third stage, at the far left with a long diagonal wire
+After:  in the column left of its first user
+Before: Load Upscale Model at the far left, feeding one node
+After:  right next to that node
+Before: the loader column left-aligned with the wider Text (Multiline) column below
+After:  right-aligned (its outputs closer to their users)
+Before: ModelSamplingAuraFlow far below the model loader
+After:  level with it, so the model wire is horizontal
+Before: Load VAE bottom-aligned with Load Image (height 424)
+After:  much higher (no reason to align with it)
+Before: Load VAE at the top of the loader column, above two Unet Loaders (Wan 2.2 GGUF)
+After:  below the model loaders
 ```
+- VAE Decode and VAE Decode Audio (MiniMax H3, LTX) stand in the same column.
 
-### Exceptions to backward wires
+### 6. Value nodes
 
-- When an upscale or interpolation group is placed on the row one below the main flow, the wire from the main flow's VAE Decode to the first node of the lower row may go back down to the left. Undecided: where to draw the line.
+- The cfg 1.0 of a distilled model is not changed, so it stays in each KSampler; no cfg value node.
+- Sizes typed by hand once are not handed out; a size the author measures from an image comes from Get Image Size.
 
-### Groups
+### 7. Groups and colour
 
-```
-Before: in a two-stage LTX 2.3 workflow, the decode of the Stage 1 result and the decode after upscaling were put in one group "Decode"
-After:  split the groups (having two decodes is fine, as in the original workflow)
-```
+- A two-stage LTX workflow has three groups (stage 1, stage 2, decode). A t2i with IPAdapter has none.
+- A Detail pass whose every node was coloured green inside its group: the group already guides the eye.
+- Colour split finely (SCAIL 2): the core green; taking the person in the input video pale_blue; taking the person in the reference image cyan; CLIP Vision brown.
+- In that two-stage LTX workflow, the decode of the Stage 1 result and the decode after upscaling are different outputs: they were split out of one "Decode" group (a case, not a rule).
 
-- Do not put things that are different functions and output different outputs in one group.
-
-## Judgement examples (content)
-
-### Build a size from what the size is for
-
-```
-Before: in Qwen-Image-Layered, to split an input image into layers, the size of the empty latent was copied as the original 640×640
-After:  Load Image → Scale Image to Total Pixels (0.5 MP) → Get Image Size → empty latent. The shrunk image also goes into VAE Encode
-```
-```
-Before: in Wan 2.2 S2V, the width and height of the workflow author's ImageResize+ (fit into an 832×480 frame) were copied with expressions that give the same values
-After:  resize the image to 0.4 MP (round the resolution to the model's multiple), and take width and height with Get Image Size. As a reference image too, it is lighter to resize before feeding it in
-```
-```
-Before: in Wan 2.2 Animate, the same size and length were taken from two separate places with two Get Image Size
-After:  take them from one place
-```
-
-### Samplers that split one continuous setting
+### 8. Names
 
 ```
-Before: 30 steps split into three KSamplerAdvanced (0–10, 10–20, 20–end), with a different seed per stage (add_noise disable for the 2nd and 3rd)
-After:  30 steps in one KSampler. Write the difference in the report
+Before: the author's group name "Upscale" kept (the content enlarges with an upscale model and then redraws at denoise 0.2)
+After:  a name that fits the content (a variant of Hires.fix)
+Before: a node title in Chinese the author gave (on Mahiro)
+After:  ComfyUI's display name
 ```
 
-- The only difference is how the noise comes out at each step of an ancestral sampler. Splitting has no meaning and invites misunderstanding.
+## Content
 
-### Unconnected parts, disabled branches, branches that differ in method
+### Split
 
-- Resolution samples the workflow's author prepared (26 Empty Latent Image connected to nothing; to use one, you rewire it by hand): the nodes are removed, and the values kept as a table in the Note on Empty Latent Image.
-- A finished stage not connected to the output (the Chroma and SDXL stages of a model comparison workflow; they stop at VAE Decode, and the workflow author's Note says "add Stitch to put it in the comparison row"): left unconnected, and how to connect it written in a Note.
-- A bypassed branch whose sources are all empty, so it is unclear what it was meant to connect to (a group whose Chinese name means "local inpainting"; its inputs are Get nodes with empty names): it does not work as a workflow, so it is removed as debris and mentioned in the report.
-- A switch between Tiled VAE Decode and ordinary VAE Decode (Boolean → Switch): a difference of method, with or without a speed-up. Keep the one ordinary VAE Decode the workflow's author had enabled.
+```
+One: base → refiner → Hires.fix (conditioning passes on). The film grain and colour correction on the finished image: a workflow of its own
+Split: nine models with their own sampler settings × t2i and i2i = eighteen workflows
+One, bypassed: a depth image as an optional guide for an edit (not a second workflow)
+```
+
+### Fix
+
+```
+Before: two KSampler (Advanced) in a row, both adding noise from step 0; the second redraws the first's result entirely; kept with a Caution
+After:  the first removed, reported
+Before: 30 steps split into three KSampler (Advanced) (0–10, 10–20, 20–end) with a different seed each
+After:  one KSampler with 30 steps; the difference reported
+```
+
+### Sizes from what they are for
+
+```
+Before: the empty latent size copied from the original (640×640) to split an input image into layers
+After:  Load Image → Scale Image to Total Pixels (0.5 MP) → Get Image Size → empty latent; the shrunk image also into VAE Encode
+Before: the width and height of the author's ImageResize+ (fit into 832×480) rebuilt as expressions
+After:  resize the image to 0.4 MP (rounded to the model's multiple) and take width and height with Get Image Size
+Before: the same size and length taken from two places with two Get Image Size
+After:  from one place
+```
+
+### Unconnected parts and disabled branches
+
+- Resolution samples the author prepared (26 Empty Latent Image connected to nothing): removed, the values kept as a table in the Note on Empty Latent Image. Undecided: that table, or the core Resolution Selector wired in. Either is fine.
+- A finished stage not connected to the output, with the author's Note saying how to connect it: left unconnected, and how to connect it written in a Note.
+- A bypassed branch whose sources are all empty: it cannot work, so it is removed as debris and reported.
+- A switch between Tiled VAE Decode and VAE Decode: keep the one the author had enabled.
 
 ### Choosing a replacement
 
 ```
-Before: built Compositor3 (a custom node that stacks images by dragging on the screen) from Image Composite Masked and scaling and flipping nodes
-After:  core's Create Layered Image and Add Layer (positions can be fixed in the editor)
+Before: Compositor3 (stacks images by dragging) rebuilt from Image Composite Masked and scaling nodes
+After:  core Create Layered Image and Add Layer (positions fixed by dragging in the editor)
+After:  tiles: Split Image into List of Tiles → redraw each → Color Transfer → Merge List of Tiles to Image (in place of Ultimate SD Upscale)
+        With Qwen Image 2.1, whose VAE outputs RGBA, Split Image with Alpha before Color Transfer
+Kept:   a crop whose region comes in by wire (core Crop Image cannot take it by wire)
 ```
 
-- A form where position and size are typed as numbers is hard to use even if it can be built. Choose the one that keeps the user's operation (dragging).
-- Create Layered Image and Add Layer are experimental nodes, usable only in Nodes 2.0, and their UI is not easy to use either.
+## Notes
 
-### Names
-
-```
-Before: used the workflow author's group name "Upscale" as it was (the content enlarges with an upscale model and then redraws at denoise 0.2)
-After:  a name that fits the content (a variant of Hires.fix, Enhance, and so on)
-```
-
-## Note examples
-
-In each, the before only set down facts. The after says the point in the heading (for a warning, the caution), and keeps what is below it short.
+Each before only set down facts; the after says the point in the heading and keeps what is below it short.
 
 **The finishing upscaler has a value that makes the image smaller (Caution)**
 ```
-Before: The image going into SeedVR2 is 1200×1600 (960×1280 at 1.25x), but resolution is 896, so the short side is shrunk to 896.
+Before: The image going into SeedVR2 is 1200×1600, but resolution is 896, so the short side is shrunk to 896.
 After:  ### With the current value, the image gets smaller at the finish
-        resolution is not the upscale ratio but "how many px the short side of the result should be".
-        The short side of the image arriving here is 1200px, so 896 shrinks it. To enlarge it, set it above 1200.
+        resolution is not the upscale ratio but the short side of the result. The image arriving here is 1200px, so 896 shrinks it.
 ```
 
 **A cfg-distilled model with cfg at 1.1 (Caution)**
 ```
-Before: The negative text works well on the Base version. On the Distill version it works weakly, so it can be left empty (the author's explanation)
+Before: The negative text works weakly on the Distill version, so it can be left empty (the author's explanation)
 After:  ### With cfg at 1.1, most of the Distill version's speed is lost
-        The Distill version is a model built to draw at cfg 1.0 without computing negative.
         Raising cfg above 1.0 makes negative computed too, and the time per step nearly doubles.
 ```
 
-- The workflow author's explanation (works weakly) had the wrong reason, so it was not used.
-
-**What was not written**: sentences reading the nodes aloud from left to right, explanations of why things were connected this way, explanations of a graph that is only for looking, things everyone who uses ComfyUI knows (negative has no effect at cfg 1, and so on).
+**Not written**: "16:9 is 1088, not 1080, to divide by 16" (rounding to the model's multiple is expected); "un-bypass the blue nodes" (point at nodes by name); "according to the author, swap in Unet Loader (GGUF)" (a checkable step is written plainly).
 
 ## Undecided
 
-- **Parts-shelf workflows.** A workflow where many groups are switched with bypass and assembled for each use does not fit in one workflow.
-  - One direction: split it by function. Processing applied to the finished image (Detailer, Upscale, effects and so on) is post-processing; introduce in the conversation what is there and ask whether the user wants any of it. If not, build only the main Text to Image.
-  - Decided: do not remove disabled functions. If they can be split, split them and prepare them. Losing functions does not respect the original workflow.
-  - Among the generation parts, the ones worth a workflow of their own are those that change what can be done (Text to Image, Regional Prompting, ControlNet LLLite, Image to Image). A part that "might make things a little better", such as CFGZeroStar, is no reason for a separate structure.
-- **Whether to split a multi-stage workflow.** A workflow where a later stage uses the result of an earlier stage.
-  - The form so far: when what passes from the earlier stage to the later stage is a single image (or video), both a version kept connected and tidied and a split version (the later stage starts from Load Image) were produced. Post-processing where the later stage has no sampler, hires fix or refiner continuing in LATENT, and ones that share models or conditioning were kept as one.
-  - This line was drawn from examples and is not decided. Think from 1 task = 1 workflow, and report it when unsure.
-- **A switch with only one input.** Removing it breaks equivalence. Keeping it means carrying many values, which gets messy. (Decided: saving with metadata [Image Saver + Civitai Hash Fetcher and so on] is kept as a function of the workflow's author.)
-- **Workflows that are too complex.** How to handle workflows with many nested subgraphs that expand to hundreds of nodes (chains of regular expressions that build text, and so on).
-- **Conditional branches written in regular expressions.** Dozens of regular expressions in a row, branching on tags in the text. They cannot be changed. Leaving them as a subgraph may be easier to read.
-- **What to hand over when splitting.** If what the workflow author's wireless nodes (Image Sender and so on) were sending is turned directly into Save Image → Load Image, the later workflow may apply the same processing (OpenPose and so on) again.
-- **Make the wire horizontal, or align the top edges.** In the hand-made layout examples, the horizontal wire wins almost everywhere. The only pair with aligned top edges was AnimateDiff's Latent Keyframe Timing → Timestep Keyframe. How to tell when to take the top edge is not known.
-- **Put a node that gathers inputs at the middle of its sources, or align its top edge with its neighbour.** Where Detailer's Simple Detector (three inputs) and SEGS Filter sit side by side, it was corrected because their top edges were not aligned.
-- **How to route a single wire when even the output's height hits a node.** Whether to escape above or below.
-- **When a wire may pass behind nodes.** A wire where it is naturally clear which is where it goes in behind and where it comes out does not need to be lifted with Reroutes (for example, the VAE wire from Load Checkpoint to VAE Decode going in behind KSampler as one wire and coming out as one). Candidate guides are few crossings and no running backwards. It has not been made into a form that can be counted.
-- **Whether to simplify a size calculation the workflow's author built.**
-  - In a two-stage LTX 2.3 workflow, the workflow's author passed an empty 64×64 latent through the upscale model to measure the ratio (1.5 or 2), rounded the finished size down to a multiple of 96 or 64, and got the Stage 1 size (6 nodes). Even if the upscale model is swapped between x1.5 and x2, the size matches automatically.
-  - The LTX 2.5 workflow on nomadoor's site gets the Stage 1 size with Resolution Selector (multiple 64) → Math "a / 2" (3 nodes, a single x2 upscale model). It is no longer equivalent, but it can be written much more simply.
+- **Workflows that are too complex**: nested subgraphs expanding to hundreds of nodes (chains of regular expressions that build text, and so on). Leaving them as a subgraph may be easier to read.
+- **What to hand over when splitting**: if what the author's wireless nodes sent is turned into Save Image → Load Image, the later workflow may apply the same processing again.
+- **A node that gathers inputs**: at the middle of its sources, or its top edge aligned with its neighbour (Detailer's Simple Detector and SEGS Filter side by side were corrected to align their tops).
+- **How high a loader may stand above the sampler** (400px above KSampler was too high).
+- **A backward wire into a lower row**: an upscale group on the row below the main flow takes VAE Decode's image going back down to the left; where to draw the line.
+- **Simplifying an author's size calculation**: the author measured an upscale ratio with an empty 64×64 latent (6 nodes, works for any upscale model); Resolution Selector → Math "a / 2" does it in 3 nodes for a single x2 model, no longer equivalent.

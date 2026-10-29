@@ -50,7 +50,9 @@ def default_size(n, oi, title=None):
     sock = [i for i in ins if not i.get("widget")]
     winp = [i for i in ins if i.get("widget")]
     outs = n.get("outputs") or []
-    rows = max(len(sock), len(outs), 1)
+    # (a type with measured heights, AUTOGROW_ROWS, takes them below instead)
+    room = 0 if n.get("type") in AUTOGROW_ROWS else autogrow_room(info, sock)
+    rows = max(len(sock) + room, len(outs), 1)
     iw = max([F.label_width(i.get("label") or _label(info, i["name"])) for i in sock] or [0])
     ow = max([F.label_width(o.get("label") or o.get("name") or "") for o in outs] or [0])
     # widget labels: from the widget inputs the node has (from the widget names if Export packed them)
@@ -74,8 +76,8 @@ def default_size(n, oi, title=None):
         h = max(h, MULTILINE_MIN_H)
     if n.get("type") in AUTOGROW_ROWS:
         # Autogrow inputs (values.a, b, ...) grow with the number connected. Heights measured from the frontend
-        # (0 connected: 128, 1-3: 148, then +20 per link from 4: 188, 5: 208, 6: 228)
-        k = sum(1 for i in ins if not i.get("widget") and i.get("link") is not None)
+        # (0 connected: 128, 1-3: 148, then +20 per link from 4: 188, 5: 208, 6: 228); sized for AUTOGROW_ASSUMED at least
+        k = max(AUTOGROW_ASSUMED, sum(1 for i in ins if not i.get("widget") and i.get("link") is not None))
         h = max(h, 128 if k == 0 else 148 if k <= 3 else 148 + 20 * (k - 2))
     if n.get("type") in AUDIO_UI_TYPES:
         # the audio player (62px) the frontend adds; with other widgets it overlaps the 8px gap between them
@@ -87,6 +89,23 @@ def default_size(n, oi, title=None):
 AUDIO_UI_TYPES = {"LoadAudio", "SaveAudio", "PreviewAudio", "SaveAudioMP3", "SaveAudioOpus", "SaveAudioAdvanced"}
 AUDIO_UI_H = 62
 AUTOGROW_ROWS = {"ComfyMathExpression"}
+# An Autogrow input (image_1, image_2, ... added as they are connected) is sized as if this many were connected, with
+# the empty one the frontend adds after them: more than three are rarely connected (the skill author)
+AUTOGROW_ASSUMED = 3
+
+
+def autogrow_room(info, sock):
+    """Rows to add so every Autogrow input of the node has room for AUTOGROW_ASSUMED connected inputs and the empty
+    one after them (no more than its max)."""
+    add = 0
+    for name, spec, _ in comfy_schema.ordered_input_specs(info):
+        if not (isinstance(spec, (list, tuple)) and spec and spec[0] == "COMFY_AUTOGROW_V3"):
+            continue
+        tpl = (spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}).get("template") or {}
+        cap = len(tpl["names"]) if tpl.get("names") else tpl.get("max", 100)
+        have = sum(1 for i in sock if str(i.get("name", "")).startswith(name + "."))
+        add += max(0, min(cap, AUTOGROW_ASSUMED + 1) - have)
+    return add
 
 
 # Nodes 2.0 draws nodes at least 225px wide (the frontend's minimum node width).

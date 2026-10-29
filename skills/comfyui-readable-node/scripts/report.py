@@ -1,10 +1,10 @@
-"""Build the replay page: one self-contained HTML file that steps through what was done on the canvas.
+"""Build the report page: one self-contained HTML file that steps through what was done on the canvas.
 
 The canvas keeps, for every command, the state before it (``<name>.hist/``) and the command text (``history``).
-canvas.py turns them into data (``replay_page``): for each canvas the drawing of every state, the check problems at
+canvas.py turns them into data (``report_page``): for each canvas the drawing of every state, the check problems at
 that point, and the words of each command with the names of the nodes they mention. This module writes the sentences
-(English or Japanese) and the page: the nodes drawn on one <canvas> as the ComfyUI canvas draws them (title, slots,
-widgets, wires, groups), a timeline on which the nodes move smoothly from one step to the next, a switch to the
+(Japanese for ja, English for every other language code) and the page: the nodes drawn on one <canvas> as the
+ComfyUI canvas draws them (title, slots, widgets, wires, groups), a timeline on which the nodes move smoothly from one step to the next, a switch to the
 original workflow, and a panel that says what each step did and which problems it made or solved.
 No external scripts: everything is inline. The Latin font is inside the page; Japanese text uses Zen Kaku Gothic New
 from Google Fonts when online, and the machine's font otherwise.
@@ -18,7 +18,7 @@ import json
 import re
 from pathlib import Path
 
-LANGS = ("en", "ja")
+LANGS = ("en", "ja")   # the languages the page's own sentences are written in; any other code gets English
 
 # wire colours of the frontend's dark palette (the same as render.py)
 LINK_COLORS = {
@@ -31,21 +31,23 @@ LINK_COLORS = {
 
 # the page's parts: always English
 CHROME = {
-    "title": "Canvas replay", "brand": "ComfyUI Readable Node", "theme": {"system": "System", "light": "Light", "dark": "Dark"},
+    "title": "Readable Node report", "brand": "ComfyUI Readable Node", "theme": {"system": "System", "light": "Light", "dark": "Dark"},
     "original": "Original", "rebuilt": "Rebuilt", "compare": "Compare with the original workflow (O)",
+    "walk": "Walkthrough", "walk_title": "Walk through the finished workflow part by part (W)",
+    "prev_part": "Previous part", "next_part": "Next part", "walk_whole": "The whole workflow (no part chosen)",
     "prev": "Previous step", "play": "Play", "pause": "Pause", "next": "Next step",
     "speed": "Speed", "step": "Step", "zoom_in": "Zoom in", "zoom_out": "Zoom out", "fit": "Fit",
     "follow": "Follow changes", "problems": "problems",
     "moved": "moved", "added": "added", "changed": "changed", "removed": "removed",
     "legend": "rebuilt / original", "legend_one": "rebuilt", "unplaced_title": "Nodes not placed yet",
     "help_title": "Keys and mouse",
-    "help": [["← →", "previous / next step"], ["Space", "play / pause"], ["Home End", "first / last step"], ["O", "original / rebuilt"],
+    "help": [["← →", "previous / next step"], ["Space", "play / pause"], ["Home End", "first / last step"], ["O", "original / rebuilt"], ["W", "walkthrough on / off (← → move by part, Esc the whole workflow)"],
              ["drag the bar", "go to a step"], ["drag", "move the view"], ["wheel, pinch", "zoom"], ["0  F", "fit"],
              ["click a problem", "show its nodes"], ["Esc", "clear the selected problem"]],
     "empty": "Nothing is placed on the canvas yet.",
     "counts": {"overlaps": "overlaps", "wires behind nodes": "wires behind nodes", "crossings": "crossings",
                "non-horizontal wires": "non-horizontal wires", "unplaced": "unplaced",
-               "backward wires that cannot be kept": "backward wires to fix"},
+               "backward wires that cannot be kept": "backward wires to fix", "cannot be kept": "forms to fix"},
 }
 
 # the side panel: in the user's language
@@ -59,6 +61,10 @@ UI = {
         "units": {"moved": "moved", "added": "placed", "changed": "changed", "removed": "removed", "behind": "behind"},
         "show_all": "Show all", "show_less": "Show less",
         "empty": "Nothing is placed on the canvas yet.",
+        "review": "Review by another agent", "review_none": "The review file says: No findings.",
+        "review_unchecked": "The review file has no line saying what the reviewer checked.",
+        "review_fixed": "Fixed", "review_left": "Left as it is", "review_open": "Not answered yet", "walk_toc": "Parts",
+        "hand": "Wide gaps (gap wide) and the wires between",
         "counts": CHROME["counts"],
     },
     "ja": {
@@ -70,9 +76,13 @@ UI = {
         "units": {"moved": "動かした", "added": "置いた", "changed": "変えた", "removed": "消した", "behind": "裏を通る"},
         "show_all": "すべて見る", "show_less": "たたむ",
         "empty": "キャンバスにはまだ何も置かれていません。",
+        "review": "別のエージェントによるレビュー", "review_none": "レビューのファイルには「No findings.」（何も見つからなかった）とあります。",
+        "review_unchecked": "レビューのファイルに、レビュー役が何を確かめたかの一行がありません。",
+        "review_fixed": "直した", "review_left": "残した", "review_open": "まだ答えていない", "walk_toc": "部分",
+        "hand": "広い間（gap wide）と、その間の線の数",
         "counts": {"overlaps": "重なり", "wires behind nodes": "ノードの裏を通る線", "crossings": "交差",
                    "non-horizontal wires": "水平でない線", "unplaced": "未配置",
-                   "backward wires that cannot be kept": "直すべき逆向きの線"},
+                   "backward wires that cannot be kept": "直すべき逆向きの線", "cannot be kept": "直すべき形"},
     },
 }
 
@@ -310,11 +320,12 @@ def _x_color(S, a, x, d):
 def _x_rail(S, a, x, d):
     k = a.index("to")
     head, targets = a[:k], a[k + 1:]
-    spec = head[1]
+    spec = head[1] if len(head) > 1 else "auto"
     h_en = {"above": f"above {S.unit(head[2])}" if len(head) > 2 else "", "below": f"below {S.unit(head[2])}" if len(head) > 2 else "",
-            "level": f"at the height of {S.port(head[2])}" if len(head) > 2 else "", "out": "at the height of the output"}
+            "level": f"at the height of {S.port(head[2])}" if len(head) > 2 else "", "out": "at the height of the output",
+            "auto": "at the height the canvas chose"}
     h_ja = {"above": f"{S.unit(head[2])} の上" if len(head) > 2 else "", "below": f"{S.unit(head[2])} の下" if len(head) > 2 else "",
-            "level": f"{S.port(head[2])} の高さ" if len(head) > 2 else "", "out": "出力と同じ高さ"}
+            "level": f"{S.port(head[2])} の高さ" if len(head) > 2 else "", "out": "出力と同じ高さ", "auto": "canvas が決めた高さ"}
     if S.ja:
         return f"{S.port(head[0])} を、{h_ja.get(spec, spec)}を通るレール（Reroute の列）で {S.many(targets, 4, S.port)} へ運びました"
     return f"Carried {S.port(head[0])} to {S.many(targets, 4, S.port)} along a rail (a line of Reroutes) {h_en.get(spec, spec)}"
@@ -394,6 +405,15 @@ def _x_layout(S, a, x, d):
     return S.L(f"Applied the layout plan {f} and placed everything again", f"配置の計画 {f} を当てて、全部を置き直しました")
 
 
+def _x_review(S, a, x, d):
+    return S.L("Registered the review of the exported workflow (see Walkthrough, the whole workflow)",
+               "書き出した workflow のレビューを登録しました（Walkthrough の全体で見られます）")
+
+
+def _x_walk(S, a, x, d):
+    return S.L("Wrote the walkthrough (see Walkthrough)", "解説を書きました（Walkthrough で見られます）")
+
+
 def _x_new(S, a, x, d):
     if len(a) >= 3 and a[1] == "from":
         return S.L(f"Started this canvas as a copy of canvas “{a[2]}”", f"キャンバス「{a[2]}」の写しから始めました")
@@ -404,7 +424,8 @@ _EXPLAIN = {"put": _x_put, "row": _x_row, "stack": _x_stack, "align": _x_align, 
             "level": _x_level, "width": _x_width, "move": _x_move, "gap": _x_gap, "block": _x_block, "unblock": _x_unblock,
             "group": _x_group, "ungroup": _x_ungroup, "group-align": _x_group_align, "color": _x_color, "rail": _x_rail,
             "note": _x_note, "copy": _x_copy, "add": _x_add, "set": _x_set, "link": _x_link, "unlink": _x_unlink, "rm": _x_rm,
-            "mode": _x_mode, "title": _x_title, "layout": _x_layout, "new": _x_new}
+            "mode": _x_mode, "title": _x_title, "layout": _x_layout, "new": _x_new, "walk": _x_walk,
+            "review": _x_review}
 
 BUILD_CMDS = {"copy": ("copied {n} nodes", "ノードを {n} 個写し"), "add": ("added {n} new nodes", "新しいノードを {n} 個足し"),
               "set": ("set values {n} times", "値を {n} 回変え"), "link": ("connected {n} wires", "線を {n} 本つなぎ"),
@@ -463,9 +484,9 @@ PROBLEMS = [
     ("cross", r"^crossings between tool wires: (\d+)",
      lambda S, m: S.L(f"{m.group(1)} crossings between tool wires (VAE, CLIP, values…; reduce them if possible)",
                       f"道具の線（VAE、CLIP、値など）どうしの交差が {m.group(1)} か所あります（できれば減らす）")),
-    ("tilt", r"^non-horizontal wire \((\S+), input at ([+-]?\d+)px\): " + _W + "$",
-     lambda S, m: S.L(f"The {m.group(1)} wire {_wire_m(S, m, 3)} is not horizontal ({m.group(2)} px)",
-                      f"{m.group(1)} の線 {_wire_m(S, m, 3)} が水平ではありません（{m.group(2)} px）")),
+    ("tilt", r"^non-horizontal wire \((\S+), input (below|above) the output\): " + _W + "$",
+     lambda S, m: S.L(f"The {m.group(1)} wire {_wire_m(S, m, 3)} is not horizontal (the input is {m.group(2)} the output)",
+                      f"{m.group(1)} の線 {_wire_m(S, m, 3)} が水平ではありません（入力が出力より{'下' if m.group(2) == 'below' else '上'}）")),
     ("back", r"^backward wire that may be allowed .*: " + _W + "$",
      lambda S, m: S.L(f"The wire {_wire_m(S, m)} runs backwards (may be allowed)", f"線 {_wire_m(S, m)} が逆向きです（許される場合があります）")),
     ("back", r"^backward wire \(cannot be kept.*\): " + _W + "$",
@@ -476,15 +497,21 @@ PROBLEMS = [
     ("space", r"^empty band across everything \((\d+)px tall, min (\d+)\)",
      lambda S, m: S.L(f"An empty band {m.group(1)} px tall runs across the whole canvas (more than {m.group(2)})",
                       f"全体を横切る {m.group(1)} px の空きがあります（{m.group(2)} px より広い）")),
-    ("align", r"^stacked nodes differ in width by (\d+)px .*: (\S+) and (\S+)$",
+    ("align", r"^stacked loaders differ in width by (\d+)px .*: (\S+) and (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(2))} and {S.node(m.group(3))} are stacked but differ in width by {m.group(1)} px",
                       f"縦に並んだ {S.node(m.group(2))} と {S.node(m.group(3))} の幅が {m.group(1)} px 違います")),
     ("align", r"^value nodes side by side have unaligned tops \((\d+)px\): (\S+) and (\S+)$",
      lambda S, m: S.L(f"The value nodes {S.node(m.group(2))} and {S.node(m.group(3))} side by side have tops {m.group(1)} px apart",
                       f"横に並んだ値のノード {S.node(m.group(2))} と {S.node(m.group(3))} の上端が {m.group(1)} px ずれています")),
     ("order", r"^(vae|clip) loader (\S+) is above the model loader (\S+):",
-     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (loaders go model first, then vae and clip)",
-                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（loader は上から model、その下に vae と clip）")),
+     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (loaders go model, vae, clip from the top)",
+                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（loader は上から model、vae、clip）")),
+    ("order", r"^clip loader (\S+) is above the vae loader (\S+):",
+     lambda S, m: S.L(f"{S.node(m.group(1))} sits above the vae loader {S.node(m.group(2))} (loaders go model, vae, clip from the top)",
+                      f"{S.node(m.group(1))} が vae の loader {S.node(m.group(2))} より上にあります（loader は上から model、vae、clip）")),
+    ("order", r"^(MODEL|VAE|CLIP|CONDITIONING) rail runs above the (MODEL|VAE|CLIP) rail .*: rail of (\S+) and rail of (\S+)$",
+     lambda S, m: S.L(f"The {m.group(1)} rail of {S.node(m.group(3))} runs above the {m.group(2)} rail of {S.node(m.group(4))} (model, vae, clip from the top)",
+                      f"{S.node(m.group(3))} の {m.group(1)} のレールが、{S.node(m.group(4))} の {m.group(2)} のレールより上を通っています（上から model、vae、clip）")),
     ("order", r"^vae loader (\S+) is used only by VAE Decode and sits below the sampler (\S+):",
      lambda S, m: S.L(f"{S.node(m.group(1))} is used only by VAE Decode but sits below the sampler {S.node(m.group(2))}",
                       f"VAE Decode にだけ使う {S.node(m.group(1))} が、サンプラー {S.node(m.group(2))} より下にあります")),
@@ -513,19 +540,19 @@ PROBLEMS = [
     ("reroute", r"^Reroute doing nothing \(a direct wire from (\S+) .*\): (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(2))} does nothing: a direct wire from {S.node(m.group(1))} would be horizontal and clear",
                       f"{S.node(m.group(2))} は要りません: {S.node(m.group(1))} からじかにつないでも水平で、何の裏も通りません")),
-    ("reroute", r"^rail needs no raising Reroute \((\S+)\) if drawn at the output height: output of (\S+)",
+    ("reroute", r"^rail needs no raising Reroute \((\S+?), \d+px off\) if drawn at the output height: output of (\S+)",
      lambda S, m: S.L(f"The rail from {S.node(m.group(2))} needs no raising Reroute ({S.node(m.group(1))}) at the output height",
                       f"{S.node(m.group(2))} からのレールは、出力の高さで引けば持ち上げの Reroute（{S.node(m.group(1))}）が要りません")),
-    ("reroute", r"^rail with a single target.*: (\S+) → ([\w:~]+)\.(\S+)$",
+    ("reroute", r"^single value carried with Reroutes.*: (\S+) → ([\w:~]+)\.(\S+)$",
      lambda S, m: S.L(f"The rail from {S.node(m.group(1))} has one target ({S.port(m.group(2) + '.' + m.group(3))}); a direct wire is clear",
                       f"{S.node(m.group(1))} からのレールの行き先は一つ（{S.port(m.group(2) + '.' + m.group(3))}）で、じかにつないでも何の裏も通りません")),
-    ("reroute", r"^rails too close or overlapping \(vertical gap (\d+)px, min (\d+)\): rail of (\S+) and rail of (\S+)$",
+    ("reroute", r"^rails too close or overlapping \(vertical gap (\d+)px, min (\d+)\): rail of (\S+) and rail of (\S+)(?: \(outputs \d+ and \d+\))?(?: \(open the gap: .*\))?$",
      lambda S, m: S.L(f"The rails of {S.node(m.group(3))} and {S.node(m.group(4))} are {m.group(1)} px apart (at least {m.group(2)})",
                       f"{S.node(m.group(3))} と {S.node(m.group(4))} のレールが近すぎます（{m.group(1)} px、最低 {m.group(2)} px）")),
     ("order", r"^rail order differs from loader order .*: rail of (\S+) and rail of (\S+)$",
      lambda S, m: S.L(f"The rails of {S.node(m.group(1))} and {S.node(m.group(2))} run in the reverse order of the loaders",
                       f"{S.node(m.group(1))} と {S.node(m.group(2))} のレールが、ローダーの並びと逆の順に通っています")),
-    ("reroute", r"^raising Reroute right of a loader \((\S+)\): .*: (\S+)$",
+    ("reroute", r"^raising Reroute right of a loader(?: or the node heading a rail)? \((\S+)\): .*: (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(2))} could sit at the rail height, so the raising Reroute {S.node(m.group(1))} is not needed",
                       f"{S.node(m.group(2))} をレールの高さに置けば、持ち上げの Reroute（{S.node(m.group(1))}）は要りません")),
     ("order", r"^loader rail runs below its targets .*: rail of (\S+)$",
@@ -605,6 +632,34 @@ NOTES = [
         f"{S.port(m.group(1))} からのレール（高さ {m.group(2)}）: "
         + ("Reroute なし（すべてじかにつないだ）" if m.group(3).startswith("none") else f"Reroute {_ids(S, m.group(3), 4)}")
         + f"、行き先 {S.many(m.group(4).split(), 4, S.port)}")),
+    (r"^rail height (-?[\d.]+): at the output height$", lambda S, m: S.L(
+        f"the rail runs at the output height ({round(float(m.group(1)))})", f"レールは出力の高さ（{round(float(m.group(1)))}）を通ります")),
+    (r"^rail height (-?[\d.]+): at the output height, opening a lane there$", lambda S, m: S.L(
+        f"the rail runs at the output height ({round(float(m.group(1)))}); the nodes in its way move to open the lane",
+        f"レールは出力の高さ（{round(float(m.group(1)))}）を通ります。通り道にあるノードを動かして空けます")),
+    (r"^rail height (-?[\d.]+): at the output height, moving the source (\d+)px (up|down): (.*)$", lambda S, m: S.L(
+        f"moved {_ids(S, m.group(4), 6)} {m.group(2)}px {m.group(3)} so the rail runs clear at the source's output height",
+        f"レールが元の出力の高さで通るように、{_ids(S, m.group(4), 6)} を {m.group(2)}px {'上げ' if m.group(3) == 'up' else '下げ'}ました")),
+    (r"^rail height (-?[\d.]+): wired directly \(the direct wire passes behind nothing\)$", lambda S, m: S.L(
+        "wired directly: the direct wire passes behind nothing", "じかにつなぎました（まっすぐな線がどのノードの裏も通らない）")),
+    (r"^rail height (-?[\d.]+): wired directly, made horizontal by moving the (target|source) (\d+)px (up|down): (.*)$", lambda S, m: S.L(
+        f"wired directly: moved {_ids(S, m.group(5), 6)} {m.group(3)}px {m.group(4)} so the wire is horizontal and passes behind nothing",
+        f"じかにつなぎました: 線が水平になり、どのノードの裏も通らないように、{_ids(S, m.group(5), 6)} を {m.group(3)}px {'上げ' if m.group(4) == 'up' else '下げ'}ました")),
+    (r"^rail height (-?[\d.]+): (\d+)px (above|below) the output height, the nearest clear height", lambda S, m: S.L(
+        f"the rail runs {m.group(2)}px {m.group(3)} the output height ({round(float(m.group(1)))}), the nearest clear height",
+        f"出力の高さには物があるので、いちばん近い空き（{m.group(2)}px {'上' if m.group(3) == 'above' else '下'}、高さ {round(float(m.group(1)))}）にレールを通します")),
+    (r"^rail height (-?[\d.]+): opened a lane (\d+)px (above|below) the output height", lambda S, m: S.L(
+        f"no clear height nearby: opened a lane for the rail {m.group(2)}px {m.group(3)} the output height ({round(float(m.group(1)))})",
+        f"近くに空きがないので、出力の高さの {m.group(2)}px {'上' if m.group(3) == 'above' else '下'}（高さ {round(float(m.group(1)))}）にレールの通り道を空けます")),
+    (r"^rail height (-?[\d.]+): swapped with the rail of line (\d+), so fewer wires cross$", lambda S, m: S.L(
+        f"swapped heights with the rail of line {m.group(2)}, so fewer wires cross",
+        f"交差が減るので、{m.group(2)} 行目のレールと高さを入れ替えました")),
+    (r"^moved (\d+)px down to open the lane: (.*)$", lambda S, m: S.L(
+        f"moved {_ids(S, m.group(2), 6)} down {m.group(1)}px to open the lane",
+        f"通り道を空けるため、{_ids(S, m.group(2), 6)} を {m.group(1)}px 下げました")),
+    (r"^the height (-?[\d.]+) kept for this rail \(line (\d+)\) is now blocked by (.*?); rail height (-?[\d.]+)", lambda S, m: S.L(
+        f"a node moved onto the height chosen for this rail; it runs at {round(float(m.group(4)))} instead",
+        f"このレールの高さに、後で動いたノードが来たので、高さ {round(float(m.group(4)))} に変えました")),
     (r"^too close to another rail; height shifted to (-?\d+)$", lambda S, m: S.L(
         f"moved the rail to height {m.group(1)}, away from another rail", f"ほかのレールに近すぎたので、高さ {m.group(1)} にずらしました")),
     (r"^drawn at the output height (-?\d+) instead of (\S+), since nothing is in the way$", lambda S, m: S.L(
@@ -634,10 +689,21 @@ def note_text(line, S):
 
 # ---- the page
 
+def _review_view(rev):
+    """What the page shows of a canvas's review: its rows, and which state it is in."""
+    if not rev:
+        return None
+    return {"rows": rev.get("rows") or [], "not_reviewed": rev.get("not_reviewed"), "no_findings": rev.get("no_findings"),
+            "checked": rev.get("checked")}
+
+
 def build(canvases, original, lang="en"):
-    """canvases: [{name, defs, nodes, wires, groups, problems, steps}] as canvas.py's replay_page makes them;
-    original: {nodes, wires, groups, defs} of the source workflow, or None."""
-    lang = lang if lang in LANGS else "en"
+    """canvases: [{name, defs, nodes, wires, groups, problems, steps, walk}] as canvas.py's report_page makes them;
+    original: {nodes, wires, groups, defs} of the source workflow, or None.
+    lang: the user's language code (any code; it becomes <html lang>). The sentences are in it when it is in LANGS,
+    in English otherwise."""
+    code = str(lang or "en").strip() or "en"
+    lang = code if code in LANGS else "en"
     out = []
     for c in canvases:
         steps = []
@@ -653,12 +719,12 @@ def build(canvases, original, lang="en"):
         for p in c["problems"]:
             t = problem_text(p, lang)
             probs.append({"t": t["t"], "k": t["k"], "ids": p["ids"], "w": p["w"]})
-        out.append({"name": c["name"], "defs": c["defs"], "nodes": c["nodes"], "wires": c["wires"], "groups": c["groups"],
-                    "problems": probs, "steps": steps})
+        out.append({"name": c["name"], "tab": c.get("tab"), "hand": c.get("hand") or [], "defs": c["defs"], "nodes": c["nodes"], "wires": c["wires"], "groups": c["groups"],
+                    "problems": probs, "steps": steps, "walk": c.get("walk"), "review": _review_view(c.get("review"))})
     data = json.dumps({"lang": lang, "ui": UI[lang], "chrome": CHROME, "colors": LINK_COLORS, "canvases": out, "original": original},
                       ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     title = html.escape(CHROME["title"])
-    return (PAGE.replace("%LANG%", lang).replace("%TITLE%", title).replace("%STYLE%", _font_face() + STYLE)
+    return (PAGE.replace("%LANG%", html.escape(code, quote=True)).replace("%TITLE%", title).replace("%STYLE%", _font_face() + STYLE)
             .replace("%DATA%", data).replace("%SCRIPT%", SCRIPT))
 
 
@@ -680,6 +746,7 @@ ICONS = {
     "next": '<path d="M9 5l8 7-8 7"/>',
     "minus": '<path d="M5 12h14"/>', "plus": '<path d="M12 5v14M5 12h14"/>',
     "fit": '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    "map": '<path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z"/><path d="M9 4v13M15 7v13"/>',
     "follow": '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
     "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
     "moon": '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
@@ -700,7 +767,7 @@ STYLE = """
 --cv-bg:#121214;--cv-dot:#2a2a2d;--node-bg:#353535;--node-title:#2c2c2c;--node-text:#c8c8c8;--slot-text:#a8a8a8;
 --w-bg:#222;--w-text:#dddddd;--w-label:#999;--casing:rgba(0,0,0,.6);--shadow:rgba(0,0,0,.45);--mix:100;--wmix:100;--gop:.2;
 --font:"Plus Jakarta Sans","Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic UI",system-ui,sans-serif;
---mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--r-lg:22px;--r-md:16px;--ease:cubic-bezier(.2,.8,.2,1);color-scheme:dark}
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--code:var(--mono),"Zen Kaku Gothic New","Hiragino Sans","Noto Sans CJK JP";--r-lg:22px;--r-md:16px;--ease:cubic-bezier(.2,.8,.2,1);color-scheme:dark}
 @media (prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#e2dfe5;--tile:#f4f2f6;--tile2:#e8e6eb;--text:#3a3a3c;
 --muted:#7c7a80;--faint:#c7c6cb;--head:#1d1d1f;--good:#1f7a3e;--bad:#c4321f;--warn:#a8670f;
 --cv-bg:#f6f5f8;--cv-dot:#d4d2d8;--node-bg:#ffffff;--node-title:#e9e9ec;--node-text:#222;--slot-text:#4a4a52;
@@ -713,6 +780,7 @@ STYLE = """
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--text);font:14px/1.55 var(--font);overflow:hidden}
 button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+[hidden]{display:none!important}
 .icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .icon .fill{fill:currentColor;stroke:none}
 .app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 372px;grid-template-rows:auto minmax(0,1fr);gap:0 10px;padding:0 10px 10px}
@@ -737,7 +805,6 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 /* workflow tabs, like a browser's: the chosen tab has the canvas colour and runs into the canvas below */
 .tabs{display:flex;align-items:flex-end;gap:2px;min-width:0;padding:0 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tabs[hidden]{display:none}
 .tabs button{position:relative;flex:none;height:40px;padding:0 16px 8px;border-radius:9px 9px 0 0;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
 .tabs button:hover{color:var(--text)}
 .tabs button[aria-pressed=true]{background:var(--cv-bg);color:var(--head)}
@@ -748,19 +815,19 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #view.drag{cursor:grabbing}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
 #seg{position:absolute;left:12px;bottom:12px;z-index:2}
-#seg[hidden]{display:none}
+/* the workflows of one tab that differ only in values (one per model): a switch at the top of the canvas */
+#variants{position:absolute;left:12px;top:12px;z-index:2}
+#variants button{height:28px;padding:0 12px;font-size:12px}
 .tools{position:absolute;right:12px;bottom:12px;display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--tile2);z-index:2}
 .tool{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;color:var(--text)}
 .tool:hover{background:var(--faint);color:var(--head)}
 .tool[aria-pressed=true]{background:var(--head);color:var(--bg)}
-.empty[hidden]{display:none}
+.tool.off{opacity:.35;pointer-events:none}
 .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);pointer-events:none;font-size:13px;padding:24px;text-align:center}
 .ntip{position:absolute;pointer-events:none;padding:4px 10px;border-radius:999px;font-size:12px;background:var(--tile2);color:var(--head);white-space:nowrap;z-index:3}
-.ntip[hidden]{display:none}
 .ntip small{color:var(--muted);margin-left:6px}
 .help{position:absolute;right:12px;bottom:56px;max-width:300px;padding:12px 16px;border-radius:var(--r-md);font-size:12px;line-height:1.75;
 background:var(--tile2);color:var(--text);z-index:3}
-.help[hidden]{display:none}
 .help b{color:var(--head);font-weight:600;font-family:var(--mono);font-size:11.5px;margin-right:6px}
 /* the deck: play, step, and the timeline, all one height */
 .deckwrap{position:relative;flex:none}
@@ -781,7 +848,35 @@ background:var(--tile2);color:var(--text);z-index:3}
 .tip{position:absolute;bottom:40px;transform:translateX(-50%);padding:5px 10px;border-radius:8px;font-size:12px;
 background:var(--tile2);color:var(--text);pointer-events:none;white-space:nowrap;z-index:5}
 .tip b{color:var(--head);font-weight:700;margin-right:6px}
-.tip[hidden]{display:none}
+/* the walkthrough: the parts in processing order instead of the timeline (same height as the deck) */
+.walkbar{display:flex;align-items:center;gap:6px;height:32px}
+.wparts{flex:1;min-width:0;height:32px;display:flex;gap:4px;overflow:hidden}
+.wpart{min-width:0;height:32px;padding:0 10px;border-radius:8px;background:var(--tile);font-size:12px;font-weight:600;color:var(--muted);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s var(--ease),color .15s}
+.wpart:hover{color:var(--head)}
+.wpart[aria-current=true]{background:var(--head);color:var(--bg)}
+.wwhole[aria-pressed=true]{background:var(--head);color:var(--bg)}
+.wtitle{font-size:19px;font-weight:600;line-height:1.35;color:var(--head);margin:2px 8px 6px}
+.wbody{margin:0 8px;font-size:13.5px;line-height:1.7;color:var(--text)}
+.wbody p{margin:0 0 6px}
+/* bullets: the walkthrough text and the lists of the side panel */
+.wbody ul,ul.plain{list-style:none;margin:0;padding:0}
+.wbody li,ul.plain li{position:relative;padding:2px 0 2px 14px}
+.wbody li::before,ul.plain li::before{content:"";position:absolute;left:2px;top:12px;width:4px;height:4px;border-radius:50%;background:var(--muted)}
+.wbody ul ul{padding-left:14px}
+.wbody ul ul li::before{background:none;border:1px solid var(--muted);width:3px;height:3px}
+.wbody code{font:12px var(--code);background:var(--tile);border-radius:4px;padding:1px 5px;color:var(--head)}
+.wbody b{color:var(--head);font-weight:600}
+.wanswer{color:var(--muted);margin-top:2px}
+/* the whole workflow in the walkthrough: the parts as links, then the review, folded */
+.wtoc{list-style:none;margin:0 0 14px;padding:0;counter-reset:wtoc}
+.wtoc li{counter-increment:wtoc;padding:4px 0 4px 22px;position:relative}
+.wtoc li::before{content:counter(wtoc);position:absolute;left:0;top:4px;color:var(--muted);font-variant-numeric:tabular-nums}
+.wtoc a{color:var(--head);text-decoration:none;font-weight:600}
+.wtoc a:hover,.wtoc a:focus-visible{text-decoration:underline}
+.wtoc .wtocs{color:var(--muted);margin-top:2px}
+details.wreview{border-top:1px solid var(--line);padding-top:8px}
+details.wreview summary{cursor:pointer;color:var(--muted)}
 /* the side panel */
 aside{display:flex;flex-direction:column;min-height:0;gap:10px}
 .phead{display:flex;flex-direction:column;gap:10px;flex:none}
@@ -810,9 +905,7 @@ aside{display:flex;flex-direction:column;min-height:0;gap:10px}
 .say{font-size:13.5px;line-height:1.6;color:var(--text);margin:4px 0 10px}
 h3{font-size:11px;font-weight:600;color:var(--muted);margin:16px 0 4px;padding:0 8px;display:flex;gap:6px}
 h3 .c{color:var(--text)}
-ul.plain{list-style:none;margin:0;padding:0}
-ul.plain li{position:relative;padding:3px 0 3px 14px;font-size:13px}
-ul.plain li::before{content:"";position:absolute;left:2px;top:12px;width:4px;height:4px;border-radius:50%;background:var(--muted)}
+ul.plain li{padding:3px 0 3px 14px;font-size:13px}
 .more{color:var(--head);padding:4px 0;font-size:12px;font-weight:600}
 .quiet{color:var(--muted);font-size:13px;margin:6px 0}
 .probs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
@@ -828,7 +921,7 @@ details{padding:0 8px}details>summary{cursor:pointer;color:var(--muted);font-siz
 details>summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
 details[open]>summary::before{transform:rotate(45deg)}
 details>summary::-webkit-details-marker{display:none}
-pre.cmd{font:12px/1.6 var(--mono);color:var(--text);background:var(--tile);border-radius:12px;padding:10px 12px;margin:8px 0 0;
+pre.cmd{font:12px/1.6 var(--code);color:var(--text);background:var(--tile);border-radius:12px;padding:10px 12px;margin:8px 0 0;
 white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto}
 .ref{color:inherit;cursor:pointer}
 .ref:hover{color:var(--head);text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:3px}
@@ -857,7 +950,7 @@ PAGE = """<!doctype html>
 <div class="seg theme" id="theme"><button data-v="light">""" + _icon("sun") + """</button><button data-v="dark">""" + _icon("moon") + """</button><button data-v="system">""" + _icon("system") + """</button></div></header>
 <section class="stage">
 <div id="view"><canvas id="cv"></canvas>
-<div class="seg" id="seg"><button id="sOrig" aria-pressed="false"></button><button id="sNew" aria-pressed="true"></button></div>
+<div class="seg" id="variants" hidden></div><div class="seg" id="seg"><button id="sOrig" aria-pressed="false"></button><button id="sNew" aria-pressed="true"></button><button id="sWalk" aria-pressed="false" hidden></button></div>
 <div class="empty" id="empty" hidden></div><div class="ntip" id="ntip" hidden></div>
 <div class="tools"><button class="tool" id="zout">""" + _icon("minus") + """</button><button class="tool" id="zin">""" + _icon("plus") + """</button>
 <button class="tool" id="fit">""" + _icon("fit") + """</button><button class="tool" id="follow" aria-pressed="false">""" + _icon("follow") + """</button>
@@ -867,7 +960,10 @@ PAGE = """<!doctype html>
 <button class="round" id="prev">""" + _icon("prev") + """</button><button class="round" id="next">""" + _icon("next") + """</button>
 <div class="bar" id="bar"><div class="in" id="barin"><svg class="spark" id="spark" preserveAspectRatio="none"></svg><div id="ticks"></div><div class="ph" id="ph"></div></div></div>
 <button class="speed" id="speed">2×</button>
-</div><div class="tip" id="tip" hidden></div></div>
+</div><div class="walkbar" id="walkbar" hidden><button class="round" id="wprev">""" + _icon("prev") + """</button>
+<button class="round wwhole" id="wwhole" aria-pressed="true">""" + _icon("map") + """</button>
+<div class="wparts" id="wparts"></div><button class="round" id="wnext">""" + _icon("next") + """</button></div>
+<div class="tip" id="tip" hidden></div></div>
 </section>
 <aside id="panel" aria-live="polite">
 <div class="phead">
@@ -895,10 +991,14 @@ const view = $('view'), cv = $('cv'), ctx = cv.getContext('2d');
 // the canvas is drawn in the frontend's font (Inter), as ComfyUI draws it; the page's own text uses --font
 const FONT = 'Inter, "Segoe UI", Arial, "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans CJK JP", sans-serif';
 let ci = 0, t = 0, k = -1, orig = false, follow = false, sel = null, hover = null, speed = 2;
+let inWalk = false, partNo = 0, walkFrom = false;   // the walkthrough: on or off, the part shown (0: the whole workflow), and whether it was entered from the original
+let wbarOf = -1;   // the canvas whose part cells are in the walkthrough bar
 let W = 0, H = 0, DPR = 1, queued = false, playing = null, tween = null;
 const cams = {}, tOf = {}, bboxCache = {};
 
 function C(){ return D.canvases[ci]; }
+function walkOf(){ return inWalk ? C().walk : null; }
+function curPart(){ const w = walkOf(); return w && partNo > 0 ? w.parts[partNo - 1] : null; }
 function N(){ return C().steps.length; }
 function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
@@ -979,13 +1079,19 @@ function diffOf(c, i){
   return per[i] = {moved, added, changed, removed};
 }
 const lerp = (a, b, e) => a + (b - a) * e;
+function still(A){ return {nodes: A.nodes.map(x => [x, 1]), wires: A.wires.map(x => [x, 1]), groups: A.groups.map(x => [x, 1]), defs: A.defs}; }
+function fixedState(){
+  // the state shown when it does not follow the timeline: the original, or the finished workflow in the walkthrough
+  if (orig) return D.original || {nodes: [], wires: [], groups: [], defs: []};
+  if (inWalk) return stateOf(C(), N() - 1);
+  return null;
+}
 function frame(){
   // what is drawn now: lists of [item, opacity]
-  if (orig){ const o = D.original || {nodes: [], wires: [], groups: [], defs: []};
-    return {nodes: o.nodes.map(x => [x, 1]), wires: o.wires.map(x => [x, 1]), groups: o.groups.map(x => [x, 1]), defs: o.defs}; }
+  const S = fixedState(); if (S) return still(S);
   const c = C(), n = N(), i = Math.max(0, Math.min(n - 1, Math.floor(t + 1e-6))), f = t - i;
   const A = stateOf(c, i);
-  if (f < 1e-3 || i >= n - 1) return {nodes: A.nodes.map(x => [x, 1]), wires: A.wires.map(x => [x, 1]), groups: A.groups.map(x => [x, 1]), defs: c.defs};
+  if (f < 1e-3 || i >= n - 1) return still(A);
   const B = stateOf(c, i + 1), e = Math.min(1, f);   // linear: the nodes move as steadily as the playhead
   const out = {nodes: [], wires: [], groups: [], defs: c.defs};
   const an = byId(A.nodes, 0), bn = byId(B.nodes, 0);
@@ -1029,7 +1135,8 @@ function drawNode(n, def, lod){
   if (lod > 0){ rr(x + 2, y - TITLE + 4, w, h + TITLE, 9); ctx.fillStyle = TH.shadow; ctx.fill(); }
   rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = body; ctx.fill();
   rr(x, y - TITLE, w, TITLE, [8, 8, 0, 0]); ctx.fillStyle = head; ctx.fill();
-  if (def.m === 4){ rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = 'rgba(208,64,224,.22)'; ctx.fill(); }
+  // bypass: the whole node in the frontend's bypass colour (NODE_BYPASS_BGCOLOR #FF00FF), as ComfyUI shows it
+  if (def.m === 4){ rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = 'rgba(255,0,255,.5)'; ctx.fill(); }
   if (lod < 1) return;
   ctx.beginPath(); ctx.arc(x + 15, y - TITLE / 2, 4.5, 0, 6.2832); ctx.fillStyle = TH['slot-text']; ctx.globalAlpha *= .55; ctx.fill(); ctx.globalAlpha /= .55;
   text(cut(def.n, 14, w - 36, 500), x + 28, y - 10, 14, TH['node-text'], 500);
@@ -1096,7 +1203,8 @@ function draw(){
   const vx0 = -c.tx / c.s, vy0 = -c.ty / c.s, vx1 = (W - c.tx) / c.s, vy1 = (H - c.ty) / c.s;
   const vis = b => b[2] >= vx0 && b[0] <= vx1 && b[3] >= vy0 && b[1] <= vy1;
   const lod = c.s >= 0.33 ? 2 : c.s >= 0.18 ? 1 : 0, defs = F.defs;
-  const selIds = sel ? new Set(sel.ids) : null, selW = sel ? new Set(sel.w) : null;
+  const part = curPart();   // in the walkthrough, the part shown is bright and the rest faint, as a selected problem is
+  const selIds = sel ? new Set(sel.ids) : part ? new Set(part.lit) : null, selW = sel ? new Set(sel.w) : part ? new Set(part.w) : null;
   ctx.textBaseline = 'alphabetic';
   for (const [g, a] of F.groups){
     const [title, x, y, w, h, col] = g; if (!vis([x, y, x + w, y + h])) continue;
@@ -1111,18 +1219,18 @@ function draw(){
     ctx.globalAlpha = a * (selW && !selW.has(w[5]) ? .22 : 1);
     strokeWire(w, wcol(w[4]), lw, lod > 0 ? lw + 2.9 : 0);
   }
-  const d = orig ? null : diffOf(C(), k);
+  const d = orig || inWalk ? null : diffOf(C(), k);
   if (d && t === k) for (const p of d.removed){ if (!vis(nodeBox(p, defs[p[5]]))) continue; ctx.globalAlpha = .25; drawNode(p, defs[p[5]], Math.min(lod, 1)); }
   for (const [n, a] of F.nodes){
     const def = defs[n[5]]; if (!def || !vis(nodeBox(n, def))) continue;
-    ctx.globalAlpha = a * (selIds && !selIds.has(n[0]) ? .22 : 1) * (def.m === 2 ? .45 : 1);
+    ctx.globalAlpha = a * (selIds && !selIds.has(n[0]) ? .22 : 1) * (def.m === 2 ? .45 : def.m === 4 ? .8 : 1);
     drawNode(n, def, lod);
   }
   ctx.globalAlpha = 1;
   // what this step did and the problems at this step, drawn above the nodes
   const at = new Map(F.nodes.map(([n]) => [n[0], n])), wk = new Map(F.wires.map(([w]) => [w[5], w]));
   const sw = 1 / Math.min(1, c.s);
-  if (!orig){
+  if (!orig && !inWalk){
     const c0 = C();
     for (const pi of c0.steps[k].p){
       const p = c0.problems[pi]; if (p.k !== 'hidden') continue;
@@ -1137,12 +1245,13 @@ function draw(){
     for (const key of sel.w){ const w = wk.get(key); if (w) strokeWire(w, wcol(w[4]), 3.4 * sw, 8 * sw); }
     for (const id of sel.ids){ const n = at.get(id); if (n) ring(n, defs[n[5]], TH.bad, 3.5 * sw, 6); }
   }
+  if (part && !sel) for (const id of part.ids){ const n = at.get(id); if (n) ring(n, defs[n[5]], TH.accent, 2.2 * sw, 6); }
   if (hover) for (const id of hover){ const n = at.get(id); if (n) ring(n, defs[n[5]], TH.head, 3 * sw, 8); }
   $('empty').hidden = F.nodes.length > 0;
 }
 
 // ---------- camera: one frame per canvas, moved only by the viewer (or by "follow changes")
-function camKey(){ return orig ? '\u0000orig' : C().name; }
+function camKey(){ return orig ? '\u0000orig' : inWalk ? '\u0001walk' + C().name : C().name; }
 function bboxOfNodes(list, defs){
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const n of list){ const b = nodeBox(n, defs[n[5]]); x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]); }
@@ -1153,7 +1262,8 @@ function frameBox(){
   const key = camKey(); if (bboxCache[key] !== undefined) return bboxCache[key];
   let b = null;
   const add = st => { b = union(b, bboxOfNodes(st.nodes, st.defs)); for (const g of st.groups) b = union(b, [g[1], g[2], g[1] + g[3], g[2] + g[4]]); };
-  if (orig){ if (D.original) add(D.original); }
+  const S = fixedState();
+  if (S) add(S);
   else { const c = C(), seen = new Set(); c.steps.forEach((s, i) => { const v = s.v.join(','); if (!seen.has(v)){ seen.add(v); add(stateOf(c, i)); } }); }
   return bboxCache[key] = b;
 }
@@ -1240,13 +1350,16 @@ view.addEventListener('pointerleave', () => { $('ntip').hidden = true; });
 function endPtr(e){
   if (!ptrs.has(e.pointerId)) return; ptrs.delete(e.pointerId);
   panStart = {c: Object.assign({}, cam()), pts: new Map(ptrs)};
-  if (!ptrs.size){ view.classList.remove('drag'); if (!moved && sel){ sel = null; request(); panel(); } }
+  if (!ptrs.size){ view.classList.remove('drag'); if (!moved && sel){ sel = null; request(); panel(); }
+    else if (!moved && inWalk){   // in the walkthrough, a click on a node goes to its part
+      const r = view.getBoundingClientRect(), n = nodeAt(e.clientX - r.left, e.clientY - r.top);
+      const j = n ? walkOf().parts.findIndex(q => q.ids.includes(n[0])) : -1; if (j >= 0 && j + 1 !== partNo) goPart(j + 1); } }
 }
 view.addEventListener('pointerup', endPtr); view.addEventListener('pointercancel', endPtr);
 $('zin').onclick = () => zoomAt(1.25, W / 2, H / 2);
 $('zout').onclick = () => zoomAt(0.8, W / 2, H / 2);
 $('fit').onclick = () => animateCam(fitCam(frameBox()));
-$('follow').onclick = () => { follow = !follow; $('follow').setAttribute('aria-pressed', String(follow)); if (follow) followChanges(); };
+$('follow').onclick = () => { if (inWalk) return; follow = !follow; $('follow').setAttribute('aria-pressed', String(follow)); if (follow) followChanges(); };
 function followChanges(){
   if (orig) return; const d = diffOf(C(), k), st = stateOf(C(), k);
   const ids = new Set([...d.moved, ...d.added, ...d.changed]);
@@ -1332,14 +1445,17 @@ function updateTiles(){
   }
 }
 function stepNo(){
-  const K = $('kpos'); K.style.visibility = orig ? 'hidden' : ''; if (orig) return;   // hidden, not emptied: the row keeps its height
-  const n = N(), num = el('b', null, String(k + 1)); num.style.minWidth = String(n).length + 'ch';
-  K.replaceChildren(num, ` / ${n}`);
+  // the step, or in the walkthrough the part; nothing in the original or the whole workflow (hidden, not emptied: the row keeps its height)
+  const K = $('kpos'), n = inWalk ? walkOf().parts.length : N(), num = el('b', null, String(inWalk ? partNo : k + 1));
+  K.style.visibility = orig || (inWalk && !partNo) ? 'hidden' : '';
+  num.style.minWidth = String(n).length + 'ch'; K.replaceChildren(num, ` / ${n}`);
 }
 function panel(){
   if (!T) makeTiles();
   stepNo(); updateTiles();
+  for (const id of ['tiles', 'legend', 'keys']) $(id).hidden = inWalk;
   const B = $('pbody'); B.innerHTML = '';
+  if (inWalk){ walkPanel(B); return; }
   if (orig){ B.appendChild(el('p', 'quiet', D.original && D.original.api ? U.original_note_api : U.original_note)); return; }
   const c = C(), st = c.steps[k];
   if (st.kind !== 'layout'){ const say = el('p', 'say'); rich(say, st.s); B.appendChild(say); }
@@ -1361,9 +1477,124 @@ function panel(){
 
 // ---------- the timeline: the whole run from the first step to the last, and a line where we are now.
 // The grey area is the number of the four problems at each step, so the steps that made or solved problems show.
+// ---------- the walkthrough: the finished workflow, part by part in processing order (written by the agent that rebuilt it)
+function inline(parent, text){
+  // `code` and **bold** inside a line; everything else is plain text (the split puts the marked pieces at the odd places)
+  text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).forEach((m, j) => {
+    if (j % 2 === 0){ if (m) parent.appendChild(document.createTextNode(m)); }
+    else if (m[0] === '`') parent.appendChild(el('code', null, m.slice(1, -1)));
+    else parent.appendChild(el('b', null, m.slice(2, -2)));
+  });
+}
+function mdLite(parent, text){
+  // lines: a plain line is a paragraph; "- " is a bullet. A deeper indent than the bullet above nests it one level, however
+  // deep the indent is; the same indent as an open list goes on in that list
+  const stack = [];   // the open lists, outermost first: {ul, indent}
+  const top = () => stack[stack.length - 1];
+  for (const raw of (text || '').split('\n')){
+    const m = raw.match(/^(\s*)[-*] (.*)$/);
+    if (!m){ stack.length = 0; if (raw.trim()){ const p = el('p'); inline(p, raw.trim()); parent.appendChild(p); } continue; }
+    const indent = m[1].replace(/\t/g, '  ').length;
+    let closed = null;
+    while (stack.length && top().indent > indent) closed = stack.pop();
+    if (closed && (!stack.length || top().indent < indent)) stack.push(closed);   // between two levels: stays in the list just closed
+    else if (!stack.length || top().indent < indent){
+      const ul = el('ul'); (stack.length ? (top().ul.lastElementChild || top().ul) : parent).appendChild(ul); stack.push({ul, indent});
+    }
+    const li = el('li'); inline(li, m[2]); top().ul.appendChild(li);
+  }
+}
+function walkPanel(B){
+  const w = walkOf(), P = curPart();
+  if (P){ B.appendChild(el('div', 'wtitle', P.title)); const body = el('div', 'wbody'); mdLite(body, P.text); B.appendChild(body); }
+  else {
+    B.appendChild(el('div', 'wtitle', w.intro || C().name));
+    // the parts as links: what each one does, in processing order
+    const toc = el('ol', 'wtoc');
+    w.parts.forEach((q, i) => {
+      const li = el('li'), a = el('a', null, q.title);
+      a.href = '#'; a.onclick = e => { e.preventDefault(); goPart(i + 1); };
+      li.appendChild(a);
+      const first = (q.text || '').split('\n').find(t => t.trim() && !/^\s*- /.test(t));
+      if (first){ const d = el('div', 'wtocs'); inline(d, first.trim()); li.appendChild(d); }
+      toc.appendChild(li);
+    });
+    B.appendChild(toc);
+    // the review of the exported workflow by another agent: folded, row by row with the nodes by name and what was done
+    const R = C().review;
+    if (R){
+      const box = el('details', 'wreview'); box.appendChild(el('summary', null, U.review)); B.appendChild(box);
+      const body = el('div', 'wbody'); box.appendChild(body);
+      if (R.not_reviewed) body.appendChild(el('p', null, R.not_reviewed));
+      else if (R.no_findings) body.appendChild(el('p', null, U.review_none));
+      if (R.rows.length){
+        const ul = el('ul'); body.appendChild(ul);
+        for (const r of R.rows){
+          const li = el('li'), rule = r.rule.replace(/^[\w.-]+\.md:\s*/, '').replace(/\*\*/g, '');
+          const names = (r.names && r.names.length) ? r.names.join('、') : '';
+          inline(li, (names ? '**' + names + '**: ' : '') + rule);
+          const left = /^left:/i.test(r.answer), a = el('div', 'wanswer');
+          inline(a, !(r.answer || '').trim() ? U.review_open : left ? U.review_left + ': ' + r.answer.replace(/^left:\s*/i, '') : U.review_fixed);
+          li.appendChild(a); ul.appendChild(li);
+        }
+      }
+    }
+    // plan lines that ask for a wide gap between columns, each with the number of wires between
+    const H = C().hand || [];
+    if (H.length){
+      const box = el('details', 'wreview'); box.appendChild(el('summary', null, U.hand + ' ' + H.length)); B.appendChild(box);
+      const ul = el('ul'); const body = el('div', 'wbody'); body.appendChild(ul); box.appendChild(body);
+      for (const h of H){ const li = el('li'); inline(li, '`' + h.plan + '`'); const a = el('div', 'wanswer'); inline(a, h.why); li.appendChild(a); ul.appendChild(li); }
+    }
+  }
+  B.scrollTop = 0;
+}
+function walkbar(){
+  // the parts in processing order, each its own cell; the map button before them shows the whole workflow (no part).
+  // The cells are made once per canvas and only the current one changes, so the focus stays on the cell pressed
+  const B = $('wparts');
+  if (wbarOf !== ci){
+    wbarOf = ci; B.innerHTML = '';
+    walkOf().parts.forEach((q, i) => {
+      const n = [...q.title].length, b = el('button', 'wpart', q.title);
+      b.style.flex = `${n + 2} 1 0`; if (n <= 4) b.style.minWidth = 'max-content';   // widths in proportion to the titles; a short one is never cut
+      b.title = q.title; b.onclick = () => goPart(i + 1); B.appendChild(b);
+    });
+  }
+  $('wwhole').setAttribute('aria-pressed', String(partNo === 0));
+  B.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-current', String(partNo === i + 1)));
+}
+function goPart(j, again){
+  // again: draw and frame the part even if it is the one shown (entering the walkthrough, another canvas)
+  const w = walkOf(); if (!w) return;
+  const to = Math.max(0, Math.min(w.parts.length, j));
+  if (to === partNo && to !== j && !again) return;   // past the first or the last part: the view stays as the viewer left it
+  partNo = to; sel = null; hover = null;
+  walkbar(); panel(); request();
+  const P = curPart(); animateCam(fitCam(P ? idsBox(P.lit) : frameBox(), 1));   // close in on the part (no closer than 1:1)
+}
+function segState(){
+  $('sOrig').setAttribute('aria-pressed', String(orig)); $('sNew').setAttribute('aria-pressed', String(!orig && !inWalk));
+  $('sWalk').setAttribute('aria-pressed', String(inWalk));
+}
+function setWalk(v, toOrig){
+  // toOrig: on leaving, go to the original (true) or the rebuilt workflow (false); left out, back to where the walkthrough was entered from
+  if (v && !C().walk) return;
+  stop(); if (tween){ cancelAnimationFrame(tween.raf); tween = null; } setT(Math.round(t));
+  if (v) walkFrom = orig; else if (toOrig !== undefined) walkFrom = toOrig;
+  inWalk = v; orig = v ? false : walkFrom && !!D.original; sel = null; hover = null; partNo = 0;
+  segState(); timeline(); marks();
+  if (v) goPart(0, true); else { panel(); request(); }
+}
+$('wprev').onclick = () => goPart(partNo - 1); $('wnext').onclick = () => goPart(partNo + 1);
+$('wwhole').onclick = () => goPart(0);
+
 function frac(v){ return v / Math.max(1, N() - 1); }
 function timeline(){
   $('ticks').innerHTML = ''; $('spark').innerHTML = ''; T = null;
+  $('transport').hidden = inWalk; $('walkbar').hidden = !inWalk;
+  $('follow').classList.toggle('off', inWalk); $('follow').setAttribute('aria-disabled', String(inWalk));   // faded in place, so the tools do not move
+  if (inWalk){ walkbar(); return; }
   $('transport').classList.toggle('off', orig);
   if (orig) return;
   const c = C(), n = N(), vals = c.steps.map(st => st.counts.unplaced ? 0 : sum4(st.counts)), mx = Math.max(1, ...vals);
@@ -1436,6 +1667,10 @@ $('play').onclick = play;
 $('speed').onclick = () => { speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; $('speed').textContent = speed + '×'; };
 document.addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
+  if (inWalk && ['ArrowLeft', 'ArrowRight', 'Home', 'End', ' ', 'Escape'].includes(e.key)){
+    e.preventDefault(); if (e.key === 'ArrowLeft') goPart(partNo - 1); else if (e.key === 'ArrowRight') goPart(partNo + 1);
+    else if (e.key === 'Home' || e.key === 'Escape') goPart(0); else if (e.key === 'End') goPart(walkOf().parts.length); return; }
+  if (e.key === 'w' || e.key === 'W'){ setWalk(!inWalk); return; }
   if (e.key === 'ArrowLeft'){ e.preventDefault(); $('prev').click(); }
   else if (e.key === 'ArrowRight'){ e.preventDefault(); $('next').click(); }
   else if (e.key === ' '){ e.preventDefault(); play(); }
@@ -1449,27 +1684,54 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- canvases and the original
+// one tab per group of canvases written next to each other as <tab>/<canvas> with `order` (else one per canvas);
+// the canvases of a group are switched at the top of the canvas, each shown by its name without the tab's part
+// (a key keeps a tab apart from a canvas of the same name standing on its own)
+const tabKey = c => c.tab ? 't:' + c.tab : 'c:' + c.name, tabLabel = k => k.slice(2), lastOf = {};
+function variantName(c){
+  const n = c.name, t = c.tab;
+  return t && n.startsWith(t) && n.length > t.length ? n.slice(t.length).replace(/^[_\-/ ]+/, '') || n : n;
+}
+function goCanvas(j){ stop(); ci = j; sel = null; lastOf[tabKey(C())] = j; showAll(tOf[j] || 0); }
 function tabs(){
-  const B = $('tabs');
-  if (D.canvases.length < 2){ B.hidden = true; return; }
-  if (B.querySelector('button')){ B.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === ci))); return; }
-  D.canvases.forEach((c, j) => { const b = el('button', null, c.name); b.setAttribute('role', 'tab'); b.setAttribute('aria-pressed', String(j === ci));
-    b.onclick = () => { stop(); ci = j; sel = null; showAll(tOf[j] || 0); }; B.appendChild(b); });
+  const B = $('tabs'), V = $('variants'), key = tabKey(C());
+  const keys = [...new Set(D.canvases.map(tabKey))];
+  B.hidden = keys.length < 2;
+  if (!B.querySelector('button')) keys.forEach(kk => {
+    const b = el('button', null, tabLabel(kk)); b.dataset.k = kk; b.setAttribute('role', 'tab');
+    b.onclick = () => goCanvas(lastOf[kk] ?? D.canvases.findIndex(c => tabKey(c) === kk)); B.appendChild(b);
+  });
+  B.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === key)));
+  const group = D.canvases.map((c, j) => [c, j]).filter(([c]) => tabKey(c) === key);
+  V.hidden = group.length < 2;
+  if (V.dataset.k !== key){
+    V.dataset.k = key; V.querySelectorAll('button').forEach(b => b.remove());
+    for (const [c, j] of group){ const b = el('button', null, variantName(c)); b.dataset.j = j; b.onclick = () => goCanvas(j); V.appendChild(b); }
+  }
+  V.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.j === ci)));
+  if (!V.hidden) knob(V, true);
 }
 function setOrig(v){
-  if (!D.original) return; stop(); orig = v; sel = null; hover = null;
-  $('sOrig').setAttribute('aria-pressed', String(orig)); $('sNew').setAttribute('aria-pressed', String(!orig));
-  timeline(); panel(); marks(); request();
+  if (!D.original) return; stop(); orig = v; inWalk = false; sel = null; hover = null;
+  segState(); timeline(); panel(); marks(); request();
 }
-function showAll(at){ tabs(); timeline(); k = -1; setT(at === undefined ? t : at); }
-$('sOrig').textContent = X.original; $('sNew').textContent = X.rebuilt; $('seg').title = X.compare; $('seg').hidden = !D.original;
-$('sOrig').onclick = () => setOrig(true); $('sNew').onclick = () => setOrig(false);
-for (const [id, key] of [['prev', 'prev'], ['next', 'next'], ['zin', 'zoom_in'], ['zout', 'zoom_out'], ['fit', 'fit'], ['follow', 'follow'], ['play', 'play'], ['speed', 'speed']]){
+function showAll(at){
+  $('sWalk').hidden = !C().walk; $('seg').hidden = !D.original && !C().walk;
+  if (inWalk && !C().walk){ inWalk = false; segState(); }   // this canvas has no walkthrough: show its rebuilt workflow
+  partNo = 0; tabs(); timeline(); k = -1; setT(at === undefined ? t : at); if (inWalk) goPart(0, true);
+}
+$('sOrig').textContent = X.original; $('sNew').textContent = X.rebuilt; $('seg').title = X.compare;
+$('sWalk').textContent = X.walk; $('sWalk').title = X.walk_title;
+$('sOrig').hidden = !D.original;
+$('sOrig').onclick = () => inWalk ? setWalk(false, true) : setOrig(true);
+$('sNew').onclick = () => inWalk ? setWalk(false, false) : setOrig(false);
+$('sWalk').onclick = () => setWalk(true);
+for (const [id, key] of [['prev', 'prev'], ['next', 'next'], ['zin', 'zoom_in'], ['zout', 'zoom_out'], ['fit', 'fit'], ['follow', 'follow'],
+                         ['play', 'play'], ['speed', 'speed'], ['wprev', 'prev_part'], ['wnext', 'next_part'], ['wwhole', 'walk_whole'], ['helpb', 'help_title']]){
   $(id).title = X[key]; $(id).setAttribute('aria-label', X[key]);
 }
 $('empty').textContent = X.empty;
 for (const [key, text] of X.help){ const row = el('div'); row.append(el('b', null, key), ' ' + text); $('help').appendChild(row); }
-$('helpb').title = X.help_title; $('helpb').setAttribute('aria-label', X.help_title);
 $('helpb').onclick = () => { const open = $('help').hidden; $('help').hidden = !open; $('helpb').setAttribute('aria-pressed', String(open)); };
 if (!D.canvases.length){ D.canvases.push({name: '', defs: [], nodes: [[]], wires: [[]], groups: [[]], problems: [], steps: [{kind: 'cmd', c: [], s: U.empty, d: [], v: [0, 0, 0], p: [], counts: {}}]}); }
 // light, dark, or as the system says; the choice is kept in this browser

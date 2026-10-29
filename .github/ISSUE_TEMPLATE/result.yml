@@ -1,0 +1,58 @@
+name: The rebuilt workflow is wrong or hard to read
+description: The rebuilt workflow is wrong or hard to read / 組み直した workflow がおかしい、読みにくい
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Japanese is fine. 日本語でも英語でも構いません。
+
+        **Before attaching files:** a workflow can contain your prompts, file names, and folder paths, and `report.html` contains the original workflow. Remove anything you do not want to make public.
+        **添付の前に:** workflow には、プロンプト、ファイル名、フォルダのパスが入っていることがあります。`report.html` にも元の workflow が入っています。公開したくないものは消してください。
+  - type: textarea
+    id: what
+    attributes:
+      label: What looks wrong / 何がおかしいか
+      description: Which part of the workflow, and how you expected it to look. どの部分が、どうなっていてほしかったか。
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot / スクリーンショット
+      description: A screenshot of the rebuilt workflow opened in ComfyUI. 組み直した workflow を ComfyUI で開いたところ。
+  - type: textarea
+    id: files
+    attributes:
+      label: Files / ファイル
+      description: |
+        Attach the original workflow, the rebuilt workflow (`.json`), and `report.html` if you have it.
+        元の workflow、組み直した workflow（`.json`）、あれば `report.html` を添付してください。
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: What you asked the agent / エージェントへの頼み方
+      placeholder: Make my_workflow.json readable with Readable Node.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and model / エージェントとモデル
+      placeholder: Claude Code, Claude Opus 5.5
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Skill version / skill の version
+      description: "`version` in SKILL.md. You can ask the agent. SKILL.md の `version`。エージェントに聞いても分かります。"
+      placeholder: 0.0.2
+    validations:
+      required: true
+  - type: input
+    id: comfyui
+    attributes:
+      label: ComfyUI and frontend versions / ComfyUI と frontend の version
+      description: Shown in Settings → About. 設定 → 情報（About）に出ます。
+      placeholder: ComfyUI 0.x.x, frontend 1.x.x

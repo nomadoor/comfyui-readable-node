@@ -61,7 +61,7 @@ The skill runs a long job and checks its own work as it goes, so it needs a stro
    To call it directly: `/comfyui-readable-node` (`/comfyui-readable-node:comfyui-readable-node` when installed as a plugin).
 3. You get the rebuilt workflow (`.json`) and a report. Open the workflow in ComfyUI to check it.
 
-As an extra, `replay.html` replays the rebuild step by step.
+You also get a report page, `report.html`: the original workflow, the rebuild step by step, and a walkthrough of the finished workflow.
 
 ## Licence
 

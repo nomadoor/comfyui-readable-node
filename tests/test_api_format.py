@@ -97,5 +97,46 @@ class ApiFormatTest(unittest.TestCase):
             shutil.rmtree(d)
 
 
+# VideoHelperSuite's Load Video, cut down (its frontend saves the values keyed by name)
+VHS_LOAD_VIDEO = {
+    "input": {"required": {"video": [["a.mp4"], {"video_upload": True}], "force_rate": ["FLOAT", {"default": 0}],
+                           "custom_width": ["INT", {"default": 0}], "custom_height": ["INT", {"default": 0}],
+                           "frame_load_cap": ["INT", {"default": 0}], "skip_first_frames": ["INT", {"default": 0}],
+                           "select_every_nth": ["INT", {"default": 1}]},
+              "optional": {"vae": ["VAE"], "format": [["None", "Wan"], {"default": "None"}]}},
+    "input_order": {"required": ["video", "force_rate", "custom_width", "custom_height", "frame_load_cap",
+                                 "skip_first_frames", "select_every_nth"], "optional": ["vae", "format"]},
+    "output": ["IMAGE", "INT"], "output_name": ["IMAGE", "frame_count"], "name": "VHS_LoadVideo",
+    "display_name": "Load Video (Upload)", "category": "video", "output_node": False,
+    "python_module": "custom_nodes.comfyui-videohelpersuite"}
+
+
+class NamedValuesTest(unittest.TestCase):
+    def test_vhs_values_are_keyed_by_name(self):
+        oi = json.loads(OI.read_text(encoding="utf-8"))
+        oi["VHS_LoadVideo"] = VHS_LOAD_VIDEO
+        api = {"1": {"class_type": "VHS_LoadVideo", "inputs": {
+            "video": "a.mp4", "force_rate": 16, "custom_width": 0, "custom_height": 0, "frame_load_cap": 125,
+            "skip_first_frames": 0, "select_every_nth": 1, "format": "None"}}}
+        ui, _ = AF.to_ui(api, oi)
+        v = ui["nodes"][0]["widgets_values"]
+        self.assertIsInstance(v, dict)
+        self.assertEqual((v["frame_load_cap"], v["skip_first_frames"], v["force_rate"]), (125, 0, 16))
+        self.assertNotIn("upload", v)
+
+    def test_core_like_uses_all_words_when_every_word_is_common(self):
+        oi = {f"Load{i}Video": {"display_name": f"Load Video from Folder {i}", "python_module": "nodes"} for i in range(40)}
+        oi["LoadVideo"] = {"display_name": "Load Video", "python_module": "comfy_extras.nodes_video"}
+        oi["VHS_LoadVideo"] = VHS_LOAD_VIDEO
+        C._CORE_WORDS = None
+        try:
+            self.assertIn("LoadVideo (Load Video)", C.core_like("VHS_LoadVideo", oi))
+        finally:
+            C._CORE_WORDS = None
+
+    def test_vhs_load_video_counts_as_a_loading_node_that_shows_a_preview(self):
+        self.assertEqual(C.image_kind("VHS_LoadVideo", {"VHS_LoadVideo": VHS_LOAD_VIDEO}), "load")
+
+
 if __name__ == "__main__":
     unittest.main()

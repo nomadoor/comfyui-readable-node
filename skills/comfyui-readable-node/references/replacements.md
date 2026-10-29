@@ -1,15 +1,15 @@
 # Replacement dictionary
 
-Replacements for custom nodes and deprecated core nodes that have been confirmed by reading the source once. Replacements decided by the node's name are here; techniques that rebuild the form of several nodes are in techniques.md. Those listed here may be used without investigating again. For those not listed here, read the source following the steps in SKILL.md and write it in the table of the understanding document.
+Replacements for custom nodes and deprecated core nodes that have been confirmed by reading the source once. Replacements decided by the node's name are here; techniques that rebuild the form of several nodes are in techniques.md. Those listed here may be used without investigating again. For those not listed here, read the source following the steps below and write it in the table of the understanding document.
 
-A custom node not listed here is decided by reading its source. For a custom node that is not installed in ComfyUI, read only the files you need.
+For a custom node that is not installed in ComfyUI, read only the files you need.
 1. Find the repository. If the node's properties have `cnr_id`, use `repository` from `https://api.comfy.org/nodes/<cnr_id>`. Otherwise `aux_id` (if it is `owner/repo`, GitHub). If neither exists, look up `https://api.comfy.org/comfy-nodes/<type>/node` with the node's type name. If it is not there either, search ComfyUI-Manager's `https://raw.githubusercontent.com/Comfy-Org/ComfyUI-Manager/main/extension-node-map.json`.
 2. Read `__init__.py` by its raw URL, and follow `NODE_CLASS_MAPPINGS` to the file that has the node's type name.
 3. Read only that file. If `ver` is a commit, read the one at that commit.
 - Do not clone. Do not run code you fetched. Do not put it into ComfyUI's custom_nodes.
 - If it is found nowhere, leave it unreplaced, and write in the report "the source was not found, so this could not be determined".
 
-For where replacement stops, see SKILL.md.
+For where replacement stops, see content.md.
 
 Write what changes through a replacement in the report (not in a Note). For replacements that change the model file or its location, put the new model in the list of the overview and models Note.
 
@@ -20,7 +20,7 @@ Each row's "Where verified" is which source it was verified in. When the node's 
 | custom node | How to build with core | What changes / what to watch out for | Where verified |
 |---|---|---|---|
 | VHS_VideoCombine (output) | CreateVideo + SaveVideo (copy format, codec, crf) | Keep it only when it saves as GIF (core's Save Video is only mp4, mkv, webm) | Decided by nomadoor. comfy_extras/nodes_video.py |
-| Concatenate Text (StringConcatenate) | One Format Text (StringFormat). The texts to join as a, b, c…, the separators in f_string (`{a}, {b}\n{c}` and so on). Whether chained or only one (two inputs) | If an empty text goes in, the separator stays (`{a}, {b}` with a = "cat", b = "" gives "cat, "). Concatenate Text does the same, so nothing changes from the original | Decided by nomadoor. comfy_extras/nodes_string.py (StringConcatenate, StringFormat) |
+| Concatenate Text (StringConcatenate) | One Format Text (StringFormat). The texts to join as a, b, c…, the separators in f_string (`{a}, {b}\n{c}` and so on). Whether chained or only one (two inputs) | If an empty text goes in, the separator stays (`{a}, {b}` with a = "cat", b = "" gives "cat, "). Concatenate Text does the same, so nothing changes from the original. A `{` or `}` in a separator or in text written into f_string is doubled (`{{`, `}}`) | Decided by nomadoor. comfy_extras/nodes_string.py (StringConcatenate, StringFormat) |
 | easy fullLoader (easy-use) | Load Checkpoint + CLIP Set Last Layer (clip_skip) + CLIP Text Encode ×2 + Empty Latent Image. LoRA and ControlNet inside the loader are also brought out as core nodes | If the prompt weight interpretation (token_normalization, weight_interpretation) is not the default (none, comfy), how the weights act changes slightly. Write it in the report | py/nodes/loaders.py and py/libs/adv_encode.py of easy-use 130c1b5 |
 | Power Lora Loader (rgthree) | One Load LoRA per enabled row, in order. How each LoRA's clip is handled is in the LoRA item of techniques.md | Delete rows that are off and rows set to None. Internally it only calls LoraLoader in order | rgthree source |
 | KSampler (Efficient), KSampler Adv. (Efficient) | KSampler / KSamplerAdvanced + VAE Decode | It displayed the image itself (an output node), so if a place to view it is needed, Preview Image | efficiency-nodes source |
@@ -38,7 +38,7 @@ Each row's "Where verified" is which source it was verified in. When the node's 
 | RIFE VFI (Frame-Interpolation) | Load Frame Interpolation Model + Run Frame Interpolation Model (copy multiplier) | Core reads RIFE in the v4.25-and-later form (rife_v4.25, rife_v4.26 in Comfy-Org/frame_interpolation, and so on) and FILM. Loading requires the encode layers and 5 blocks, so earlier forms (rife49.pth and so on) are probably not readable (not tested). The model file changes | comfy_extras/nodes_frame_interpolation.py |
 | LLM Text Processor (KingManiya, a GGUF LLM via llama.cpp) | Generate Text (TextGenerate). Load the LLM with CLIPLoader (Qwen3.5, Qwen3-VL and so on can generate text in core). To have it describe an image, use the image input | GGUF cannot be loaded, so the model file changes to safetensors | qwen35.py and qwen3vl.py in comfy/text_encoders |
 | SaveImageKJ (KJNodes) with no caption connected | Save Image | | nodes/image_nodes.py of KJNodes |
-| Image Comparer (rgthree) | Compare Images (ImageCompare). Connect image_a and image_b as they are | core's Compare Images shows the side-by-side comparison only in Nodes 2.0 | py/image_comparer.py of rgthree, comfy_extras/nodes_image_compare.py |
+| Image Comparer (rgthree) | Compare Images (ImageCompare). Connect image_a and image_b as they are (`canvas open` replaces it when reading the original) | core's Compare Images shows the side-by-side comparison only in Nodes 2.0 | py/image_comparer.py of rgthree, comfy_extras/nodes_image_compare.py |
 | ImagesGridByColumns (all images the same size, gap 0) | Make Image Grid (ImageGrid). columns is max_columns, cell_width and cell_height are the image size, padding is 0 | Make Image Grid is experimental | src/utils/images_grid.py of images-grid-comfy-plugin, comfy_extras/nodes_dataset.py |
 | ShowText\|pysssss (a node that displays the value it receives and passes it straight on) | Take it out of the flow and connect before and after directly, then branch from the value you want to see into Preview as Text (PreviewAny). How to build is "Do not put a display node in the flow; put it on a branch" in techniques.md | | py/show_text.py of pysssss (displays the text it receives and returns it as the output as is), comfy_extras/nodes_preview_any.py |
 | MathExpression\|pysssss | Math Expression (the same expression) | Check with values that the expression is the same. If the pysssss expression uses the size of an image or latent (a.width, a.height), widget values of other nodes, randomint, randomchoice or iif, it cannot be written as is in core's Math Expression (core has only numbers and sum, min, max, abs, round, pow, sqrt, ceil, floor, log, sin, cos, tan, int, float) | py/math_expression.py of pysssss, comfy_extras/nodes_math.py |

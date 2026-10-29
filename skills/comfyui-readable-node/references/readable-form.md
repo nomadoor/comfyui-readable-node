@@ -1,169 +1,87 @@
-# The Readable Node form (layout, size, colour, node names)
+# The Readable Node form
 
-What is written here is what form to aim for.
-- The layout is built with the moves of the canvas (scripts/canvas.py). The steps of building are in SKILL.md; the list of moves is at the top of canvas.py.
-- For situations where you are unsure which way to go, see the examples in examples.md.
+What you decide when arranging a workflow, and what a finished workflow is checked against. The canvas does the rest (node sizes and widths, the fixed colours, rail heights and the room for rails, Reroute positions); its moves and checks are at the top of canvas.py.
 
-## Layout
+How to read a rule: the bold line says what to do. **Why** names the principle or goal of SKILL.md it serves; when a case is not covered, decide by it. **Bad** is the form that breaks the rule, as seen in a finished workflow. **Fine** is a form that looks like Bad but is not; a rule without Fine has no exception. **Undecided** is not decided: do not fill it with your own rule. Cases are in examples.md, "Layout", under the same section headings.
 
-### The heart of it
+## 1. The usual form
 
-**Do not hide nodes.** Do not overlap nodes.
+**Build the core in the usual form, so every workflow of the same kind reads the same.** Why: the whole picture at a glance.
+- Text to image with KSampler: the model chain (loader → LoRA → model patches) on a row above the encoders; its wire into the KSampler may slant (the conditioning is the one made horizontal, not the model). The text encoders in the column left of the KSampler, positive above, negative below (Conditioning Zero Out stands where the negative would be). The positive conditioning enters the KSampler horizontally. Empty Latent in the same column as the encoders. Load VAE above the KSampler when only VAE Decode uses it. VAE Decode right of the KSampler, level with it; Save Image right of VAE Decode.
+- With SamplerCustomAdvanced: its sources in one column on its left in input order (noise, guider, sampler, sigmas, latent), the guider level with the sampler (its wire horizontal); the guider's conditioning enters horizontally; the sigma nodes (scheduler → split) in that column, not on the model row. Load VAE above the sampler.
+- The outputs: Save Image next to the node that makes the result. Compare and Preview need not be next to Save Image: they go where their wires need the fewest Reroutes (below Save Image is fine), but never between the node that makes the result and Save Image. When the main flow's wire passes an output node on its way to a later node, one of them steps down so the wire passes above it (a staircase: `put <node> right <ref> step` places it just below the wire). Which one steps down is chosen so fewer Reroutes are needed.
+- The sampler stays where the eye line puts it; what enters it (its column of sources and the chains before them) moves up or down to it, never the sampler to them.
+- A stage that takes the previous stage's result (an image, a latent): its sampler stands on the eye line first (section 4); its conditioning enters horizontally from the column just left of it (Apply ControlNet, as the text encoder does in text to image), and the stage's own chain (upscale, resize, VAE Encode) stands on the row below, its latent slanting up into the sampler. When the conditioning cannot enter horizontally (it comes on a rail), the chain moves to the sampler instead: its latent enters horizontally, or its top edge is on the sampler's (either is fine). The wire bringing the previous stage's result into that chain is the one that slants (or runs on a rail).
 
-**Make wires horizontal.** Make every wire horizontal if it can be made horizontal. A wire that cannot may stay diagonal.
-- Making a wire horizontal means aligning the height of the output slot and the input slot. What is aligned is the wire, not the node.
-- Do not leave diagonal a wire that can be made horizontal. If you leave one, attach "what was tried, and why it does not become horizontal".
+## 2. Nodes
 
-**The flow can be followed along a single line.**
+**No node is hidden.** Why: do not hide nodes.
+- Bad: two nodes overlap. A node or a Reroute stands right below a node that grows when run or when its values change (a sampler, a node that shows a video, Create Bounding Boxes), within its width. A node that shows an image does not grow: the image is drawn inside the room its size already has.
+- Fine: the growing node shifted left until nothing below it overlaps it horizontally.
 
-**Keep "the usual form" in which inputs enter the sampler.** Because that form is always the same, the whole workflow can be read. The form is in the section "Around the sampler".
+## 3. Wires
 
-### Eye line (how heights are decided)
+**A wire is horizontal when it can be.** Horizontal means the output slot and the input slot are at one height. This matters most. Why: the reader follows the processing along a single line.
+- Bad: a slanted wire that becomes horizontal by moving the node at one end, without slanting another wire. At a node with two or more wires coming in, a reference wire (a size to match, a mask, a model) made horizontal while the node's chain wire (what it takes in, works on and passes on) slants. A node taking two wires it works on together (positive and negative, a video and an audio latent) set midway between their sources so that neither is horizontal: its chain wire is the horizontal one.
 
-**The eye line is a band with width through which the main flow passes.** It is not the height of a single wire. Place it with the sampler as the reference.
-- The main flow is sampler → decode → … → save. Running what is being made straight through applies to the flow after the sampler (decode → save).
-- Each stage (group) may have its own band. If shifting them makes the whole cleaner, shift them per stage.
-- Pre-processing (image pre-processing and so on) and loaders are often outside the band.
+**No wire goes back from right to left.** Why: left to right.
+- Bad: a wire entering a node whose left edge is left of the source's right edge.
+- Fine: back by at most the target's width plus one column gap, into Conditioning Zero Out or from an empty latent into a scheduler.
 
-**Make the positive conditioning enter the node that receives it (KSampler, CFGGuider and so on) horizontally.**
-- Making it horizontal is `put … right|left` (when the two are wired, the wire is made horizontal by default), `put … wire`, `level`.
-- Nodes that make conditioning (CLIP Text Encode, Apply … Conditioning, WanImageToVideo and so on) are placed on the same row as the sampler.
-- The negative side goes below it.
-- When the latent of the input image and the conditioning collide, take the conditioning horizontal and lower the chain of the input image to the row one below.
+**A wire is drawn directly. Reroutes are used only when, without them, one could not see where the wire goes (a value carried far or to several places: a rail). When a direct wire would be hidden behind a node, move its source or its target so it shows, before bending it with Reroutes.** Why: Reroutes cut one wire into pieces, and the reader must trace them to see where a value comes from.
+- A rail is one value, or several side by side, carried with Reroutes. Write a `rail` line; it runs at the height the line writes (`above <unit>`, `below <unit>`, `level <X>.<output>`) or, with none written, at its source's output height, and gives every target after its first lowering Reroute the value from the rail. The canvas does not look for a height or move nodes to make room: place the source and the targets so the rail runs where it should. A loader heads its rail. Rails of model, vae and clip from one loader or from loaders stacked in one column run in that order from the top; a conditioning rail runs above the samplers and below the model and vae rails; other rails are ordered so fewer wires cross. A rail for a side use (an image carried only to be shown or stitched for reference) runs below, written `below <unit>`: a rail above stands out on its own.
+- Bad: a wire bent with Reroutes while neither its source nor its target was moved. One of a pair (positive and negative) on a rail and the other not. The same loader placed again for each stage. A rail that goes up and down. Two rails closer than the rail gap (a conditioning rail written just under the vae rail): the loaders heading the upper rails go up together, so the gap opens. A rail lifted off its source's output height by a Reroute where a line at that height would pass behind nothing (two values of Get Image Size raised to a height written in the rail line): the source stands at the height the rail runs, or the rail runs at the output height.
+- Fine: a rail inside or outside a group, off the group's title band. A rail of values (fps and so on) below the main flow.
+- Undecided: when a wire may pass behind a node (a wire whose way in and way out are plain to see may).
 
-**The heights of other chains**
-- The chain that loads the model (UNETLoader → LoRA → ModelSampling …) is basically above the eye line. As more nodes sit in between, it goes higher.
-- Helper chains (making masks, detection loaders and so on) go on the row one below the eye line, lined up in processing order just before where they are used. They do not get in the way of the eye line.
-- The chain of the image and the size nodes (Get Image Size, Empty Latent, width and height values) go in one horizontal row on a lower row. This is because the image wire should run horizontal up to Get Image Size → Empty Latent.
-  - When the image only goes into a node in front as a reference image, which row that chain goes on is Undecided.
-- Do not put too many nodes above the eye line.
-  - Neither Preview Image nor Save Image goes above its source. Place them below the eye line or at the same height.
-  - Jumping upward to avoid wires makes rails stretch upward.
+## 4. Flow and position
 
-### Order (left to right)
+**Left to right in processing order. A node's sources stand from the top in the order of its inputs.** Why: left to right; follow along a single line.
+- Bad: two wires into one node cross because the sources stand in another order, and swapping them breaks no other rule. A chain folded back below or above itself.
 
-**Left to right, in processing order.**
-- For every node, line up its sources from the top in the order they plug in. In this order, wires do not cross.
-  - Sometimes this cannot be kept. Depending on how the surrounding nodes are placed or how the node's inputs are ordered, an upper node goes into a lower input. It is not an absolute rule.
-- Do not fold output nodes back under their sources.
-- When two or more chains of the same shape are lined up, put on top the chain that connects to the later sampler (or the later node). This way the wires do not cross.
-  - Example: when there are two stages of KSampler Advanced, like Wan 2.2's high noise and low noise, put on top the model loading that connects to the second sampler.
-  - Example: when there are two AnimateDiff keyframe chains (LatentKeyframeTiming → TimestepKeyframe → ACN ControlNet Loader), put on top the one that connects to the later Apply ControlNet.
-- Only nodes that stack layers are lined up from bottom to top (background at the bottom). With core's Add Layer → Create Layered Image, or custom nodes that handle layers, make the stacking order the same up and down as layers in image editing software.
+**The main flow (sampler → VAE Decode → … → save) runs along one band (the eye line), from the first stage to the last. Every stage's sampler stands on it: their top edges at one height.** Why: follow along a single line; one look along the eye line finds every stage.
+- Bad: stages whose samplers stand at different heights. A slanted wire inside a stage along the main flow or into the sampler's positive input, where it could be horizontal. From VAE Decode to the save node, top edges not shared, unless an output node stepped down for a wire passing on. A Preview or Save above the node that feeds it. A main-flow wire hidden behind a save or preview node.
+- Fine: stages that do not take each other's result (parallel stages) each have their own band. What enters a sampler (conditioning, guider, latent) and what follows it (decode, save) stand around it as its form places them, so with SamplerCustomAdvanced the guider and VAE Decode are off the samplers' height. A wire from one stage to the next that slants, or runs on a rail, so the samplers stay on the eye line.
 
-**Conditioning Zero Out goes where the negative prompt would be.** It is a node that does the job in place of a negative prompt, so place it below the positive CLIP Text Encode (`below`). Do not open a column for it between positive and the sampler. If you do, it looks as if the negative is to the lower right of positive.
-- There are other situations where you do not want to open a column on the central row for a node with a thin role. Which ones those are is Undecided.
+**Other chains have their own rows, by role, not lined up because they are connected.** Why: the whole picture at a glance. The model chain goes above the band. Helper chains (masks, detection) one row below the band, in the column left of the node that uses them. The image chain and the size nodes (Get Image Size, Empty Latent, width and height) on a row lower down; the image that goes into the sampler (the input image of an i2i, through Resize and VAE Encode) is part of the main flow, not of this row.
+- Bad: such a chain inside the band, so that the main flow steps around it. A side node (a detector provider, a Preview of a stage's image) aligned to the bottom of the tall node beside it, far from the wire it hangs on.
+- Fine: a side node just below the image wire that passes it, as far down as keeps it off that wire (`step`).
+- Bad: the image wire into a VAE Encode that takes only the image (and the VAE) slants, also when the same image goes on to a text encoder as a reference: the image chain (Load Image, Resize) stands on VAE Encode's row, so that wire is level; the wire from VAE Encode on to the sampler may slant.
+- Fine: a node that takes conditioning as well as the image (InpaintModelConditioning, an image-taking text encoder) stands where its conditioning enters level; the image wire into it slants.
 
-**Place a loader near and to the left of the node that first uses it, and connect it directly.** However, a loader (model, vae, clip) that is handed out to several stages on a rail goes on top, at the head of the rail (the section "Rails"). Even when the node that uses it first is in a lower row, bring the wire down to it from the rail.
-- Example: Load VAE goes to the left of the node that first uses it (VAE Encode, InpaintModelConditioning, WanImageToVideo and so on). If it is used only for VAE Decode, above the KSampler.
+**The sources wired straight into a sampler stand in one column, right edges aligned (`inputs`).** Why: follow along a single line.
+- Bad: those sources spread over several columns, or not right-aligned. The model chain, on its row above, ending at another column's right edge than this one (its last node stands near the sampler it feeds).
 
-**Loaders go from the top: the model loader first, then the vae and clip loaders below it.** Either of vae and clip may come first (Load VAE sometimes sits below the eye line).
-- A checkpoint loader (one node that loads model, clip and vae together) is not counted in this order. Neither are loaders of other kinds (SAM, detection, upscale models and so on).
+**Preparation stays out of the core.** Preparation (switching reference images, compositing a background, assembling text, and so on) is built outside the core's columns, and only its result comes into the core. Why: the whole picture at a glance (the core keeps its usual form).
+- Bad: a preparation node squeezed into the column of a loader, a text encoder or the sampler (between those nodes).
+- Fine: preparation further left than the loaders. A preparation node next to the node it feeds that ends up above or below a column of the core.
 
-**Move the whole thing forward (right), and do not make backward wires (wires going back from right to left).**
-- The only one allowed is a backward wire of one node's width into a node with little content (but needed for clarity) (Conditioning Zero Out and so on). Do not connect to nodes that went back further than that.
-- The other exception is when placing a group on the row one below is better than placing the whole group on the same row (the wire entering that group). Where to draw the line for this exception is not yet clear (examples.md).
+**Wires show and nothing is packed; no empty space is made by hand.** Why: do not hide wires; the whole picture at a glance. Place by relations (put, row, stack, align, level, inputs, rail); the canvas keeps the gaps, also around group frames.
+- Bad: a node squeezed into a gap so that wires run behind it. An empty band left between nodes.
 
-### Staircase (when large nodes that change size are lined up)
+## 5. Loaders
 
-**Make a staircase only when several loading nodes that are large themselves and change size a lot (Load Image, Load Video and so on) go into the same single node.** Do not use it for the sources of SamplerCustomAdvanced.
-- Do not stack them vertically; shift them to the right while also shifting the height. Stacking vertically takes room and hides what is below when they grow. Lining them up side by side hides the wires passing between them. A staircase is compact and does not hide wires.
-- Example: three Load Image → Batch Images. Put the first at the upper left, at the same height as the slot that receives it, and shift the next ones towards the lower right. Each wire enters its slot without passing over other nodes.
-- Several nodes of the same kind connecting from an output hardly ever happens. If it does, the direction is the opposite of inputs (the farthest at the upper right, nearer ones further to the lower left).
+**A loader stands in the column left of the node that first uses it.** Why: left to right; the wire from a loader is short and does not go back.
+- Bad: other columns between a loader and its first user, when it is not on a rail. A loader at the far left that feeds only a later stage. A loader of one node's model (Load Upscale Model) away from that node. Load VAE above the model loaders (it stands below the model chain; below the text encoders is fine too).
+- Fine: Load CLIP in the column of the text encoders. A Load VAE first used on the input side (VAE Encode, WanImageToVideo and so on), when it is not on a rail, stands there, apart from the other loaders.
 
-### Around the sampler (how to place the sources)
+## 6. Value nodes
 
-- The sources that connect directly to a sampler (LoRA, CLIP Text Encode, Empty Latent, value nodes and so on) go in the same column even if their kinds differ, aligned at the right edge (`inputs`).
-- The chains in front of them are not all aligned just because they are connected; separate them by role. The wire that loads the model and the nodes that make sigmas (BasicScheduler → SplitSigmas) are different roles. The sigma nodes go in the sampler's input column.
-- SamplerCustomAdvanced goes at the vertical middle of its sources (`stack`, `align middle`). To its left, one column from the top in input order (noise, guider, sampler, sigmas, latent). The conditioning enters CFGGuider horizontally. The wires from noise, guider, sampler and sigmas into SamplerCustomAdvanced may be diagonal (because it sits in the middle; the canvas checks do not report these four).
+**A value is put in a value node only when it is changed for each generation and reaches several nodes.** Otherwise it stays in the widget of the node that uses it. Why: the workflow is easy to rearrange and reuse.
+- Bad: a value node with a single target. A value node holding a value nobody changes. A PrimitiveNode (use Int, Float, String and so on). A value node standing between the positive and negative prompts. A text written in a text area where it was (a prompt, a negative prompt) handed out from String, a one-line input: it is handed out from Text (Multiline), the same kind of input.
+- Fine: a value node titled "display name: what the value is" (`Float: fps`, `Int: pixel count for 720p`); the display name follows "Language" in SKILL.md.
 
-### Core and preparation
+## 7. Groups and colour
 
-**Do not break the form of the core.**
-- Large groups of preparation (switching reference images, compositing a background and so on) are not mixed into the core's columns. Build them together outside the core and bring only the result into the core (`move`).
-- The groups may go further left than the model and clip loaders (in 12 of 27 hand-made layouts, there are nodes left of the loaders).
-- Whether to use Reroutes for the wire that brings the result follows the rules of "Rails".
-- How to tell whether the form breaks is not decided.
-- If similar stages are lined up, make the form of one stage and copy it with `shape`.
+**A group holds one large function: a clearly separate stage, one of parallel stages of the same form, or a function switched with bypass. A workflow that does one simple thing has none. Decide by function, not by counting samplers or nodes.** Why: the whole picture at a glance (a group guides the eye). The title is in the user's language, as a Note's title is: a common name stays as it is (Hires.fix, Upscale); otherwise a short noun phrase for what the group does (Mask for IPAdapter), not a sentence explaining it. A group holds its function's loaders; shared loaders go into the group of the first stage that uses them; values shared by parallel stages go into no group.
+- Bad: stages that are clearly separate with no group. A group for each small piece of a stage (each ControlNet switched with bypass inside the first stage): the stage's group holds them, and the frames of small groups leave the layout full of gaps. A group removed because a wire crossed its title band (move the wire or the group instead). A function switched with bypass whose nodes are not all in its group. Groups of stages operated in order not sharing their top and bottom edges (`group-align`). A wire over a group's title band.
 
-### Rails
+**Colour shows which function a node belongs to, on the few nodes that do one job.** Why: colour appropriately. Loaders, LoRAs and Notes have fixed colours (the canvas applies them; a Load CLIP whose CLIP reaches no text encoder, one that feeds only an LLM, has none). Five colours are left: brown, green, blue, pale_blue, cyan. The basic t2i / t2v form stays uncoloured; green is the part that makes this workflow differ from the basic form; ControlNet kinds are pale_blue; each other added function gets one colour. A group already guides the eye; colour nodes inside a group only with a reason.
+- Bad: a sixth colour. A node only for looking (a Preview) coloured. Every node of a group coloured the same. One node of a function coloured while the nodes that do that function with it stay uncoloured (Generate Text green, its Text (Multiline) and its Load CLIP not). A node that only makes the run faster (a cache, an attention backend) coloured: it belongs to the basic form.
+- Undecided: what reason is enough to colour nodes inside a group.
 
-**A rail carries values in a set to far places.** It is useful because it reads as one straight band. A rail that bends up and down cannot be read as a rail.
+## 8. Names
 
-**When to lay one**: when carrying several values together to a later stage, or when handing the same value out to several places (`rail`).
-- Values that come as a pair (positive and negative and so on) go on rails as a pair. Do not put only one of them on a rail.
-- Do not place the same loader per stage. Hand one out with a rail.
-- Rails from loaders (model, vae, clip) run above the nodes they hand out to. Rails of values (fps and so on) may run below.
-- Rails go, from the top, model, vae, clip, conditioning, then others. Make it the same order as the loaders lined up from the top as model, vae, clip. If the order differs, wires cross and Reroutes increase.
-- When handing model, vae and clip out to later stages, do not raise them with Reroutes; put the loader (and the model chain that continues from it, such as LoRAs) at the height of the rail, as the head of the rail.
-  - One Reroute fewer.
-  - When a wire goes up once and then sideways, the eye moves up and down.
-- Rails and wires may pass inside a group or outside it. It is fine as long as they do not overlap the group's title band. Forcing them outside the group wastes space.
-
-**When not to lay one**: do not lay a rail for a single wire.
-- If a single wire passing behind nodes bothers you, fix it by how nodes are placed (changing the row, placing the loader near where it is used) before a rail.
-- Wires that are not written as rails are connected directly from the source to where they plug in. Do not place meaningless Reroutes.
-
-### Nodes that change size
-
-**Nodes that show images (saving, preview, loading) are placed by the canvas at their initial size plus the image area, and overlaps are counted at that size.** (The image areas are in "Size and width".)
-- Samplers (KSampler, SamplerCustomAdvanced and so on) grow when run, with a progress preview inside. The canvas does not add this, so keep the space for that growth yourself.
-- Nodes that draw an area whose size follows their values grow too (Create Bounding Boxes follows width and height).
-- Do not stack other nodes directly below such nodes. When they grow, they hide the nodes below. When lining them up, follow the section "Staircase".
-- The canvas reports a node placed directly below them.
-
-### Groups
-
-**Groups are used more to guide the eye than to separate functions.**
-- Examples of where to put them:
-  - Each stage of a multi-stage workflow where the stages are clearly separate.
-  - Parallel stages of the same form (generation per model, from load model to VAE Decode).
-  - Functions switched together with bypass (upscaling, interpolation and so on).
-- The guide is functions. Put them in workflows where several large functions are connected. Do not decide by the number of samplers, nodes or stages.
-- Other than this, when to gather things into a group is Undecided.
-
-**How to put them**
-- The title says what that stage or function does, by the common name (Hires.fix, Upscale, Face Detailer and so on).
-- A grouping of a function also includes that function's loaders. When bypass or mute is applied to a whole group, only the nodes outside the group are left behind.
-- Loaders and text rows shared by stages that follow one another (generation in the first stage → redrawing in the second, and so on) go into the group of the stage that uses them first.
-- Values shared by parallel stages of the same form (generation per model, and so on) — seed, steps, Empty Latent, prompts — go into no group.
-- For groups made to operate stages in order, align all their top and bottom edges. Enclose with room to spare.
-- Do not remove a group because a wire overlaps its title band. Move the wire or the group.
-
-## Size and width (the canvas calculates)
-
-- The size is the initial value when the node is created in ComfyUI. The sizes in the original workflow are not used. Only nodes that show images get the image area added to the initial size (the canvas does this).
-- Minimum: the width is 225px and the width where the whole node name is visible. The height of a text field is 100px.
-- Format Text and Math Expression get the smallest size that fits their content. Whether to apply this to other nodes is Undecided.
-- The image area (width × height) of nodes that show images, which the canvas adds to the initial size: saving nodes 500×520, previews 340×320, loading nodes 300×320.
-- If the difference in width between nodes stacked in the same column is smaller than the gap between columns (60px), align them to the widest (`width`).
-- Spacing: between rows, 45px (from the bottom edge of the upper node to the top edge of the lower node's title band). Between columns, 60px (from the right edge of the left column to the left edge of the right column).
-
-## Colour
-
-Colours are chosen from core's 9 colours (red, brown, green, blue, pale_blue, cyan, purple, yellow, black) (`color`). black is not used.
-
-**Fixed colours** (the canvas applies them)
-- Model loaders and LoRAs: purple
-- CLIP loaders: yellow
-- VAE loaders: red
-- The model Note: purple
-- Other Notes: yellow (if no colour is set, a ComfyUI bug makes them yellow)
-
-**The remaining colours that can be used**: the 5 colours brown, green, blue, pale_blue, cyan.
-
-**When to use them**: colour shows "which function it belongs to".
-- The basic t2i / t2v form (sampler, decode, save, text encoder) is uncoloured.
-- green: the part that is the core of that workflow when compared with the basic form (the image input of i2i, the ControlNet of a workflow where ControlNet is the lead, and so on).
-- One colour for each other added function. ControlNet types are pale_blue. Others are chosen from brown, blue, cyan.
-- Apply the colour to every node belonging to that function (that function's loader, preprocessor, down to the Load Image for it).
-- Usually 1 to 2 colours are added on top of the 3 loader colours. 4 or more is rare. If 5 colours are not enough, the workflow is too large.
-- Coloured nodes, loaders excluded, are up to about a third of the whole. Do not go over half.
-
-## Node names
-
-**Do not change node names.** ComfyUI searches by node name, so if a name has been changed, you cannot tell what node it originally was. If the workflow's author changed them, return them to the original node names.
-
-As an exception, only the following value nodes get information added to the node name. The form is "display name: what the value is" (for example `Float: video length (seconds)`, `Float: fps`, `Int: pixel count for 720p`). The display name is the name shown on the ComfyUI screen (display_name in object_info: Int, Float and so on), not the type name (PrimitiveInt and so on). Write the part after the colon in the user's language.
-- Value nodes (Float, Int, String and so on) that reach several nodes from one.
-- Value nodes whose value alone does not tell what the value is (pixel counts lined up in a list and so on).
+**Node names are not changed.** Names the workflow's author changed go back to ComfyUI's display names. Why: the workflow is easy to rearrange and reuse.
+- Bad: a title the author gave (in any language) left on a node.
+- Fine: a value node's title (section 6). A node loading an image or video titled "display name: what it takes" (`Load Image: image to edit`, `Load Image: reference image 1`), in the same form: which image goes where is read without opening a Note.
