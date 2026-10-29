@@ -47,7 +47,7 @@ CHROME = {
     "empty": "Nothing is placed on the canvas yet.",
     "counts": {"overlaps": "overlaps", "wires behind nodes": "wires behind nodes", "crossings": "crossings",
                "non-horizontal wires": "non-horizontal wires", "unplaced": "unplaced",
-               "backward wires that cannot be kept": "backward wires to fix"},
+               "backward wires that cannot be kept": "backward wires to fix", "cannot be kept": "forms to fix"},
 }
 
 # the side panel: in the user's language
@@ -61,6 +61,10 @@ UI = {
         "units": {"moved": "moved", "added": "placed", "changed": "changed", "removed": "removed", "behind": "behind"},
         "show_all": "Show all", "show_less": "Show less",
         "empty": "Nothing is placed on the canvas yet.",
+        "review": "Review by another agent", "review_none": "The review file says: No findings.",
+        "review_unchecked": "The review file has no line saying what the reviewer checked.",
+        "review_fixed": "Fixed", "review_left": "Left as it is", "walk_toc": "Parts",
+        "hand": "Wide gaps (gap wide) and the wires between",
         "counts": CHROME["counts"],
     },
     "ja": {
@@ -72,9 +76,13 @@ UI = {
         "units": {"moved": "動かした", "added": "置いた", "changed": "変えた", "removed": "消した", "behind": "裏を通る"},
         "show_all": "すべて見る", "show_less": "たたむ",
         "empty": "キャンバスにはまだ何も置かれていません。",
+        "review": "別のエージェントによるレビュー", "review_none": "レビューのファイルには「No findings.」（何も見つからなかった）とあります。",
+        "review_unchecked": "レビューのファイルに、レビュー役が何を確かめたかの一行がありません。",
+        "review_fixed": "直した", "review_left": "残した", "walk_toc": "部分",
+        "hand": "広い間（gap wide）と、その間の線の数",
         "counts": {"overlaps": "重なり", "wires behind nodes": "ノードの裏を通る線", "crossings": "交差",
                    "non-horizontal wires": "水平でない線", "unplaced": "未配置",
-                   "backward wires that cannot be kept": "直すべき逆向きの線"},
+                   "backward wires that cannot be kept": "直すべき逆向きの線", "cannot be kept": "直すべき形"},
     },
 }
 
@@ -312,11 +320,12 @@ def _x_color(S, a, x, d):
 def _x_rail(S, a, x, d):
     k = a.index("to")
     head, targets = a[:k], a[k + 1:]
-    spec = head[1]
+    spec = head[1] if len(head) > 1 else "auto"
     h_en = {"above": f"above {S.unit(head[2])}" if len(head) > 2 else "", "below": f"below {S.unit(head[2])}" if len(head) > 2 else "",
-            "level": f"at the height of {S.port(head[2])}" if len(head) > 2 else "", "out": "at the height of the output"}
+            "level": f"at the height of {S.port(head[2])}" if len(head) > 2 else "", "out": "at the height of the output",
+            "auto": "at the height the canvas chose"}
     h_ja = {"above": f"{S.unit(head[2])} の上" if len(head) > 2 else "", "below": f"{S.unit(head[2])} の下" if len(head) > 2 else "",
-            "level": f"{S.port(head[2])} の高さ" if len(head) > 2 else "", "out": "出力と同じ高さ"}
+            "level": f"{S.port(head[2])} の高さ" if len(head) > 2 else "", "out": "出力と同じ高さ", "auto": "canvas が決めた高さ"}
     if S.ja:
         return f"{S.port(head[0])} を、{h_ja.get(spec, spec)}を通るレール（Reroute の列）で {S.many(targets, 4, S.port)} へ運びました"
     return f"Carried {S.port(head[0])} to {S.many(targets, 4, S.port)} along a rail (a line of Reroutes) {h_en.get(spec, spec)}"
@@ -396,6 +405,11 @@ def _x_layout(S, a, x, d):
     return S.L(f"Applied the layout plan {f} and placed everything again", f"配置の計画 {f} を当てて、全部を置き直しました")
 
 
+def _x_review(S, a, x, d):
+    return S.L("Registered the review of the exported workflow (see Walkthrough, the whole workflow)",
+               "書き出した workflow のレビューを登録しました（Walkthrough の全体で見られます）")
+
+
 def _x_walk(S, a, x, d):
     return S.L("Wrote the walkthrough (see Walkthrough)", "解説を書きました（Walkthrough で見られます）")
 
@@ -410,7 +424,8 @@ _EXPLAIN = {"put": _x_put, "row": _x_row, "stack": _x_stack, "align": _x_align, 
             "level": _x_level, "width": _x_width, "move": _x_move, "gap": _x_gap, "block": _x_block, "unblock": _x_unblock,
             "group": _x_group, "ungroup": _x_ungroup, "group-align": _x_group_align, "color": _x_color, "rail": _x_rail,
             "note": _x_note, "copy": _x_copy, "add": _x_add, "set": _x_set, "link": _x_link, "unlink": _x_unlink, "rm": _x_rm,
-            "mode": _x_mode, "title": _x_title, "layout": _x_layout, "new": _x_new, "walk": _x_walk}
+            "mode": _x_mode, "title": _x_title, "layout": _x_layout, "new": _x_new, "walk": _x_walk,
+            "review": _x_review}
 
 BUILD_CMDS = {"copy": ("copied {n} nodes", "ノードを {n} 個写し"), "add": ("added {n} new nodes", "新しいノードを {n} 個足し"),
               "set": ("set values {n} times", "値を {n} 回変え"), "link": ("connected {n} wires", "線を {n} 本つなぎ"),
@@ -469,9 +484,9 @@ PROBLEMS = [
     ("cross", r"^crossings between tool wires: (\d+)",
      lambda S, m: S.L(f"{m.group(1)} crossings between tool wires (VAE, CLIP, values…; reduce them if possible)",
                       f"道具の線（VAE、CLIP、値など）どうしの交差が {m.group(1)} か所あります（できれば減らす）")),
-    ("tilt", r"^non-horizontal wire \((\S+), input at ([+-]?\d+)px\): " + _W + "$",
-     lambda S, m: S.L(f"The {m.group(1)} wire {_wire_m(S, m, 3)} is not horizontal ({m.group(2)} px)",
-                      f"{m.group(1)} の線 {_wire_m(S, m, 3)} が水平ではありません（{m.group(2)} px）")),
+    ("tilt", r"^non-horizontal wire \((\S+), input (below|above) the output\): " + _W + "$",
+     lambda S, m: S.L(f"The {m.group(1)} wire {_wire_m(S, m, 3)} is not horizontal (the input is {m.group(2)} the output)",
+                      f"{m.group(1)} の線 {_wire_m(S, m, 3)} が水平ではありません（入力が出力より{'下' if m.group(2) == 'below' else '上'}）")),
     ("back", r"^backward wire that may be allowed .*: " + _W + "$",
      lambda S, m: S.L(f"The wire {_wire_m(S, m)} runs backwards (may be allowed)", f"線 {_wire_m(S, m)} が逆向きです（許される場合があります）")),
     ("back", r"^backward wire \(cannot be kept.*\): " + _W + "$",
@@ -482,15 +497,21 @@ PROBLEMS = [
     ("space", r"^empty band across everything \((\d+)px tall, min (\d+)\)",
      lambda S, m: S.L(f"An empty band {m.group(1)} px tall runs across the whole canvas (more than {m.group(2)})",
                       f"全体を横切る {m.group(1)} px の空きがあります（{m.group(2)} px より広い）")),
-    ("align", r"^stacked nodes differ in width by (\d+)px .*: (\S+) and (\S+)$",
+    ("align", r"^stacked loaders differ in width by (\d+)px .*: (\S+) and (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(2))} and {S.node(m.group(3))} are stacked but differ in width by {m.group(1)} px",
                       f"縦に並んだ {S.node(m.group(2))} と {S.node(m.group(3))} の幅が {m.group(1)} px 違います")),
     ("align", r"^value nodes side by side have unaligned tops \((\d+)px\): (\S+) and (\S+)$",
      lambda S, m: S.L(f"The value nodes {S.node(m.group(2))} and {S.node(m.group(3))} side by side have tops {m.group(1)} px apart",
                       f"横に並んだ値のノード {S.node(m.group(2))} と {S.node(m.group(3))} の上端が {m.group(1)} px ずれています")),
     ("order", r"^(vae|clip) loader (\S+) is above the model loader (\S+):",
-     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (loaders go model first, then vae and clip)",
-                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（loader は上から model、その下に vae と clip）")),
+     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (loaders go model, vae, clip from the top)",
+                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（loader は上から model、vae、clip）")),
+    ("order", r"^clip loader (\S+) is above the vae loader (\S+):",
+     lambda S, m: S.L(f"{S.node(m.group(1))} sits above the vae loader {S.node(m.group(2))} (loaders go model, vae, clip from the top)",
+                      f"{S.node(m.group(1))} が vae の loader {S.node(m.group(2))} より上にあります（loader は上から model、vae、clip）")),
+    ("order", r"^(MODEL|VAE|CLIP|CONDITIONING) rail runs above the (MODEL|VAE|CLIP) rail .*: rail of (\S+) and rail of (\S+)$",
+     lambda S, m: S.L(f"The {m.group(1)} rail of {S.node(m.group(3))} runs above the {m.group(2)} rail of {S.node(m.group(4))} (model, vae, clip from the top)",
+                      f"{S.node(m.group(3))} の {m.group(1)} のレールが、{S.node(m.group(4))} の {m.group(2)} のレールより上を通っています（上から model、vae、clip）")),
     ("order", r"^vae loader (\S+) is used only by VAE Decode and sits below the sampler (\S+):",
      lambda S, m: S.L(f"{S.node(m.group(1))} is used only by VAE Decode but sits below the sampler {S.node(m.group(2))}",
                       f"VAE Decode にだけ使う {S.node(m.group(1))} が、サンプラー {S.node(m.group(2))} より下にあります")),
@@ -519,19 +540,19 @@ PROBLEMS = [
     ("reroute", r"^Reroute doing nothing \(a direct wire from (\S+) .*\): (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(2))} does nothing: a direct wire from {S.node(m.group(1))} would be horizontal and clear",
                       f"{S.node(m.group(2))} は要りません: {S.node(m.group(1))} からじかにつないでも水平で、何の裏も通りません")),
-    ("reroute", r"^rail needs no raising Reroute \((\S+)\) if drawn at the output height: output of (\S+)",
+    ("reroute", r"^rail needs no raising Reroute \((\S+?), \d+px off\) if drawn at the output height: output of (\S+)",
      lambda S, m: S.L(f"The rail from {S.node(m.group(2))} needs no raising Reroute ({S.node(m.group(1))}) at the output height",
                       f"{S.node(m.group(2))} からのレールは、出力の高さで引けば持ち上げの Reroute（{S.node(m.group(1))}）が要りません")),
-    ("reroute", r"^rail with a single target.*: (\S+) → ([\w:~]+)\.(\S+)$",
+    ("reroute", r"^single value carried with Reroutes.*: (\S+) → ([\w:~]+)\.(\S+)$",
      lambda S, m: S.L(f"The rail from {S.node(m.group(1))} has one target ({S.port(m.group(2) + '.' + m.group(3))}); a direct wire is clear",
                       f"{S.node(m.group(1))} からのレールの行き先は一つ（{S.port(m.group(2) + '.' + m.group(3))}）で、じかにつないでも何の裏も通りません")),
-    ("reroute", r"^rails too close or overlapping \(vertical gap (\d+)px, min (\d+)\): rail of (\S+) and rail of (\S+)(?: \(outputs \d+ and \d+\))?$",
+    ("reroute", r"^rails too close or overlapping \(vertical gap (\d+)px, min (\d+)\): rail of (\S+) and rail of (\S+)(?: \(outputs \d+ and \d+\))?(?: \(open the gap: .*\))?$",
      lambda S, m: S.L(f"The rails of {S.node(m.group(3))} and {S.node(m.group(4))} are {m.group(1)} px apart (at least {m.group(2)})",
                       f"{S.node(m.group(3))} と {S.node(m.group(4))} のレールが近すぎます（{m.group(1)} px、最低 {m.group(2)} px）")),
     ("order", r"^rail order differs from loader order .*: rail of (\S+) and rail of (\S+)$",
      lambda S, m: S.L(f"The rails of {S.node(m.group(1))} and {S.node(m.group(2))} run in the reverse order of the loaders",
                       f"{S.node(m.group(1))} と {S.node(m.group(2))} のレールが、ローダーの並びと逆の順に通っています")),
-    ("reroute", r"^raising Reroute right of a loader \((\S+)\): .*: (\S+)$",
+    ("reroute", r"^raising Reroute right of a loader(?: or the node heading a rail)? \((\S+)\): .*: (\S+)$",
      lambda S, m: S.L(f"{S.node(m.group(2))} could sit at the rail height, so the raising Reroute {S.node(m.group(1))} is not needed",
                       f"{S.node(m.group(2))} をレールの高さに置けば、持ち上げの Reroute（{S.node(m.group(1))}）は要りません")),
     ("order", r"^loader rail runs below its targets .*: rail of (\S+)$",
@@ -611,6 +632,34 @@ NOTES = [
         f"{S.port(m.group(1))} からのレール（高さ {m.group(2)}）: "
         + ("Reroute なし（すべてじかにつないだ）" if m.group(3).startswith("none") else f"Reroute {_ids(S, m.group(3), 4)}")
         + f"、行き先 {S.many(m.group(4).split(), 4, S.port)}")),
+    (r"^rail height (-?[\d.]+): at the output height$", lambda S, m: S.L(
+        f"the rail runs at the output height ({round(float(m.group(1)))})", f"レールは出力の高さ（{round(float(m.group(1)))}）を通ります")),
+    (r"^rail height (-?[\d.]+): at the output height, opening a lane there$", lambda S, m: S.L(
+        f"the rail runs at the output height ({round(float(m.group(1)))}); the nodes in its way move to open the lane",
+        f"レールは出力の高さ（{round(float(m.group(1)))}）を通ります。通り道にあるノードを動かして空けます")),
+    (r"^rail height (-?[\d.]+): at the output height, moving the source (\d+)px (up|down): (.*)$", lambda S, m: S.L(
+        f"moved {_ids(S, m.group(4), 6)} {m.group(2)}px {m.group(3)} so the rail runs clear at the source's output height",
+        f"レールが元の出力の高さで通るように、{_ids(S, m.group(4), 6)} を {m.group(2)}px {'上げ' if m.group(3) == 'up' else '下げ'}ました")),
+    (r"^rail height (-?[\d.]+): wired directly \(the direct wire passes behind nothing\)$", lambda S, m: S.L(
+        "wired directly: the direct wire passes behind nothing", "じかにつなぎました（まっすぐな線がどのノードの裏も通らない）")),
+    (r"^rail height (-?[\d.]+): wired directly, made horizontal by moving the (target|source) (\d+)px (up|down): (.*)$", lambda S, m: S.L(
+        f"wired directly: moved {_ids(S, m.group(5), 6)} {m.group(3)}px {m.group(4)} so the wire is horizontal and passes behind nothing",
+        f"じかにつなぎました: 線が水平になり、どのノードの裏も通らないように、{_ids(S, m.group(5), 6)} を {m.group(3)}px {'上げ' if m.group(4) == 'up' else '下げ'}ました")),
+    (r"^rail height (-?[\d.]+): (\d+)px (above|below) the output height, the nearest clear height", lambda S, m: S.L(
+        f"the rail runs {m.group(2)}px {m.group(3)} the output height ({round(float(m.group(1)))}), the nearest clear height",
+        f"出力の高さには物があるので、いちばん近い空き（{m.group(2)}px {'上' if m.group(3) == 'above' else '下'}、高さ {round(float(m.group(1)))}）にレールを通します")),
+    (r"^rail height (-?[\d.]+): opened a lane (\d+)px (above|below) the output height", lambda S, m: S.L(
+        f"no clear height nearby: opened a lane for the rail {m.group(2)}px {m.group(3)} the output height ({round(float(m.group(1)))})",
+        f"近くに空きがないので、出力の高さの {m.group(2)}px {'上' if m.group(3) == 'above' else '下'}（高さ {round(float(m.group(1)))}）にレールの通り道を空けます")),
+    (r"^rail height (-?[\d.]+): swapped with the rail of line (\d+), so fewer wires cross$", lambda S, m: S.L(
+        f"swapped heights with the rail of line {m.group(2)}, so fewer wires cross",
+        f"交差が減るので、{m.group(2)} 行目のレールと高さを入れ替えました")),
+    (r"^moved (\d+)px down to open the lane: (.*)$", lambda S, m: S.L(
+        f"moved {_ids(S, m.group(2), 6)} down {m.group(1)}px to open the lane",
+        f"通り道を空けるため、{_ids(S, m.group(2), 6)} を {m.group(1)}px 下げました")),
+    (r"^the height (-?[\d.]+) kept for this rail \(line (\d+)\) is now blocked by (.*?); rail height (-?[\d.]+)", lambda S, m: S.L(
+        f"a node moved onto the height chosen for this rail; it runs at {round(float(m.group(4)))} instead",
+        f"このレールの高さに、後で動いたノードが来たので、高さ {round(float(m.group(4)))} に変えました")),
     (r"^too close to another rail; height shifted to (-?\d+)$", lambda S, m: S.L(
         f"moved the rail to height {m.group(1)}, away from another rail", f"ほかのレールに近すぎたので、高さ {m.group(1)} にずらしました")),
     (r"^drawn at the output height (-?\d+) instead of (\S+), since nothing is in the way$", lambda S, m: S.L(
@@ -640,6 +689,14 @@ def note_text(line, S):
 
 # ---- the page
 
+def _review_view(rev):
+    """What the page shows of a canvas's review: its rows, and which state it is in."""
+    if not rev:
+        return None
+    return {"rows": rev.get("rows") or [], "not_reviewed": rev.get("not_reviewed"), "no_findings": rev.get("no_findings"),
+            "checked": rev.get("checked")}
+
+
 def build(canvases, original, lang="en"):
     """canvases: [{name, defs, nodes, wires, groups, problems, steps, walk}] as canvas.py's report_page makes them;
     original: {nodes, wires, groups, defs} of the source workflow, or None.
@@ -662,8 +719,8 @@ def build(canvases, original, lang="en"):
         for p in c["problems"]:
             t = problem_text(p, lang)
             probs.append({"t": t["t"], "k": t["k"], "ids": p["ids"], "w": p["w"]})
-        out.append({"name": c["name"], "defs": c["defs"], "nodes": c["nodes"], "wires": c["wires"], "groups": c["groups"],
-                    "problems": probs, "steps": steps, "walk": c.get("walk")})
+        out.append({"name": c["name"], "tab": c.get("tab"), "hand": c.get("hand") or [], "defs": c["defs"], "nodes": c["nodes"], "wires": c["wires"], "groups": c["groups"],
+                    "problems": probs, "steps": steps, "walk": c.get("walk"), "review": _review_view(c.get("review"))})
     data = json.dumps({"lang": lang, "ui": UI[lang], "chrome": CHROME, "colors": LINK_COLORS, "canvases": out, "original": original},
                       ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     title = html.escape(CHROME["title"])
@@ -758,6 +815,9 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #view.drag{cursor:grabbing}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
 #seg{position:absolute;left:12px;bottom:12px;z-index:2}
+/* the workflows of one tab that differ only in values (one per model): a switch at the top of the canvas */
+#variants{position:absolute;left:12px;top:12px;z-index:2}
+#variants button{height:28px;padding:0 12px;font-size:12px}
 .tools{position:absolute;right:12px;bottom:12px;display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--tile2);z-index:2}
 .tool{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;color:var(--text)}
 .tool:hover{background:var(--faint);color:var(--head)}
@@ -807,6 +867,16 @@ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background 
 .wbody ul ul li::before{background:none;border:1px solid var(--muted);width:3px;height:3px}
 .wbody code{font:12px var(--code);background:var(--tile);border-radius:4px;padding:1px 5px;color:var(--head)}
 .wbody b{color:var(--head);font-weight:600}
+.wanswer{color:var(--muted);margin-top:2px}
+/* the whole workflow in the walkthrough: the parts as links, then the review, folded */
+.wtoc{list-style:none;margin:0 0 14px;padding:0;counter-reset:wtoc}
+.wtoc li{counter-increment:wtoc;padding:4px 0 4px 22px;position:relative}
+.wtoc li::before{content:counter(wtoc);position:absolute;left:0;top:4px;color:var(--muted);font-variant-numeric:tabular-nums}
+.wtoc a{color:var(--head);text-decoration:none;font-weight:600}
+.wtoc a:hover,.wtoc a:focus-visible{text-decoration:underline}
+.wtoc .wtocs{color:var(--muted);margin-top:2px}
+details.wreview{border-top:1px solid var(--line);padding-top:8px}
+details.wreview summary{cursor:pointer;color:var(--muted)}
 /* the side panel */
 aside{display:flex;flex-direction:column;min-height:0;gap:10px}
 .phead{display:flex;flex-direction:column;gap:10px;flex:none}
@@ -880,7 +950,7 @@ PAGE = """<!doctype html>
 <div class="seg theme" id="theme"><button data-v="light">""" + _icon("sun") + """</button><button data-v="dark">""" + _icon("moon") + """</button><button data-v="system">""" + _icon("system") + """</button></div></header>
 <section class="stage">
 <div id="view"><canvas id="cv"></canvas>
-<div class="seg" id="seg"><button id="sOrig" aria-pressed="false"></button><button id="sNew" aria-pressed="true"></button><button id="sWalk" aria-pressed="false" hidden></button></div>
+<div class="seg" id="variants" hidden></div><div class="seg" id="seg"><button id="sOrig" aria-pressed="false"></button><button id="sNew" aria-pressed="true"></button><button id="sWalk" aria-pressed="false" hidden></button></div>
 <div class="empty" id="empty" hidden></div><div class="ntip" id="ntip" hidden></div>
 <div class="tools"><button class="tool" id="zout">""" + _icon("minus") + """</button><button class="tool" id="zin">""" + _icon("plus") + """</button>
 <button class="tool" id="fit">""" + _icon("fit") + """</button><button class="tool" id="follow" aria-pressed="false">""" + _icon("follow") + """</button>
@@ -1065,7 +1135,8 @@ function drawNode(n, def, lod){
   if (lod > 0){ rr(x + 2, y - TITLE + 4, w, h + TITLE, 9); ctx.fillStyle = TH.shadow; ctx.fill(); }
   rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = body; ctx.fill();
   rr(x, y - TITLE, w, TITLE, [8, 8, 0, 0]); ctx.fillStyle = head; ctx.fill();
-  if (def.m === 4){ rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = 'rgba(208,64,224,.22)'; ctx.fill(); }
+  // bypass: the whole node in the frontend's bypass colour (NODE_BYPASS_BGCOLOR #FF00FF), as ComfyUI shows it
+  if (def.m === 4){ rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = 'rgba(255,0,255,.5)'; ctx.fill(); }
   if (lod < 1) return;
   ctx.beginPath(); ctx.arc(x + 15, y - TITLE / 2, 4.5, 0, 6.2832); ctx.fillStyle = TH['slot-text']; ctx.globalAlpha *= .55; ctx.fill(); ctx.globalAlpha /= .55;
   text(cut(def.n, 14, w - 36, 500), x + 28, y - 10, 14, TH['node-text'], 500);
@@ -1152,7 +1223,7 @@ function draw(){
   if (d && t === k) for (const p of d.removed){ if (!vis(nodeBox(p, defs[p[5]]))) continue; ctx.globalAlpha = .25; drawNode(p, defs[p[5]], Math.min(lod, 1)); }
   for (const [n, a] of F.nodes){
     const def = defs[n[5]]; if (!def || !vis(nodeBox(n, def))) continue;
-    ctx.globalAlpha = a * (selIds && !selIds.has(n[0]) ? .22 : 1) * (def.m === 2 ? .45 : 1);
+    ctx.globalAlpha = a * (selIds && !selIds.has(n[0]) ? .22 : 1) * (def.m === 2 ? .45 : def.m === 4 ? .8 : 1);
     drawNode(n, def, lod);
   }
   ctx.globalAlpha = 1;
@@ -1436,7 +1507,46 @@ function mdLite(parent, text){
 function walkPanel(B){
   const w = walkOf(), P = curPart();
   if (P){ B.appendChild(el('div', 'wtitle', P.title)); const body = el('div', 'wbody'); mdLite(body, P.text); B.appendChild(body); }
-  else B.appendChild(el('div', 'wtitle', w.intro || C().name));
+  else {
+    B.appendChild(el('div', 'wtitle', w.intro || C().name));
+    // the parts as links: what each one does, in processing order
+    const toc = el('ol', 'wtoc');
+    w.parts.forEach((q, i) => {
+      const li = el('li'), a = el('a', null, q.title);
+      a.href = '#'; a.onclick = e => { e.preventDefault(); goPart(i + 1); };
+      li.appendChild(a);
+      const first = (q.text || '').split('\n').find(t => t.trim() && !/^\s*- /.test(t));
+      if (first){ const d = el('div', 'wtocs'); inline(d, first.trim()); li.appendChild(d); }
+      toc.appendChild(li);
+    });
+    B.appendChild(toc);
+    // the review of the exported workflow by another agent: folded, row by row with the nodes by name and what was done
+    const R = C().review;
+    if (R){
+      const box = el('details', 'wreview'); box.appendChild(el('summary', null, U.review)); B.appendChild(box);
+      const body = el('div', 'wbody'); box.appendChild(body);
+      if (R.not_reviewed) body.appendChild(el('p', null, R.not_reviewed));
+      else if (R.no_findings) body.appendChild(el('p', null, U.review_none));
+      if (R.rows.length){
+        const ul = el('ul'); body.appendChild(ul);
+        for (const r of R.rows){
+          const li = el('li'), rule = r.rule.replace(/^[\w.-]+\.md:\s*/, '').replace(/\*\*/g, '');
+          const names = (r.names && r.names.length) ? r.names.join('、') : '';
+          inline(li, (names ? '**' + names + '**: ' : '') + rule);
+          const left = /^left:/i.test(r.answer), a = el('div', 'wanswer');
+          inline(a, left ? U.review_left + ': ' + r.answer.replace(/^left:\s*/i, '') : U.review_fixed);
+          li.appendChild(a); ul.appendChild(li);
+        }
+      }
+    }
+    // plan lines that ask for a wide gap between columns, each with the number of wires between
+    const H = C().hand || [];
+    if (H.length){
+      const box = el('details', 'wreview'); box.appendChild(el('summary', null, U.hand + ' ' + H.length)); B.appendChild(box);
+      const ul = el('ul'); const body = el('div', 'wbody'); body.appendChild(ul); box.appendChild(body);
+      for (const h of H){ const li = el('li'); inline(li, '`' + h.plan + '`'); const a = el('div', 'wanswer'); inline(a, h.why); li.appendChild(a); ul.appendChild(li); }
+    }
+  }
   B.scrollTop = 0;
 }
 function walkbar(){
@@ -1574,12 +1684,31 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- canvases and the original
+// one tab per group of canvases written next to each other as <tab>/<canvas> with `order` (else one per canvas);
+// the canvases of a group are switched at the top of the canvas, each shown by its name without the tab's part
+const tabKey = c => c.tab || c.name, lastOf = {};
+function variantName(c){
+  const n = c.name, t = c.tab;
+  return t && n.startsWith(t) && n.length > t.length ? n.slice(t.length).replace(/^[_\-/ ]+/, '') || n : n;
+}
+function goCanvas(j){ stop(); ci = j; sel = null; lastOf[tabKey(C())] = j; showAll(tOf[j] || 0); }
 function tabs(){
-  const B = $('tabs');
-  if (D.canvases.length < 2){ B.hidden = true; return; }
-  if (B.querySelector('button')){ B.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === ci))); return; }
-  D.canvases.forEach((c, j) => { const b = el('button', null, c.name); b.setAttribute('role', 'tab'); b.setAttribute('aria-pressed', String(j === ci));
-    b.onclick = () => { stop(); ci = j; sel = null; showAll(tOf[j] || 0); }; B.appendChild(b); });
+  const B = $('tabs'), V = $('variants'), key = tabKey(C());
+  const keys = [...new Set(D.canvases.map(tabKey))];
+  B.hidden = keys.length < 2;
+  if (!B.querySelector('button')) keys.forEach(kk => {
+    const b = el('button', null, kk); b.dataset.k = kk; b.setAttribute('role', 'tab');
+    b.onclick = () => goCanvas(lastOf[kk] ?? D.canvases.findIndex(c => tabKey(c) === kk)); B.appendChild(b);
+  });
+  B.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === key)));
+  const group = D.canvases.map((c, j) => [c, j]).filter(([c]) => tabKey(c) === key);
+  V.hidden = group.length < 2;
+  if (V.dataset.k !== key){
+    V.dataset.k = key; V.querySelectorAll('button').forEach(b => b.remove());
+    for (const [c, j] of group){ const b = el('button', null, variantName(c)); b.dataset.j = j; b.onclick = () => goCanvas(j); V.appendChild(b); }
+  }
+  V.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.j === ci)));
+  if (!V.hidden) knob(V, true);
 }
 function setOrig(v){
   if (!D.original) return; stop(); orig = v; inWalk = false; sel = null; hover = null;

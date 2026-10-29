@@ -19,6 +19,8 @@ SCRIPTS = next(p for p in (HERE.parent / "skills" / "comfyui-readable-node" / "s
 sys.path.insert(0, str(SCRIPTS))
 import canvas as C  # noqa: E402
 
+C.HAND_PLACING_FOR_TESTS = True   # the tests build odd shapes with move and numeric gaps
+
 sys.path.insert(0, str(HERE))
 from test_canvas import report_data  # noqa: E402
 
@@ -175,8 +177,16 @@ class WalkTest(unittest.TestCase):
         self.assertEqual(data["chrome"]["walk"], "Walkthrough")
 
     def test_finish_deletes_the_walkthrough_file(self):
+        # export stops on forms that cannot be kept: lay the canvas out without any first
+        plan = self.w / "p.txt"
+        plan.write_text("stack 12 11 10\nput 30 right 12\nput 6 right 11\nmove 6 0 60 # why: \"No node is hidden.\"\nput 26 right 6\nput 22 right 26\n"
+                        "put 13 right 22\nput 27 below 26\nput 8 right 13\nput 9 right 8\n", encoding="utf-8")
+        self.do(f"layout {plan}")
         self.walk(WALK)
         self.do(f"export {self.d / 't.json'}")
+        rev = self.w / "review_t.md"
+        rev.write_text("No findings.\n", encoding="utf-8")
+        self.do(f"review {rev}")
         self.do(f"report {self.d / 'r.html'} en")
         self.do("finish")
         self.assertFalse(self.w.exists())

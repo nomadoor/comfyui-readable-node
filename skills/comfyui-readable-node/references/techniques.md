@@ -5,7 +5,7 @@ Models of how to build, used when rebuilding. Each puts a hard-to-read way of bu
 **If the original workflow has a "Before" form, build it in the "After" form.** Do not use it when "When it does not apply" fits.
 
 - Before using one, confirm in object_info that the needed nodes (and the options of the mode you use) exist. Depending on the user's ComfyUI version, they may not exist yet.
-- "Where verified" is the source in which it was confirmed that this way of building gives the same result. Verified with ComfyUI 0.39.0. When the user's version differs greatly, look here and verify again.
+- "Where verified" is the source in which it was confirmed that this way of building gives the same result; "How to verify" is a check you make yourself on the workflow at hand. Verified with ComfyUI 0.39.0. When the user's version differs greatly, look here and verify again.
 - What core nodes each individual custom node is replaced with is in replacements.md.
 
 ## Parameter comparison: the same pipeline differing only in a value
@@ -75,7 +75,7 @@ Before: value node → only one place
         value node → two or more places
         the same value is put directly into each node that uses it
 After:  value node that goes into only one place → returned to a widget (`canvas open` does this when reading the original)
-        value node connected to two or more places → kept
+        value node connected to two or more places → kept if its value is changed on each generation; a value that does not change once decided (steps, cfg, and so on) goes back to each node's widget
         hand out anew from one value node only values changed on each generation (seed, steps for comparison, a prompt handed to several places, and so on)
 ```
 
@@ -101,9 +101,11 @@ After:  positive conditioning → ConditioningZeroOut → negative
 ```
 
 - With cfg 1.0 the sampler does not use the negative in its calculation. The negative input only needs a conditioning connected; there is no need to encode a text.
-- This holds when the author wrote a negative text too (it has no effect at cfg 1.0). Replace it the same way, and write the author's negative text in the Caution of a Note (it is needed if cfg is raised).
+- This holds when the author wrote a negative text too (it has no effect at cfg 1.0). Replace it the same way.
+  - When raising cfg is an ordinary choice: write the author's negative text in the Caution of a Note (it is needed if cfg is raised).
+  - When a Lightning or turbo LoRA fixes cfg at 1: do not put it in a Note; remove it and say so in the conversation report.
 - Does not apply: cfg is higher than 1.0 (encoding an empty text and a zeroed conditioning then give different results).
-- Checked in: comfy/samplers.py (with cfg 1.0 the negative is not calculated), nodes.py ConditioningZeroOut (only sets the conditioning it receives to zero).
+- Where verified: comfy/samplers.py (with cfg 1.0 the negative is not calculated), nodes.py ConditioningZeroOut (only sets the conditioning it receives to zero).
 
 ## LoRA
 

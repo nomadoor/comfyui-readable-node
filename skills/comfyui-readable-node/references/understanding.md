@@ -7,7 +7,7 @@ The understanding of the workflow, written before building (`$W/understanding.md
 - The list of outputs (what is output, which node).
 - The list of tasks (which outputs form one task; the core of each task).
 - How tasks relate (unconnected / a later stage uses an earlier stage's result / only models or values are shared / different ways chosen with switch or bypass / different ways of doing the same thing).
-- How to split (how many workflows, which version each is, why; how to keep disabled functions).
+- How to split (how many workflows, which version each is, why, by content.md "Split"; how to keep disabled functions).
 - What belongs to no task, and what to do with it.
 
 ## B. Each task
@@ -19,7 +19,7 @@ The understanding of the workflow, written before building (`$W/understanding.md
   - For ones in replacements.md, copy that row.
   - For ones not there, always look at the "core nodes with similar names" that `canvas open` gives, and check in the source.
 - Groupings (which nodes form one grouping; units of work, and units of role such as loader, text encoder, sampler).
-- Things that look like the author's mistakes, processing that does nothing, candidates to remove and candidates to replace, and why.
+- For every node: what it does with its values here (content.md, "Read before deciding"). Then: things that look like the author's mistakes, processing that does nothing, candidates to remove and candidates to replace, and why.
 
 ## C. Compare with the author's words (when there is an original)
 

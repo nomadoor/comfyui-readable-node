@@ -1,53 +1,38 @@
 # Rules about content
 
-Used when writing the understanding document (step 2) and when building (step 4).
+Two decisions for each part of the original: which workflow it goes into (Split), and what becomes of it (keep it, fix it, replace it with core, or remove it). Used when writing the understanding document (step 2) and when building (step 4); `canvas diff` compares the result with the original (step 8). Rules read as in readable-form.md (Why, Bad, Fine, Undecided).
+
+## Read before deciding
+
+**Read what each part does with its values here, not what it is called.** Do not copy the original as it is. For each node: what goes in, what comes out, and what its current values make it do (a node can be an identity at its values: a LoRA at strength 0, a wildcard processor with no wildcard in its text, two samplers where the second redraws everything). Why: the workflow is easy to rearrange and reuse; a part copied without reading is carried for nothing.
+- Bad: a node kept or rebuilt without its job here written in the understanding document.
 
 ## Split
 
-**One workflow is one thing the user wants to do.** Split branches that do different things.
-- Split separate tasks that are not connected (outputs that share no upstream, separate structures chosen with switch or bypass).
-- Split a branch that changes what the user puts in (whether an image is given or not: t2i and i2i, T2V and I2V, and so on).
-- Split a branch that changes how the generation itself is built (the model, steps, cfg, the sampler setup). Example: a normal version and a distilled version.
-- Do not split a branch that only changes the result a little when added (a LoRA that refines the style, TorchCompile that only changes speed, and so on). Keep it bypassed in the one workflow, for the user to switch (optional). Splitting every disabled branch makes the combinations grow exponentially.
-- Ways of doing one step differently (Tiled VAE Decode and VAE Decode, and so on) are merged into the one the workflow's author chose.
-- Whether to split a multi-stage workflow (a later stage uses the result of an earlier stage) is Undecided (Undecided in examples.md). Think from 1 task = 1 workflow, and report it when unsure.
-- When you split, give names that show which version each is, and in the report state the difference in one phrase. Across split workflows, put the same function in the same layout.
-- Functions the workflow's author prepared (branches that are bypassed or muted, the unselected side of a switch) are kept in one of the forms above. Of the disabled branches, remove only things that are clearly debugging leftovers.
+**One workflow is one thing the user wants to do.** Many workflows are fine: the aim is the principles of SKILL.md, not fewer workflows. Why: 1 task = 1 workflow.
+- One workflow: a generation whose stages pass conditioning or a latent on (base → refiner → Hires.fix; t2i → a redraw at a larger size with the same model).
+- Split: what changes what can be done (t2i, i2i and edit; T2V and I2V); what changes the sampling setup (steps, sigmas, cfg, the sampler): models each with their own settings, a speed-up that changes steps or cfg. Tasks that are not connected (outputs sharing no upstream).
+- Its own workflow: effects applied to the finished image (film grain, colour correction and the like).
+- A bypassed branch in the one workflow: an optional guide (a depth or reference image the task can do without), a speed-up that only may make it faster, an addition that only may make it a little better (CFGZeroStar, a guidance adjustment).
+- Bad: one workflow whose switch or bypass chooses between things that must be split. Workflows split for an optional guide or an on/off branch. Of several selectable sets (models with their settings), one built as nodes and the others left as a table in a Note. Effects on the finished image packed into the generation workflow.
 
-## Replace
+Name split workflows so the version shows, give the difference in one phrase in the report, and put the same function in the same layout across them.
 
-**If old nodes or custom nodes can be realised with a combination of core nodes, replace them.** Do not aim to prove equivalence. If you can build it simpler, in core and more robustly than the workflow's author did, build it that way.
-- First look up replacements.md (the replacement dictionary). If it is there, build it exactly that way.
-- If not, read the node's source, write it in the table in the understanding document, and decide by "Where replacement stops". How to find the source is at the top of replacements.md.
-- A deprecated node is replaced by its successor if the source comments, description or display name point to one. If they do not, replace it with core nodes that give the same calculation, if there is such a form. If none is found, do not replace it; keep it and write it in the report.
-- In every case, check in the node's source that the result is the same. If copying values is not enough, rewire.
-- How to build is in techniques.md (readable forms of the same calculation).
+## What becomes of each part
 
-### Where replacement stops
+**Keep what the author added on purpose** (processing, values, structure per stage: one seed handed across stages, a CLIP Text Encode per stage; bypassed or muted branches, the unselected side of a switch; a Compare). Merge ways of doing one step differently (Tiled VAE Decode and VAE Decode) into the one the author chose. Why: the rebuilt workflow keeps every function of the original.
+- Bad: a function of the original gone from every rebuilt workflow (only debugging leftovers may go).
 
-- If the part core cannot do changes the shape of the output (image size, number of images, number of frames, length), keep it.
-- If only internal numbers change (weights, quality, encoding), use core. If it is within the margin of error, lean towards core.
-- If the image size changes only a little and still fits the model's required multiple (64 and so on), do not count it as a change in the shape of the output. Use core and write it in the report.
-- If only the model file the user puts in changes (a GGUF LLM to core's Generate Text, and so on), use core if the function exists in core. However, keep GGUF loaders, because core has no function to read GGUF.
-- Keep special samplers (ClownsharKSampler and the like).
-- Do not take away the user's operations. Do not turn a node where you decide by dragging on the screen into a combination of nodes where you type numbers.
-- Even if it is in core, consider commonly used core nodes before nodes that are experimental (`experimental` in object_info) and not normally used.
+**Fix what does nothing for the result or harms it, and what narrows what the user can do for no gain; report it.** Examples: a sampler whose result the next one fully redraws (both start at step 0 with noise added); VAE Encode right after VAE Decode (pass the latent on); decoding and previewing the middle of generation (techniques.md shows the form); positive and negative swapped in one of two same-shaped stages; an intermediate result saved while the final one only previews; a value that breaks the model's required multiple; a fixed size where the user should choose one. Why: the workflow does what it seems to do.
+- Bad: one of these left in the rebuilt workflow.
+- Fine: a value the author may have chosen on purpose (a hand-made sigma list, a strength) is kept; if it looks strange, it is explained in a Caution Note (notes.md). This is for values only: a strange way of wiring (the positive and the negative encoded through different CLIP chains) is fixed.
 
-## Keep the author's intent, fix mistakes and inconveniences
+**Replace old nodes and custom nodes with core nodes when core can do the job.** Build it simpler and more robust than the author did when you can; read the source to know what the node does, but the core build need not be proven equivalent. Why: remove custom nodes as far as possible.
+- Look up replacements.md first and follow it exactly. Otherwise read the node's source (how to find it: top of replacements.md), write it in the understanding document's table, and rewire if copying values is not enough. A deprecated node goes to its successor. Readable forms of the same calculation are in techniques.md.
+- Keep it when: the part core cannot do changes the shape of the output (image size, number of images or frames, length); it is a GGUF loader; it is a special sampler (ClownsharKSampler and the like); replacing it would take away an operation the user does by dragging on screen; core cannot take the same input by wire (a crop whose region comes in by wire); its source cannot be found. Report what was kept and why.
+- Use core when only internal numbers change (weights, quality, encoding), when the image size changes but still fits the model's required multiple, or when only the model file changes and core has the function (a GGUF LLM to core's Generate Text). Prefer core nodes not marked `experimental`.
+- Bad: a custom node kept although none of the reasons to keep it applies. A custom node kept without reading what it does with its values here.
 
-**Keep what the workflow's author added on purpose (processing, parameters, structure per stage).** Fix mistakes and ways of building that restrict the user's hands for no reason, and write them in the report.
-- Examples of keeping: handing one seed across stages, placing a CLIP Text Encode per stage (only duplicates of the same loader are merged).
-- Examples of fixing: positive and negative swapped in only one of two stages of the same shape. A VAE Encode right after a VAE Decode (pass the latent straight on). An intermediate result going to Save Image while the final result ends in Preview Image (save the final one).
-- A part the author spent effort on is not necessarily important. Judge by what it does.
-
-## Remove what is useless
-
-**Remove what reaches no output and what does nothing, judging from the meaning of the node.** Write it in the report.
-- Pass-through nodes, "values that do nothing" (a LoRA with strength 0, for example).
-- Processing that does nothing (resizing to its own size, resizes placed one after another). Processing placed one after another is merged into one where it can be.
-- Previews only for looking (ones that show an image that was only resized, ones only for watching the middle of generation).
-  - A Preview that lets the user check something the result depends on is not one of these; keep it. Example: the mask that shows which person in the input video the reference image is put on.
-
-## What is kept without fixing
-
-**Ways of building that harm the result, and places that could be done better, are kept without fixing.** How to write them is in the Caution of notes.md.
+**Remove what reaches no output or does nothing with its values, and report it**: pass-through nodes; a LoRA at strength 0; a text processor whose features the text does not use; resizing to its own size; resizes one after another (merge them); a save node chosen for a feature it does not use (saving with metadata when no metadata is used: core Save Image already writes the workflow into the image); nodes that do not change the result (playing a sound, freeing GPU memory); a Preview only for looking (an image that was only resized).
+- Fine: a Preview that lets the user check something the result depends on (which person in the input video the reference image goes on). A Compare the author added (it stays; where it stands: readable-form.md). A step that does nothing but makes the flow clearer (a size match before a compare).
+- Bad: any of the above left in the rebuilt workflow.

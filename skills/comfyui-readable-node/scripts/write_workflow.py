@@ -1,6 +1,7 @@
 """Write a flat graph as a workflow JSON that ComfyUI can open (UI format, version 0.4). Python standard library only.
 
-- Node and link ids are renumbered from 1. The mapping from the old ids is returned as ``ids`` (for checking).
+- A node keeps its number; a node without one (a Reroute the canvas made, an id from a subgraph) gets a number after
+  them, the same in every export (``fixed``). The mapping from the old ids is returned as ``ids``.
 - Links are 6-element arrays [id, origin_id, origin_slot, target_id, target_slot, type]; target_slot is the
   index in the target's inputs.
 - widgets_values are written as the positional array (values rewritten while reading are already in it).
@@ -15,9 +16,31 @@ NODE_WORK_KEYS = {"scope", "widgets", "widgets_exact", "pack", "from_subgraph", 
 INPUT_WORK_KEYS = {"cut_by", "restored"}
 
 
-def write(flat, groups=None):
+def write(flat, groups=None, fixed=None):
+    """fixed: {id: number} given to nodes without a number in earlier exports. It is kept and added to, so such a node
+    keeps its number from one export to the next (a Note writer or a reviewer names the same node)."""
+    fixed = {} if fixed is None else fixed
     order = [n["id"] for n in flat["nodes"]]
-    ids = {old: k + 1 for k, old in enumerate(order)}
+    # a node keeps its number when it has one (the ids the canvas and its messages use), so whoever reads the exported
+    # workflow names the same nodes; a node with a name instead of a number (a Reroute the canvas made, a node added
+    # under a name) gets a free number after them
+    ids, used = {}, set()
+    for old in order:
+        s = str(old)
+        if s.isdigit() and int(s) > 0 and int(s) not in used:
+            ids[old] = int(s)
+            used.add(int(s))
+    for old in order:
+        n = fixed.get(str(old))
+        if old not in ids and n is not None and n not in used:
+            ids[old] = n
+            used.add(n)
+    nxt = max(list(used) + list(fixed.values()), default=0)
+    for old in order:
+        if old not in ids:
+            nxt += 1
+            ids[old] = nxt
+            fixed[str(old)] = nxt
     link_ids = {l["id"]: k + 1 for k, l in enumerate(flat["links"])}
     nodes_out = []
     for k, n in enumerate(flat["nodes"]):
@@ -48,7 +71,7 @@ def write(flat, groups=None):
         links_out.append([link_ids[l["id"]], ids[l["origin_id"]], l["origin_slot"], ids[l["target_id"]], slot,
                           l.get("type") or "*"])
     wf = {
-        "last_node_id": len(nodes_out),
+        "last_node_id": max(ids.values(), default=0),
         "last_link_id": len(links_out),
         "nodes": nodes_out,
         "links": links_out,
