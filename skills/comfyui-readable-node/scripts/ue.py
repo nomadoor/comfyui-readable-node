@@ -252,7 +252,7 @@ def _offers(gv, nid, node):
         if l.get("type") in (None, "", "*"):
             o = gv.nodes.get(l["origin_id"]) or {}
             outs = o.get("outputs") or []
-            t = outs[l["origin_slot"]].get("type") if isinstance(l["origin_slot"], int) and l["origin_slot"] < len(outs) else None
+            t = outs[l["origin_slot"]].get("type") if isinstance(l["origin_slot"], int) and 0 <= l["origin_slot"] < len(outs) else None
             if t in (None, "", "*"):
                 t = slot.get("label") or slot.get("name")
             l = dict(l, type=t)

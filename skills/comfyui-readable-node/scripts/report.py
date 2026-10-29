@@ -63,7 +63,7 @@ UI = {
         "empty": "Nothing is placed on the canvas yet.",
         "review": "Review by another agent", "review_none": "The review file says: No findings.",
         "review_unchecked": "The review file has no line saying what the reviewer checked.",
-        "review_fixed": "Fixed", "review_left": "Left as it is", "walk_toc": "Parts",
+        "review_fixed": "Fixed", "review_left": "Left as it is", "review_open": "Not answered yet", "walk_toc": "Parts",
         "hand": "Wide gaps (gap wide) and the wires between",
         "counts": CHROME["counts"],
     },
@@ -78,7 +78,7 @@ UI = {
         "empty": "キャンバスにはまだ何も置かれていません。",
         "review": "別のエージェントによるレビュー", "review_none": "レビューのファイルには「No findings.」（何も見つからなかった）とあります。",
         "review_unchecked": "レビューのファイルに、レビュー役が何を確かめたかの一行がありません。",
-        "review_fixed": "直した", "review_left": "残した", "walk_toc": "部分",
+        "review_fixed": "直した", "review_left": "残した", "review_open": "まだ答えていない", "walk_toc": "部分",
         "hand": "広い間（gap wide）と、その間の線の数",
         "counts": {"overlaps": "重なり", "wires behind nodes": "ノードの裏を通る線", "crossings": "交差",
                    "non-horizontal wires": "水平でない線", "unplaced": "未配置",
@@ -1534,7 +1534,7 @@ function walkPanel(B){
           const names = (r.names && r.names.length) ? r.names.join('、') : '';
           inline(li, (names ? '**' + names + '**: ' : '') + rule);
           const left = /^left:/i.test(r.answer), a = el('div', 'wanswer');
-          inline(a, left ? U.review_left + ': ' + r.answer.replace(/^left:\s*/i, '') : U.review_fixed);
+          inline(a, !(r.answer || '').trim() ? U.review_open : left ? U.review_left + ': ' + r.answer.replace(/^left:\s*/i, '') : U.review_fixed);
           li.appendChild(a); ul.appendChild(li);
         }
       }
@@ -1686,7 +1686,8 @@ document.addEventListener('keydown', e => {
 // ---------- canvases and the original
 // one tab per group of canvases written next to each other as <tab>/<canvas> with `order` (else one per canvas);
 // the canvases of a group are switched at the top of the canvas, each shown by its name without the tab's part
-const tabKey = c => c.tab || c.name, lastOf = {};
+// (a key keeps a tab apart from a canvas of the same name standing on its own)
+const tabKey = c => c.tab ? 't:' + c.tab : 'c:' + c.name, tabLabel = k => k.slice(2), lastOf = {};
 function variantName(c){
   const n = c.name, t = c.tab;
   return t && n.startsWith(t) && n.length > t.length ? n.slice(t.length).replace(/^[_\-/ ]+/, '') || n : n;
@@ -1697,7 +1698,7 @@ function tabs(){
   const keys = [...new Set(D.canvases.map(tabKey))];
   B.hidden = keys.length < 2;
   if (!B.querySelector('button')) keys.forEach(kk => {
-    const b = el('button', null, kk); b.dataset.k = kk; b.setAttribute('role', 'tab');
+    const b = el('button', null, tabLabel(kk)); b.dataset.k = kk; b.setAttribute('role', 'tab');
     b.onclick = () => goCanvas(lastOf[kk] ?? D.canvases.findIndex(c => tabKey(c) === kk)); B.appendChild(b);
   });
   B.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === key)));
