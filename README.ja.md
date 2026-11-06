@@ -19,7 +19,7 @@ ComfyUI の workflow を、人が読みやすい形（**Readable Node**）に組
 
 1. **プラグイン** の画面で **＋追加 → マーケットプレイスを追加 → リポジトリから追加** を選ぶ
 2. `nomadoor/comfyui-readable-node` を入力
-3. `comfyui-readable-node` を追加
+3. `comfyui-readable-node` の **＋** をクリック
 
 ### Claude Code（CLI）
 

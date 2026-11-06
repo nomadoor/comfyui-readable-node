@@ -17,9 +17,9 @@ Use one of the ways below. Installing two lists the skill twice.
 
 ### Claude desktop app
 
-1. On the **Plugins** page, choose **+ Add → Add marketplace → Add from repository**
+1. In **Settings → Customize → Plugins**, choose **+ Add → Add marketplace → Add from a repository**
 2. Enter `nomadoor/comfyui-readable-node`
-3. Add `comfyui-readable-node`
+3. Click **+** on `comfyui-readable-node`
 
 ### Claude Code (CLI)
 
@@ -31,8 +31,8 @@ claude plugin install comfyui-readable-node --marketplace nomadoor/comfyui-reada
 
 ### ChatGPT desktop app (Codex)
 
-1. In **Customize → Plugins**, press **Add**
-2. Enter `https://github.com/nomadoor/comfyui-readable-node.git` as the source. Leave Git ref and sparse paths empty
+1. Open **Plugins** and press **Add** to open **Add plugin marketplace**
+2. Enter `https://github.com/nomadoor/comfyui-readable-node.git` in **Source**. Leave **Git ref** and **Sparse paths** empty
 3. On the **Personal** tab, click **+** on `comfyui-readable-node`
 
 ### Codex CLI
