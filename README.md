@@ -13,7 +13,7 @@ An agent skill that rebuilds ComfyUI workflows into a form people can read: **Re
 
 ## Install
 
-Use one of the ways below. Installing two lists the skill twice.
+Install it once for each agent you use, with one of the ways below. To use it in both Claude and ChatGPT (Codex), install it in each. Installing it two ways for the same agent lists the skill twice.
 
 ### Claude desktop app
 
