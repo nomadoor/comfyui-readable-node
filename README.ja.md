@@ -13,20 +13,31 @@ ComfyUI の workflow を、人が読みやすい形（**Readable Node**）に組
 
 ## 導入
 
-下のどれか一つで入れてください。二つ入れると、skill が二重に並びます。
+下のどれか一つで入れる。二つ入れると、skill が二重に並ぶ。
 
-### Claude Code
+### Claude デスクトップアプリ
 
-Claude Code のセッションの中で、次を実行してください。
+1. **プラグイン** の画面で **＋追加 → マーケットプレイスを追加 → リポジトリから追加** を選ぶ
+2. `nomadoor/comfyui-readable-node` を入力
+3. `comfyui-readable-node` を追加
 
+### Claude Code（CLI）
+
+ターミナルで次を実行する。
+
+```bash
+claude plugin install comfyui-readable-node --marketplace nomadoor/comfyui-readable-node
 ```
-/plugin marketplace add nomadoor/comfyui-readable-node
-/plugin install comfyui-readable-node@comfyui-readable-node
-```
 
-自動で更新したいときは、`/plugin` の Marketplaces で `comfyui-readable-node` を選び、Enable auto-update を選んでください。
+### ChatGPT デスクトップアプリ（Codex）
 
-### Codex
+1. **カスタマイズ → プラグイン** で **追加** を押す
+2. ソースに `https://github.com/nomadoor/comfyui-readable-node.git` を入力。Git ref とスパースパスは空のまま
+3. **個人用** のタブの `comfyui-readable-node` の **＋** をクリック
+
+### Codex CLI
+
+ターミナルで次を実行する。
 
 ```bash
 codex plugin marketplace add nomadoor/comfyui-readable-node
@@ -35,13 +46,15 @@ codex plugin add comfyui-readable-node@comfyui-readable-node
 
 ### そのほかのエージェント（Gemini CLI、Cursor、GitHub Copilot など）
 
+ターミナルで次を実行する。
+
 ```bash
 npx skills add nomadoor/comfyui-readable-node -g
 ```
 
-Node.js 22.20 以上が必要です。
+Node.js 22.20 以上が要る。
 
-scripts を動かすには Python 3 が必要です（標準ライブラリだけを使います）。
+scripts を動かすには Python 3 が要る（標準ライブラリだけを使う）。
 
 ## モデル
 
