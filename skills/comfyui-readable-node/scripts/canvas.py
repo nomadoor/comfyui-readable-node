@@ -2035,6 +2035,33 @@ def _chk_loader_order(cv, c):
                 if same_stack(cv, m["id"], n["id"], col) and G.rect(n)[1] < G.rect(m)[1]:
                     out.append(f"{k.lower()} loader {n['id']} is above the model loader {m['id']}: "
                                f"the vae and clip loaders stacked in one column go below the model loader")
+    # in other columns too, a vae or clip loader above the model loader is Bad when their nodes or wires meet (a wire
+    # from it crosses one from the model loader, or passes behind the model loader). Where nothing meets, which is higher
+    # does not matter (readable-form.md, Loaders: Fine)
+    ws = c.ws
+
+    def root(nid):
+        # the node a wire really comes from, through Reroutes (a rail)
+        seen = set()
+        while (c.nodes.get(nid) or {}).get("type") == "Reroute" and nid not in seen:
+            seen.add(nid)
+            up = next((x for x in cv.s["links"] if x["target_id"] == nid), None)
+            if not up:
+                break
+            nid = up["origin_id"]
+        return nid
+    for m in kinds.get("MODEL", []):
+        mw = [pts for l, pts in ws if root(l["origin_id"]) == m["id"]]
+        for k in ("VAE", "CLIP"):
+            for n in kinds.get(k, []):
+                if same_stack(cv, m["id"], n["id"], col) or G.rect(n)[1] >= G.rect(m)[1]:
+                    continue
+                nw = [(l, pts) for l, pts in ws if root(l["origin_id"]) == n["id"]]
+                meets = any(poly_cross(pa, pb) for _, pa in nw for pb in mw) or \
+                    any(G.wire_hits(pts, G.rect(m)) for _, pts in nw)
+                if meets:
+                    out.append(f"{k.lower()} loader {n['id']} is above the model loader {m['id']} and its wires meet the "
+                               f"model loader's (they cross, or pass behind it): put it below the model loader")
     # vae and clip take either order: Load VAE may stand below the text encoders, below Load CLIP
     return out
 
