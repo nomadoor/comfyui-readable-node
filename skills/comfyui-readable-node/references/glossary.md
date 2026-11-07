@@ -36,6 +36,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **column**: a vertical band of nodes stacked up and down. The column of sources to the left of a sampler, and so on.
 - **eye line (band)**: the height every stage's sampler (KSampler, SamplerCustomAdvanced) stands at; a band with width through which the main flow passes.
 - **main flow**: the flow from the sampler towards the final output (sampler → decode → … → save).
+- **output node**: a node that takes a result and passes nothing on (Save, Preview, Compare).
 - **rail**: a value, or several side by side, carried far or to several places with Reroutes (`rail`).
 - **Reroute**: a small node that relays a wire. Used for rails.
 - **raising / lowering Reroute**: the Reroute that takes a rail from its source's output up or down to the height the rail runs at, and the one that takes it from the rail down or up into a target.
@@ -43,7 +44,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **rail gap**: the vertical distance the canvas keeps between two rails (layout_params.json, RAIL_GAP).
 - **title band**: the strip at the top of a group frame where its title is written.
 - **step (staircase)**: a node placed just below the wire that passes it (`put <node> right <ref> step`), so the wire runs on above it.
-- **model chain**: the nodes the model passes through before the sampler: its loader, LoRAs, and nodes that patch the model (sampling settings, attention).
+- **model chain**: the nodes the model passes through before the node that takes it to sample (a KSampler, or a scheduler or guider): its loader, LoRAs, and nodes that patch the model (sampling settings, attention).
 - **backward wire**: a wire that goes back from right to left.
 - **wireless links**: mechanisms that pass values without drawing wires (Set/Get, Anything Everywhere, hidden links).
 - **Nodes 2.0 and the legacy renderer**: the two ways ComfyUI's frontend draws nodes.
@@ -58,7 +59,6 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **check list**: the list of layout and content problems returned by the canvas's `check`.
 - **report**: what tells the user the result when the rebuild is finished. Separate from Notes. There are two.
   - **report page**: `report.html`. It has three views: Original (the original workflow), Rebuilt (what was done on the canvas, one move at a time), Walkthrough.
-  - **conversation report**: what is told in the conversation in step 11.
+  - **conversation report**: what is told in the conversation in step 11 (references/report.md).
 - **Walkthrough**: one of the views of the report page. It explains the finished workflow grouping by grouping, in processing order.
-- **Undecided**: something not yet decided.
 - **hand-made layout**: a layout a person arranged by hand.

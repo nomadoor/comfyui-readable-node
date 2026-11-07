@@ -2122,5 +2122,655 @@
   ],
   "essentials_category": "Basics",
   "has_intermediate_output": false
+ },
+ "CheckpointLoaderSimple": {
+  "input": {
+   "required": {
+    "ckpt_name": [
+     [
+      "model.safetensors"
+     ],
+     {
+      "tooltip": "The name of the checkpoint (model) to load."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "ckpt_name"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "MODEL",
+   "CLIP",
+   "VAE"
+  ],
+  "output_is_list": [
+   false,
+   false,
+   false
+  ],
+  "output_name": [
+   "MODEL",
+   "CLIP",
+   "VAE"
+  ],
+  "name": "CheckpointLoaderSimple",
+  "display_name": "Load Checkpoint",
+  "description": "Loads a diffusion model checkpoint, diffusion models are used to denoise latents.",
+  "python_module": "nodes",
+  "category": "model/loaders",
+  "output_node": false,
+  "has_intermediate_output": false,
+  "output_tooltips": [
+   "The model used for denoising latents.",
+   "The CLIP model used for encoding text prompts.",
+   "The VAE model used for encoding and decoding images to and from latent space."
+  ],
+  "search_aliases": [
+   "load model",
+   "checkpoint",
+   "model loader",
+   "load checkpoint",
+   "ckpt",
+   "model"
+  ]
+ },
+ "BranchNode": {
+  "input": {
+   "required": {
+    "autogrow": [
+     "COMFY_AUTOGROW_V3",
+     {
+      "template": {
+       "input": {
+        "required": {},
+        "optional": {
+         "branch": [
+          "COMFY_MATCHTYPE_V3",
+          {
+           "lazy": true,
+           "template": {
+            "template_id": "switch",
+            "allowed_types": "*"
+           }
+          }
+         ]
+        }
+       },
+       "prefix": "branch",
+       "min": 1,
+       "max": 32
+      }
+     }
+    ],
+    "branch": [
+     "STRING",
+     {
+      "widgetType": "COMFY_BRANCH_SELECTOR",
+      "multiline": false
+     }
+    ],
+    "branch_names": [
+     "ARRAY",
+     {
+      "widgetType": "COMFY_BRANCH_INPUT_NAMES",
+      "socketless": true
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "autogrow",
+    "branch",
+    "branch_names"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "COMFY_MATCHTYPE_V3"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "output"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": [
+   "switch"
+  ],
+  "name": "BranchNode",
+  "display_name": "Branch",
+  "description": "Select from connected inputs by name. Inputs can be renamed by double clicking them.",
+  "python_module": "comfy_extras.nodes_logic",
+  "category": "utilities/logic",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": true,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": [
+   "switch",
+   "choice",
+   "pick"
+  ],
+  "essentials_category": null,
+  "has_intermediate_output": false
+ },
+ "PrimitiveFloat": {
+  "input": {
+   "required": {
+    "value": [
+     "FLOAT",
+     {
+      "min": -9223372036854775807,
+      "max": 9223372036854775807,
+      "step": 0.1
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "value"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "FLOAT"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "FLOAT"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "PrimitiveFloat",
+  "display_name": "Float",
+  "description": "",
+  "python_module": "comfy_extras.nodes_primitive",
+  "category": "utilities/primitive",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": null,
+  "essentials_category": null,
+  "has_intermediate_output": false
+ },
+ "CLIPSetLastLayer": {
+  "input": {
+   "required": {
+    "clip": [
+     "CLIP"
+    ],
+    "stop_at_clip_layer": [
+     "INT",
+     {
+      "default": -1,
+      "min": -24,
+      "max": -1,
+      "step": 1,
+      "advanced": true
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "clip",
+    "stop_at_clip_layer"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "CLIP"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "CLIP"
+  ],
+  "name": "CLIPSetLastLayer",
+  "display_name": "CLIP Set Last Layer",
+  "description": "",
+  "python_module": "nodes",
+  "category": "model/conditioning",
+  "output_node": false,
+  "has_intermediate_output": false,
+  "search_aliases": []
+ },
+ "ImageCropToMask": {
+  "input": {
+   "required": {
+    "images": [
+     "IMAGE",
+     {}
+    ],
+    "masks": [
+     "MASK",
+     {}
+    ],
+    "width": [
+     "INT",
+     {
+      "tooltip": "Output width in pixels.",
+      "default": 1024,
+      "min": 64,
+      "max": 4096,
+      "step": 8
+     }
+    ],
+    "height": [
+     "INT",
+     {
+      "tooltip": "Output height in pixels.",
+      "default": 1024,
+      "min": 64,
+      "max": 4096,
+      "step": 8
+     }
+    ],
+    "pad_factor": [
+     "FLOAT",
+     {
+      "tooltip": "Extra margin around the mask bounding box as a multiplier.",
+      "default": 1.0,
+      "min": 1.0,
+      "max": 2.0,
+      "step": 0.01
+     }
+    ],
+    "grow_mask": [
+     "INT",
+     {
+      "tooltip": "Grow or shrink the mask by this many pixels before cropping.",
+      "default": 0,
+      "min": -32,
+      "max": 32,
+      "step": 1
+     }
+    ],
+    "background": [
+     "COLOR",
+     {
+      "tooltip": "Background color behind the masked subject.",
+      "default": "#000000",
+      "socketless": true
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "images",
+    "masks",
+    "width",
+    "height",
+    "pad_factor",
+    "grow_mask",
+    "background"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "IMAGE"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "images"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "ImageCropToMask",
+  "display_name": "Crop Image to Mask",
+  "description": "",
+  "python_module": "comfy_extras.nodes_images",
+  "category": "image/transform",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": [
+   "crop to mask",
+   "mask crop",
+   "crop mask",
+   "mask crop resize",
+   "crop mask resize",
+   "trellis2",
+   "pixal3d"
+  ],
+  "essentials_category": null,
+  "has_intermediate_output": false
+ },
+ "RegexExtract": {
+  "input": {
+   "required": {
+    "string": [
+     "STRING",
+     {
+      "multiline": true
+     }
+    ],
+    "regex_pattern": [
+     "STRING",
+     {
+      "multiline": true
+     }
+    ],
+    "mode": [
+     "COMBO",
+     {
+      "multiselect": false,
+      "options": [
+       "First Match",
+       "All Matches",
+       "First Group",
+       "All Groups"
+      ]
+     }
+    ],
+    "case_insensitive": [
+     "BOOLEAN",
+     {
+      "advanced": true,
+      "default": true
+     }
+    ],
+    "multiline": [
+     "BOOLEAN",
+     {
+      "advanced": true,
+      "default": false
+     }
+    ],
+    "dotall": [
+     "BOOLEAN",
+     {
+      "advanced": true,
+      "default": false
+     }
+    ],
+    "group_index": [
+     "INT",
+     {
+      "advanced": true,
+      "default": 1,
+      "min": 0,
+      "max": 100
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "string",
+    "regex_pattern",
+    "mode",
+    "case_insensitive",
+    "multiline",
+    "dotall",
+    "group_index"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "STRING"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "STRING"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "RegexExtract",
+  "display_name": "Extract Text",
+  "description": "",
+  "python_module": "comfy_extras.nodes_string",
+  "category": "text",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": [
+   "regex extract",
+   "regex",
+   "pattern extract",
+   "text parser",
+   "parse text"
+  ],
+  "essentials_category": null,
+  "has_intermediate_output": false
+ },
+ "Painter": {
+  "input": {
+   "required": {
+    "mask": [
+     "STRING",
+     {
+      "widgetType": "PAINTER",
+      "image_upload": true,
+      "default": "",
+      "socketless": true,
+      "multiline": false
+     }
+    ],
+    "width": [
+     "INT",
+     {
+      "hidden": true,
+      "default": 512,
+      "socketless": true,
+      "min": 64,
+      "max": 4096,
+      "step": 64
+     }
+    ],
+    "height": [
+     "INT",
+     {
+      "hidden": true,
+      "default": 512,
+      "socketless": true,
+      "min": 64,
+      "max": 4096,
+      "step": 64
+     }
+    ],
+    "bg_color": [
+     "COLOR",
+     {
+      "default": "#000000",
+      "socketless": true
+     }
+    ]
+   },
+   "optional": {
+    "image": [
+     "IMAGE",
+     {
+      "tooltip": "Optional base image to paint over"
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "mask",
+    "width",
+    "height",
+    "bg_color"
+   ],
+   "optional": [
+    "image"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "IMAGE",
+   "MASK"
+  ],
+  "output_is_list": [
+   false,
+   false
+  ],
+  "output_name": [
+   "IMAGE",
+   "MASK"
+  ],
+  "output_tooltips": [
+   null,
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "Painter",
+  "display_name": "Painter",
+  "description": "",
+  "python_module": "comfy_extras.nodes_painter",
+  "category": "image",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": null,
+  "essentials_category": null,
+  "has_intermediate_output": true
+ },
+ "ImageCompare": {
+  "input": {
+   "required": {
+    "compare_view": [
+     "IMAGECOMPARE",
+     {
+      "socketless": true
+     }
+    ]
+   },
+   "optional": {
+    "image_a": [
+     "IMAGE",
+     {}
+    ],
+    "image_b": [
+     "IMAGE",
+     {}
+    ]
+   },
+   "hidden": {
+    "prompt": [
+     "PROMPT"
+    ],
+    "extra_pnginfo": [
+     "EXTRA_PNGINFO"
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "compare_view"
+   ],
+   "optional": [
+    "image_a",
+    "image_b"
+   ],
+   "hidden": [
+    "prompt",
+    "extra_pnginfo"
+   ]
+  },
+  "is_input_list": false,
+  "output": [],
+  "output_is_list": [],
+  "output_name": [],
+  "output_tooltips": [],
+  "output_matchtypes": null,
+  "name": "ImageCompare",
+  "display_name": "Compare Images",
+  "description": "Compares two images side by side with a slider.",
+  "python_module": "comfy_extras.nodes_image_compare",
+  "category": "image",
+  "output_node": true,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": null,
+  "essentials_category": "Image Tools",
+  "has_intermediate_output": false
+ },
+ "ModelPatchLoader": {
+  "input": {
+   "required": {
+    "name": [
+     [
+      "Qwen-Image/qwen_image_canny_diffsynth_controlnet.safetensors",
+      "Qwen-Image/qwen_image_depth_diffsynth_controlnet.safetensors",
+      "Qwen-Image/qwen_image_inpaint_diffsynth_controlnet.safetensors",
+      "Z-Image-Fun-Controlnet-Union-2.1.safetensors",
+      "Z-Image-Turbo-Fun-Controlnet-Union-2.1-2602-8steps.safetensors",
+      "Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2602-8steps.safetensors",
+      "Z-Image/Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors",
+      "Z-Image/Z-Image-Turbo-Fun-Controlnet-Union.safetensors",
+      "anima-lllite-any-test-like-v2.safetensors",
+      "anima-lllite-depth-1.safetensors",
+      "anima-lllite-pose-1.safetensors",
+      "ltx-2.5-duration-head-bf16.safetensors"
+     ]
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "name"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "MODEL_PATCH"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "MODEL_PATCH"
+  ],
+  "name": "ModelPatchLoader",
+  "display_name": "Load Model Patch",
+  "description": "",
+  "python_module": "comfy_extras.nodes_model_patch",
+  "category": "model/loaders",
+  "output_node": false,
+  "has_intermediate_output": false,
+  "experimental": true,
+  "search_aliases": []
  }
 }

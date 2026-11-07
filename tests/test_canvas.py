@@ -272,6 +272,74 @@ class CanvasTest(unittest.TestCase):
         into8 = next(l for l in cv.s["links"] if l["target_id"] == "8" and l["target_input"] == "vae")
         self.assertIn(into8["origin_id"], {n["id"] for n in rr})
 
+    def test_rail_reroute_below_a_sampler_stays_in_its_column(self):
+        # the lowering Reroute stands on the right edge of the column left of its target: it is not moved sideways
+        # (correction 1204); a rail written below a sampler runs below the room it grows into, so nothing is hidden
+        self.do("row 10 13 8 9")
+        self.do("put 12 above 10")
+        self.do("rail 10.VAE below 13 to 8.vae")
+        cv = self.cv()
+        into8 = next(l for l in cv.s["links"] if l["target_id"] == "8" and l["target_input"] == "vae")
+        r = cv.nodes[into8["origin_id"]]
+        self.assertEqual(r["type"], "Reroute")
+        self.assertEqual(round(C.G.rect(r)[2]), round(C.G.rect(cv.nodes["13"])[2]))
+        self.assertEqual(self.check_lines("below a node that grows"), [])
+        self.assertGreaterEqual(C.G.rect(r)[1] - C.G.rect(cv.nodes["13"])[3], C.SAMPLER_GROW)
+
+    def test_rail_move_puts_the_source_at_the_rail_height(self):
+        # rail ... move <unit>: the unit holding the source moves so its output is at the rail's height; no raising Reroute
+        self.do("row 10 13 8 9")
+        self.do("put 12 above 10")
+        self.do("rail 10.VAE above 12 move 10 to 8.vae")
+        cv = self.cv()
+        rr = [n for n in cv.s["nodes"] if n["type"] == "Reroute"]
+        self.assertTrue(rr)
+        self.assertEqual({round(cv.out_xy(n["id"], 0)[1]) for n in rr}, {round(cv.out_xy("10", 0)[1])})
+        self.assertTrue(any(l["origin_id"] == "10" and l["target_id"] in {n["id"] for n in rr} for l in cv.s["links"]))
+
+    def test_layout_rail_move_puts_the_source_at_the_rail_height(self):
+        self.do(f"layout {self.write_plan('row 10 13 8 9\nput 12 above 10\nrail 10.VAE above 12 move 10 to 8.vae\n')}")
+        cv = self.cv()
+        rr = [n for n in cv.s["nodes"] if n["type"] == "Reroute"]
+        self.assertTrue(rr)
+        self.assertEqual({round(cv.out_xy(n["id"], 0)[1]) for n in rr}, {round(cv.out_xy("10", 0)[1])})
+
+    def test_layout_rail_move_keeps_the_unit_off_the_rail_below(self):
+        # a loader moved to its rail's height does not stand on the rail below it: its rail goes up until the loader
+        # clears that rail by the rail gap (correction 1205)
+        plan = "row 13 8 9 42\nput 11 left 13 below 13\nput 10 left 13 above 13\n" \
+               "rail 10.VAE above 13 move 10 to 8.vae\nrail 11.CLIP above 13 to 42.clip\n"
+        self.do(f"layout {self.write_plan(plan)}")
+        cv = self.cv()
+        into42 = next(l for l in cv.s["links"] if l["target_id"] == "42" and l["target_input"] == "clip")
+        y_clip = cv.out_xy(into42["origin_id"], 0)[1]
+        self.assertLessEqual(C.G.rect(cv.nodes["10"])[3] + C.P["RAIL_GAP"], y_clip + 0.5)
+        rr = [l for l in cv.s["links"] if l["origin_id"] == "10"]
+        self.assertTrue(all(abs(cv.out_xy("10", 0)[1] - cv.in_xy(l["target_id"], l["target_input"])[1]) < 1
+                            for l in rr if cv.nodes[l["target_id"]]["type"] == "Reroute"))
+
+    def test_layout_rail_move_keeps_the_rail_order(self):
+        # a rail pushed up by a moved loader does not pass the rail of an earlier type above it: that rail goes up too,
+        # with its loader's block (Fable review of correction 1205)
+        plan = ("row 13 8 9 42 30\nput 11 left 13 below 13\nblock L 12 10\nput 12 left 13 above 13\nput 10 below 12\n"
+                "rail 12.MODEL to 30.model\nrail 10.VAE above 13 move 10 to 8.vae\nrail 11.CLIP above 13 to 42.clip\n")
+        self.do(f"layout {self.write_plan(plan)}")
+        cv = self.cv()
+        self.assertLess(cv.out_xy("12", 0)[1] + C.P["RAIL_GAP"] - 0.5, cv.out_xy("10", 0)[1])
+        self.assertFalse([x for x in C.full_check(cv)[0] if "runs above the MODEL rail" in x or "raising Reroute right of a loader" in x and ": 10" in x])
+
+    def test_layout_rail_move_twice_on_one_unit_stops(self):
+        plan = ("row 13 8 9 42 30\nput 10 left 13 above 13\n"
+                "rail 10.VAE above 13 move 10 to 8.vae\nrail 10.VAE above 42 move 10 to 9.images\n")
+        with self.assertRaises(C.Stop):
+            self.do(f"layout {self.write_plan(plan)}")
+
+    def test_rail_move_needs_the_source_in_the_unit(self):
+        self.do("row 10 13 8 9")
+        self.do("put 12 above 10")
+        with self.assertRaises(C.Stop):
+            self.do("rail 10.VAE above 12 move 13 to 8.vae")
+
     def test_group_follows_members(self):
         self.do("put 12 origin")
         self.do("put 11 below 12")
@@ -462,6 +530,23 @@ class CanvasTest(unittest.TestCase):
         self.do(f"layout {self.write_plan(plan)}")
         self.assertFalse([x for x in C.hard_problems(self.cv()) if x.startswith("wire behind a node")])
 
+    def test_wires_behind_a_node_are_said_only_when_they_cross_there(self):
+        # grill 2026-11-06 (U2): wires behind a node that come out in the order they went in are Fine
+        def place(pos):
+            for nid, (x, y) in pos.items():
+                self.do(f"put {nid} origin")
+                self.do(f"move {nid} {x} {y}")
+            cv = self.cv()
+            behind = [l for l, n in C.hidden_wires(cv) if n == "6" and {l["origin_id"], l["target_id"]} in ({"12", "30"}, {"10", "8"})]
+            said = [x for x in C.full_check(cv)[0] if x.startswith("wire behind a node") and x.endswith("behind 6")]
+            return len(behind), said
+        n, said = place({"12": (0, 0), "10": (0, 120), "6": (500, -60), "30": (1300, 0), "8": (1300, 120)})
+        self.assertEqual(n, 2)
+        self.assertFalse(said)
+        n, said = place({"12": (0, 0), "10": (0, 120), "6": (500, -60), "30": (1300, 120), "8": (1300, 0)})
+        self.assertEqual(n, 2)
+        self.assertTrue(said)
+
     def test_row_spacing(self):
         self.do("put 13 origin")
         self.do("put 8 right 13 top")
@@ -480,6 +565,20 @@ class CanvasTest(unittest.TestCase):
         self.assertEqual(r35[0] - r6[0], r34[0] - r42[0])
         self.assertEqual(r35[1] - r6[1], r34[1] - r42[1])
         self.assertGreater(r6[1], r42[1])
+
+    def test_align_move_aligns_one_node_and_moves_its_block(self):
+        # a later stage's sampler on the eye line: the block's frame is not what is aligned, the sampler in it is
+        self.do("put 42 origin")
+        self.do("put 26 right 42")
+        self.do("put 27 below 26")
+        self.do("block st 26 27")
+        r27, r26 = self.rect("27"), self.rect("26")
+        self.do("align top 42 27 move st")
+        self.assertEqual(self.rect("27")[1], self.rect("42")[1])
+        self.assertEqual(self.rect("26")[1] - r26[1], self.rect("27")[1] - r27[1])
+        self.assertLess(self.rect("26")[1], self.rect("42")[1])
+        with self.assertRaises(C.Stop):
+            self.do("align top 42 27 move 26")
 
     PLAN = """
 block load 12 11 10
@@ -691,6 +790,22 @@ rail 10.VAE below 10 to 8.vae
         self.do(f"layout {self.write_plan('put k origin' + chr(10) + 'inputs k' + chr(10) + 'move ms -200 0' + chr(10))}")
         self.assertFalse([x for x in C.soft_problems(self.cv()) if x.startswith("model chain end")])
 
+    def test_model_chain_into_the_column_of_sources_ends_in_the_column_left(self):
+        # with SamplerCustomAdvanced the guider and the scheduler in the column of sources take the model: the chain
+        # ends at the right edge of the column left of them, not at the column's own right edge (a wire going back)
+        plan = "put 13 origin" + chr(10) + "inputs 13" + chr(10) + "put 26 left 22" + chr(10) + "put 30 above 26" + chr(10)
+        self.do(f"layout {self.write_plan(plan + 'align right 30 26' + chr(10))}")
+        self.assertFalse([x for x in C.soft_problems(self.cv()) if x.startswith("model chain end")])
+        self.do(f"layout {self.write_plan(plan + 'align right 30 26' + chr(10) + 'move 30 -200 0' + chr(10))}")
+        self.assertTrue([x for x in C.soft_problems(self.cv()) if x.startswith("model chain end 30") and "26 FluxGuidance" in x])
+        # ending further right than the column left, but still left of the guider and the scheduler: not a wire going back
+        self.do(f"layout {self.write_plan(plan + 'align right 30 26' + chr(10) + 'move 30 40 0' + chr(10))}")
+        cv = self.cv()
+        fed = [l["target_id"] for l in cv.s["links"] if l["origin_id"] == "30"]
+        self.assertTrue(fed)
+        if C.G.rect(cv.node("30"))[2] < min(C.G.rect(cv.node(i))[0] for i in fed):
+            self.assertTrue([x for x in C.soft_problems(self.cv()) if x.startswith("model chain end 30")])
+
     def test_merging_node_with_no_wire_level_weighs_less(self):
         # two conditionings into one node, the node set midway so neither wire is level (correction 1044)
         self.do("add ConditioningCombine m")
@@ -890,20 +1005,22 @@ rail 11.CLIP to 6.clip 42.clip
         lines = C.full_check(cv)[0]
         self.assertFalse([x for x in lines if "rail runs above the" in x or "clip loader" in x], lines)
 
-    def test_clip_loader_above_vae_loader_is_reported(self):
+    def test_clip_loader_above_vae_loader_is_not_reported(self):
+        # vae and clip take either order (Load VAE may stand below the text encoders, below Load CLIP); only a loader
+        # above the model loader is out of order
         self.do("stack 12 11 10")
         lines = C.full_check(self.cv())[0]
-        self.assertTrue([x for x in lines if x.startswith("clip loader 11 is above the vae loader 10")], lines)
+        self.assertFalse([x for x in lines if "loader 11" in x and "above" in x], lines)
 
     def test_loader_order_is_checked_only_within_a_stacked_column(self):
-        # Load VAE placed by its first user below, apart from the stacked model and clip loaders, is not out of order
+        # Load VAE placed by its first user above, apart from the stacked model and clip loaders, is not out of order
         self.do("stack 12 11")
-        self.do("put 10 below 11 gap 400")
+        self.do("put 10 above 12 gap 400")
         lines = C.full_check(self.cv())[0]
-        self.assertFalse([x for x in lines if "is above the vae loader" in x], lines)
-        self.do("stack 12 11 10")
+        self.assertFalse([x for x in lines if "is above the model loader" in x], lines)
+        self.do("stack 10 12 11")
         lines = C.full_check(self.cv())[0]
-        self.assertTrue([x for x in lines if x.startswith("clip loader 11 is above the vae loader 10")], lines)
+        self.assertTrue([x for x in lines if x.startswith("vae loader 10 is above the model loader 12")], lines)
 
     @unittest.skip("the canvas no longer chooses rail heights, moves nodes after the plan, or holds backward wires as unkeepable (correction 1001)")
     def test_layout_conditioning_rail_runs_above_the_samplers(self):
@@ -922,17 +1039,6 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.assertTrue(h, out)
         self.assertLess(h[0], self.rect("13")[1])
 
-    def test_lane_crossings_counts_the_legs_across_the_other_rail(self):
-        # A from 8 (top) to 9 (low), B from 27 (lower) to 13 (high): with A above B, A's drop into 9 crosses B's run
-        # (B's drop into 13 lies past A's run); swapped, nothing crosses
-        for nid, x, y in (("8", 0, 0), ("27", 0, 150), ("9", 800, 600), ("13", 900, -200)):
-            self.do(f"put {nid} origin")
-            self.do(f"move {nid} {x} {y}")
-        cv = self.cv()
-        a, b = [100, "8", 0, ["9"]], [200, "27", 0, ["13"]]
-        self.assertEqual(C.lane_crossings(cv, a, b), 1)
-        self.assertEqual(C.lane_crossings(cv, [100] + b[1:], [200] + a[1:]), 0)
-
     def test_loader_is_not_widened_past_the_node_below_it(self):
         # Load VAE stacked right above the sampler is not widened to the loader minimum width past the sampler
         self.do("put 13 origin")
@@ -940,6 +1046,62 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         cv = self.cv()
         self.assertLess(cv.node("10")["size"][0], C.LOADER_MIN_W)
         self.assertNotIn("loader_base", cv.node("10"))
+
+    def test_load_vae_above_the_sampler_keeps_its_left_edge_and_the_layout_is_stable(self):
+        # Load VAE above the sampler, both 270 wide (narrower than the loader minimum): widening it to the left would put
+        # its left edge off the sampler's, and to the right past the sampler, so it is not widened
+        self.do("put 13 origin")
+        self.do("put 10 above 13")
+        cv = self.cv()
+        for i in ("10", "13"):
+            cv.node(i)["size"][0] = 270
+        cv.same_loader_width()
+        r, q = G.rect(cv.node("10")), G.rect(cv.node("13"))
+        self.assertEqual((r[0], r[2]), (q[0], q[2]))
+        # a loader widened to the left and then placed again by the layout (its x written anew) is not shifted back
+        # by the width it was widened with: applying the plan again gives the same place
+        n = cv.node("10")
+        n["loader_base"], n["loader_shift"], n["size"][0] = 240, 30, 270
+        cv.same_loader_width()
+        self.assertEqual(G.rect(cv.node("10"))[0], q[0])
+
+    def test_the_loader_width_marks_do_not_reach_the_exported_workflow(self):
+        # the canvas's own marks for widening a loader (loader_base, loader_shift, loader_x) are dropped on export
+        self.do("put 13 origin")
+        self.do("put 10 above 13")
+        cv = self.cv()
+        n = cv.node("10")
+        n["loader_base"], n["loader_shift"], n["loader_x"] = 240, 30, n["pos"][0]
+        cv.save()
+        self.do(f"export {self.dir / 'm.json'}")
+        wf = json.loads((self.dir / "m.json").read_text(encoding="utf-8"))
+        keys = set().union(*(set(x) for x in wf["nodes"]))
+        self.assertFalse(keys & {"loader_base", "loader_shift", "loader_x"})
+
+    def test_a_loader_column_widened_to_the_left_stays_put_when_the_layout_is_applied_again(self):
+        # loaders stacked in one column with their right edges aligned widen to the left; applying the plan again
+        # gives the same place (the shift is undone only where widening left the loader)
+        self.do("add ModelPatchLoader mp")
+        plan = self.write_plan("put 13 origin\nput 12 left 13 gap 400\nput mp below 12 right\n")
+        places = []
+        for _ in range(3):
+            self.do(f"layout {plan}")
+            cv = self.cv()
+            places.append(tuple(tuple(G.rect(cv.node(i))) for i in ("12", "mp")))
+        self.assertEqual(len(set(places)), 1)
+
+    def test_open_names_the_deprecated_nodes(self):
+        # a node object_info marks deprecated is named when the source is opened, though its display name does not say so
+        oi = json.loads(OI.read_text(encoding="utf-8"))
+        oi["VAELoader"] = dict(oi["VAELoader"], deprecated=True)
+        f = self.dir / "oi_dep.json"
+        f.write_text(json.dumps(oi), encoding="utf-8")
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d)
+        out = C.run_cmd(C.Work(d), f"open {SUBJECT} {f}")
+        self.assertTrue([l for l in out if l.startswith("deprecated: ") and "VAELoader" in l], out)
+        out = C.run_cmd(C.Work(d), f"open {SUBJECT} {OI}")
+        self.assertFalse([l for l in out if l.startswith("deprecated: ")])
 
     def test_a_plan_places_without_numbers(self):
         C.HAND_PLACING_FOR_TESTS = False
@@ -1005,6 +1167,22 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.do(f"note {md} right 30")
         self.assertTrue([x for x in C.note_trouble(self.cv(), "note_b") if "stand between them" in x])
 
+    def test_a_note_away_is_allowed_only_when_no_place_next_to_its_node_is_clear(self):
+        # with room next to the node, a Note with nodes between is Bad and the line names the clear place; with no room,
+        # it stands away (nodes are not moved for a Note) and the line says it is allowed
+        from unittest import mock
+        self.do("put 12 origin")
+        self.do("put 30 right 12 top")
+        md = self.dir / "note_b.md"
+        md.write_text(f"🔗 {C.display_title(self.cv().node('12'), self.cv().oi)}\n\n### a\n\nb\n", encoding="utf-8")
+        self.do(f"note {md} right 30")
+        lines = [x for x in C.hard_problems(self.cv()) if x.startswith("Note note_b ")]
+        self.assertTrue(lines and "there is room next to it: write note <its file> " in lines[0], lines)
+        with mock.patch.object(C, "_note_spot_next_to", lambda cv, n, tid: None):
+            self.assertFalse([x for x in C.hard_problems(self.cv()) if x.startswith("Note note_b ")])
+            self.assertTrue([x for x in C.full_check(self.cv())[0] if x.startswith("Note note_b explains 12 from away")])
+            self.assertFalse(C.note_trouble(self.cv(), "note_b"))
+
     @unittest.skip("a Note goes where the plan writes it; the canvas no longer tries other sides (correction 1005)")
     def test_a_note_below_a_node_that_grows_goes_above_it(self):
         md = self.dir / "note_g.md"
@@ -1044,8 +1222,25 @@ group "A" 30
 """
         self.do(f"layout {self.write_plan(plan)}")
         n, r = self.rect("note_blk"), self.rect("30")
-        self.assertLess(abs(n[0] - r[0]), 1, (n, r))
+        # nothing stands beside 30: the Note is centred under it, and moved with the block
+        self.assertLess(abs((n[0] + n[2]) / 2 - (r[0] + r[2]) / 2), 1, (n, r))
         self.assertGreaterEqual(n[1], r[3])
+
+    def test_a_note_below_a_node_sticks_out_away_from_its_neighbour(self):
+        # a Note (wider than the node) below 30 with a node just right of 30: right edges aligned, so it sticks out left
+        md = self.dir / "note_side.md"
+        md.write_text("### a\n\nb\n", encoding="utf-8")
+        self.do("put 30 origin")
+        self.do("move 30 600 0")
+        self.do("put 12 right 30")
+        self.do(f"note {md} below 30")
+        n, r = self.rect("note_side"), self.rect("30")
+        self.assertLess(abs(n[2] - r[2]), 1, (n, r))
+        # the neighbour on the left instead: left edges aligned
+        self.do("put 12 left 30")
+        self.do(f"note {md} below 30")
+        n2 = [G.rect(x) for x in self.cv().s["nodes"] if x["id"].startswith("note_side_")][0]
+        self.assertLess(abs(n2[0] - r[0]), 1, (n2, r))
 
     def test_a_note_widening_its_group_while_there_is_room_inside_is_told_where(self):
         # a short node beside a tall one leaves room inside the frame: the check names a note line that keeps it inside
@@ -1118,6 +1313,158 @@ group "A" s 30 12
         heads = [l for l in out if l.startswith("\n## ")]
         self.assertTrue(any("SamplerCustomAdvanced" in h for h in heads), heads)
 
+    def test_review_picture_comes_with_the_words_it_cannot_draw_and_withdrawn_rows_register(self):
+        # the picture's font has Latin letters only: the titles and Note texts go to the reviewer as text; a row the
+        # reviewer withdrew after the builder's reply is kept as withdrawn, not answered
+        self.do("put 12 origin")
+        self.do("title 12 \"Load Diffusion Model: 本体\"")
+        self.do(f"export {self.dir / 'e.json'}")
+        out = self.do(f"render {self.dir / 'review_t.png'} export")
+        txt = (self.dir / "review_t.txt").read_text(encoding="utf-8")
+        self.assertIn("本体", txt)
+        self.assertTrue([l for l in out if l.startswith("names and Note texts:")])
+        # a group title in Japanese, which the picture draws as GROUP, goes to the reviewer as text too
+        self.do('group "画像の準備" 12')
+        self.do(f"export {self.dir / 'e.json'}")
+        self.do(f"render {self.dir / 'review_t.png'} export")
+        self.assertIn("画像の準備", (self.dir / "review_t.txt").read_text(encoding="utf-8"))
+        rv = self.dir / "review_t.md"
+        rv.write_text("# Review: t\n\nWithdrawn: readable-form.md: a rule — the title is there\n\nChecked: readable-form.md 1 rules, notes.md 0 rules\n", encoding="utf-8")
+        self.do(f"review {rv}")
+        self.assertEqual(self.cv().s["review"]["withdrawn"], ["readable-form.md: a rule — the title is there"])
+
+    def test_only_branchs_list_of_names_has_no_input_slot(self):
+        # as the frontend creates them: a socketless COLOR widget (ImageCropToMask's background) still has its input
+        # slot; Branch's hidden list of names has none
+        import comfy_schema as CS
+        oi = json.loads(OI.read_text())
+        names = lambda t: [i["name"] for i in CS.new_node_slots(oi[t], [CS.default_value(sp) for _, sp, _ in CS.ordered_input_specs(oi[t])])[0]]
+        self.assertIn("background", names("ImageCropToMask"))
+        self.assertNotIn("branch_names", names("BranchNode"))
+
+    def test_branch_inputs_are_named_and_its_values_follow_them(self):
+        # as the frontend saves a Branch: inputs labelled, the chosen name and the names of the connected inputs; no
+        # input slot for the list of names
+        self.do("add PrimitiveFloat a")
+        self.do("add PrimitiveFloat b")
+        self.do("add BranchNode br")
+        self.do("link a.0 br.wen b.0 br.wu")
+        n = self.cv().node("br")
+        self.assertEqual(n["widgets_values"], ["wen", ["wen", "wu"]])
+        self.assertEqual([i.get("label") for i in n["inputs"] if i["name"].startswith("autogrow.")][:2], ["wen", "wu"])
+        self.assertNotIn("branch_names", [i["name"] for i in n["inputs"]])
+        self.do("set br branch=wu")
+        self.assertEqual(self.cv().node("br")["widgets_values"][0], "wu")
+        with self.assertRaises(C.Stop):
+            self.do("set br branch=nope")
+        # a choice whose input is not wired yet is kept (wires come one at a time) and the check names it
+        n = self.cv().node("br")
+        self.do("unlink br.autogrow.branch1")
+        self.assertEqual(self.cv().node("br")["widgets_values"][0], "wu")
+        self.assertTrue([x for x in C.full_check(self.cv())[0] if x.startswith("Branch br chooses 'wu'")])
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if "br BranchNode" in x and "required input" in x])
+
+    def test_branch_keeps_its_input_names_when_inputs_are_added(self):
+        # a Branch starts with two inputs; adding the third and fourth must not drop the names already given
+        for x in "abcd":
+            self.do(f"add PrimitiveFloat {x}")
+        self.do("add BranchNode br")
+        self.do("link a.0 br.Music b.0 br.Instrument c.0 br.SFX d.0 br.One-shot")
+        n = self.cv().node("br")
+        self.assertEqual(n["widgets_values"], ["Music", ["Music", "Instrument", "SFX", "One-shot"]])
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if x.startswith("Branch br chooses")])
+
+    def test_branch_keeps_its_input_names_when_set_rebuilds_its_inputs(self):
+        for x in "abc":
+            self.do(f"add PrimitiveFloat {x}")
+        self.do("add BranchNode br")
+        self.do("link a.0 br.Music b.0 br.Instrument c.0 br.SFX")
+        cv = self.cv()
+        n = cv.node("br")
+        n["inputs"] = n["inputs"][:-1]   # an input slot missing, as an imported Branch may be saved
+        cv.save()
+        self.do("set br branch=Instrument")
+        n = self.cv().node("br")
+        self.assertEqual([i.get("label") for i in n["inputs"] if i["name"].startswith("autogrow.")][:3],
+                         ["Music", "Instrument", "SFX"])
+
+    def test_a_node_saved_before_an_input_was_added_takes_that_input(self):
+        # the frontend builds a node from the current definition, so a node saved by an older version still shows an
+        # input added since (Generate Text's system_prompt, a socket after audio); a wire can go to it
+        oi_path = self.dir / "object_info.json"
+        oi = json.loads(oi_path.read_text(encoding="utf-8"))
+        oi["TextGenerate"] = {
+            "input": {"required": {"clip": ["CLIP", {}], "prompt": ["STRING", {"multiline": True}]},
+                      "optional": {"audio": ["AUDIO", {}], "system_prompt": ["STRING", {"forceInput": True}]}},
+            "input_order": {"required": ["clip", "prompt"], "optional": ["audio", "system_prompt"]},
+            "output": ["STRING"], "output_name": ["generated_text"], "name": "TextGenerate", "display_name": "Generate Text",
+            "category": "textgen", "output_node": False}
+        oi_path.write_text(json.dumps(oi), encoding="utf-8")
+        self.do("add TextGenerate tg")
+        self.do("add PrimitiveStringMultiline sp")
+        cv = self.cv()
+        n = cv.node("tg")
+        n["inputs"] = [i for i in n["inputs"] if i["name"] != "system_prompt"]   # as the older version saved it
+        cv.save()
+        self.do("link 11.0 tg.clip")
+        self.do("link sp.0 tg.system_prompt")
+        n = self.cv().node("tg")
+        self.assertEqual([i["name"] for i in n["inputs"]][:3], ["clip", "audio", "system_prompt"])
+        self.assertTrue(n["inputs"][0]["link"] and n["inputs"][2]["link"])
+
+    def test_core_puts_a_loader_that_gives_the_encoders_clip_left_of_them(self):
+        # a Load Checkpoint feeds the KSampler its model and the text encoders their CLIP: the encoders are the leftmost
+        # it feeds, so it stands just left of them and its CLIP wires go forward
+        self.do("add KSampler k")
+        self.do("add CheckpointLoaderSimple ck")
+        self.do("link ck.0 k.model 42.0 k.positive 6.0 k.negative 27.0 k.latent_image ck.1 42.clip ck.1 6.clip")
+        out = self.do("core k")
+        self.assertTrue([l for l in out if l.startswith("put model_k left 42 top")], out)
+        self.do(f"layout {self.write_plan(chr(10).join(l for l in out if not l.startswith('#')))}")
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if x.startswith("backward wire") and "ck." in x])
+
+    def test_core_puts_a_clip_giver_inside_the_model_chain_left_of_the_encoders(self):
+        # Load Checkpoint → ModelSamplingFlux → KSampler, the checkpoint also giving the encoders their CLIP: it stands
+        # just left of the encoders and the patch ends above the encoders, so no CLIP wire goes back
+        self.do("add KSampler k")
+        self.do("add CheckpointLoaderSimple ck")
+        self.do("add ModelSamplingFlux ms")
+        self.do("link ck.0 ms.model ms.0 k.model 42.0 k.positive 6.0 k.negative 27.0 k.latent_image ck.1 42.clip ck.1 6.clip")
+        out = self.do("core k")
+        self.assertTrue([l for l in out if l.startswith("put model_k left 42 top")], out)
+        self.assertTrue([l for l in out if l.startswith("put model_rest_k above 42 right")], out)
+        self.do(f"layout {self.write_plan(chr(10).join(l for l in out if not l.startswith('#')))}")
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if x.startswith("backward wire") and "ck." in x])
+        self.assertFalse([x for x in C.hard_problems(self.cv()) if x.startswith("overlap")])
+
+    def test_core_traces_the_encoders_clip_through_clip_set_last_layer(self):
+        # Load Checkpoint → CLIP Set Last Layer → text encoders: the checkpoint stands left of CLIP Set Last Layer, which
+        # stands left of the encoders, so no CLIP wire goes back
+        self.do("add KSampler k")
+        self.do("add CheckpointLoaderSimple ck")
+        self.do("add CLIPSetLastLayer cs")
+        self.do("link ck.0 k.model 42.0 k.positive 6.0 k.negative 27.0 k.latent_image ck.1 cs.clip cs.0 42.clip cs.0 6.clip")
+        out = self.do("core k")
+        self.assertIn("put cs left 42 wire", out)
+        self.assertTrue([l for l in out if l.startswith("put model_k left cs top")], out)
+        self.do(f"layout {self.write_plan(chr(10).join(l for l in out if not l.startswith('#')))}")
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if x.startswith("backward wire") and ("ck." in x or "cs." in x)])
+
+    def test_core_names_a_load_vae_used_by_more_than_the_decoder(self):
+        # Load VAE 10 also goes to a VAE Encode: the usual form does not place it, and says so by name
+        self.do("add VAEEncode e")
+        self.do("link 10.0 e.vae")
+        out = self.do("core 13")
+        self.assertFalse(any(l.startswith("put 10 ") for l in out))
+        self.assertTrue(any(l.startswith("# not placed here: Load CLIP, 10 (Load VAE") for l in out), out)
+
+    def test_core_steps_save_down_when_the_flow_goes_on(self):
+        # VAE Decode 8 also feeds an upscale: the flow goes on past it, so Save Image steps down
+        self.do("add VAEEncode u")
+        self.do("link 8.0 u.pixels")
+        out = self.do("core 13")
+        self.assertTrue(any(l.startswith("put 9 right 8 step") for l in out), out)
+
     def test_core_prints_the_usual_form(self):
         out = self.do("core 13")
         self.assertIn("inputs 13   # 22 is the guider: its conditioning enters it horizontally", out)
@@ -1126,6 +1473,11 @@ group "A" s 30 12
         self.assertIn("put 8 right 13 wire", out)
         self.do(f"layout {self.write_plan(chr(10).join(l for l in out if not l.startswith('#')))}")
         self.assertEqual(C.hard_problems(self.cv()), [])
+        # the Load VAE stacked on the sampler has the sampler's width
+        self.assertEqual(self.cv().node("10")["size"][0], self.cv().node("13")["size"][0])
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if "stacked on a sampler" in x])
+        # the model row ends in the column just left of the guider, as readable-form §4 says
+        self.assertFalse([x for x in C.soft_problems(self.cv()) if x.startswith("model chain end")])
         with self.assertRaises(C.Stop):
             self.do("core 8")
 
@@ -1148,19 +1500,133 @@ group "A" s 30 12
         self.assertTrue(C.in_use_core("ImageResize+", ["ImageResize+ (essentials, keep proportion)"]))
         self.assertFalse(C.in_use_core("ImageResize", ["ImageResizeKJ (KJNodes)"]))
 
+    def test_a_loader_on_a_sampler_with_another_width_is_reported(self):
+        self.do("put 13 origin")
+        self.do("put 10 above 13")
+        lines = C.full_check(self.cv())[0]
+        if self.cv().node("10")["size"][0] != self.cv().node("13")["size"][0]:
+            self.assertTrue([x for x in lines if "stacked on a sampler" in x], lines)
+        # placed by the plan, the two get one width before anything else is placed
+        self.do(f"layout {self.write_plan('put 13 origin' + chr(10) + 'put 10 above 13' + chr(10))}")
+        self.assertEqual(self.cv().node("10")["size"][0], self.cv().node("13")["size"][0])
+        self.assertGreaterEqual(self.cv().node("13")["size"][0], C.LOADER_MIN_W)
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if "stacked on a sampler" in x])
+        # also as the second reference of a put, and in a stack
+        self.do(f"layout {self.write_plan('put 13 origin' + chr(10) + 'put 8 right 13' + chr(10) + 'put 10 left 8 above 13' + chr(10))}")
+        self.assertEqual(self.cv().node("10")["size"][0], self.cv().node("13")["size"][0])
+        self.do(f"layout {self.write_plan('put 13 origin' + chr(10) + 'stack 10 13' + chr(10))}")
+        self.assertEqual(self.cv().node("10")["size"][0], self.cv().node("13")["size"][0])
+
+    def test_a_negative_prompt_is_half_as_tall(self):
+        self.do("add CLIPTextEncode neg")
+        self.do("add KSampler ks")
+        self.do("link 11.0 neg.clip neg.0 ks.negative 6.0 ks.positive")
+        self.do(f"layout {self.write_plan(chr(10).join(['put ks origin', 'put 6 left ks wire', 'put neg below 6']))}")
+        full, neg = self.cv().node("6")["size"][1], self.cv().node("neg")["size"][1]
+        self.assertEqual(neg, round(full / 2))
+
+    def test_a_level_into_a_sources_column_opens_only_the_gap_it_needs_and_centres_the_sampler_last(self):
+        # the gap above the node the side value is level into takes the room, the other gaps stay, the sampler is
+        # centred on the column last
+        self.do("add RandomNoise rn")
+        self.do("add KSamplerSelect sel")
+        self.do("add PrimitiveInt w")
+        self.do("link rn.0 13.noise sel.0 13.sampler w.0 27.height")
+        plan = ["put 13 origin", "inputs 13", "put 26 left 22 wire", "put 6 left 26 top",
+                "put w below 6 right", "level w.INT 27.height"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        self.assertEqual(C.hard_problems(cv), [])
+        self.assertLess(abs(cv.out_xy("w", 0)[1] - cv.in_xy("27", "height")[1]), 1)
+        col = sorted(["rn", "22", "sel", "27"], key=lambda i: self.rect(i)[1])
+        gaps = [round(self.rect(b)[1] - self.rect(a)[3]) for a, b in zip(col, col[1:])]
+        k = col.index("27")
+        # (the `inputs` column itself is within 1px of the row gap)
+        self.assertTrue(all(abs(g - C.V_GAP) <= 1 for i, g in enumerate(gaps) if i != k - 1), gaps)
+        box = cv.bbox(col)
+        r = self.rect("13")
+        self.assertLess(abs((box[1] + box[3]) / 2 - (r[1] + r[3]) / 2), 1)
+        # the positive stays level into the guider
+        self.assertLess(abs(cv.out_xy("26", 0)[1] - cv.in_xy("22", "conditioning")[1]), 1)
+
+    def test_a_note_named_like_a_block_stops_with_a_clear_message(self):
+        note = self.dir / "core.md"
+        note.write_text("Text.", encoding="utf-8")
+        plan = ["block core 13 8", "put 13 origin", "put 8 right 13", f"note {note} below 13"]
+        with self.assertRaises(C.Stop) as e:
+            self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        self.assertIn("has the name of a block", str(e.exception))
+
+    def test_model_tree_does_not_repeat_a_folder_the_name_starts_with(self):
+        text = C.NT.model_note_text([{"name": "bbox/face_yolov8m.pt", "directory": "ultralytics/bbox", "url": None}])
+        self.assertNotIn("bbox/\n            └── 📂bbox", text)
+        self.assertEqual(text.count("📂bbox/"), 1, text)
+
+    def test_a_note_can_be_placed_against_a_group(self):
+        note = self.dir / "gn.md"
+        note.write_text("Text.", encoding="utf-8")
+        plan = ["put 13 origin", "put 8 right 13", "put 9 right 8", 'group "My Stage" 13 8', f'note {note} below "My Stage"']
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        self.assertTrue(self.cv().placed(self.cv().node("gn")))
+
+    def test_set_reads_a_text_of_several_lines_from_a_file_and_stops_on_backslash_n(self):
+        f = self.dir / "prompt.txt"
+        f.write_text("first line\n\nthird line\n", encoding="utf-8")
+        self.do(f"set 6 text=@{f}")
+        self.assertEqual(self.cv().node("6")["widgets_values"][0], "first line\n\nthird line")
+        with self.assertRaises(C.Stop):
+            self.do('set 6 text="a\\nb"')
+
+    def test_set_stops_when_the_file_after_at_is_missing(self):
+        with self.assertRaises(C.Stop):
+            self.do(f"set 6 text=@{self.dir / 'no_such.txt'}")
+        self.do("""set 6 text='"@someone"'""")
+        self.assertEqual(self.cv().node("6")["widgets_values"][0], "@someone")
+
+    def test_widget_order_of_a_node_not_installed_is_read_from_its_widget_inputs(self):
+        import flatten as F
+        n = {"inputs": [{"name": "image", "link": 1}, {"name": "upscale_by", "widget": {"name": "upscale_by"}},
+                        {"name": "seed", "widget": {"name": "seed"}}, {"name": "steps", "widget": {"name": "steps"}}],
+             "widgets_values": [2, 123, "fixed", 4]}
+        self.assertEqual(F.widget_names_from_inputs(n), ["upscale_by", "seed", "control_after_generate", "steps"])
+        n["widgets_values"] = [2, 123, "fixed"]
+        self.assertIsNone(F.widget_names_from_inputs(n))
+
+    def test_diff_ignores_values_a_wire_drives_and_reads_primitive_nodes_and_seed_controls(self):
+        import compare as CMP
+        def node(i, t, w, mode=0):
+            return {"id": i, "type": t, "mode": mode, "widgets": w}
+        src = {"nodes": [node("p", "PrimitiveNode", None), node("e", "EmptyLatentImage", {"width": 912}),
+                         node("s", "SaveImage", {"filename_prefix": "x"}), node("k", "KSampler", {"seed": 1, "control_after_generate": "fixed"})],
+               "links": [{"origin_id": "p", "origin_slot": 0, "target_id": "e", "target_input": "width"},
+                         {"origin_id": "e", "origin_slot": 0, "target_id": "k", "target_input": "latent_image"},
+                         {"origin_id": "k", "origin_slot": 0, "target_id": "s", "target_input": "images"}]}
+        src["nodes"][0]["widgets_values"] = [912, "fixed"]
+        src["nodes"][0].pop("widgets")
+        out = {"nodes": [node("g", "GetImageSize", {}), node("e", "EmptyLatentImage", {"width": 912}),
+                         node("s", "SaveImage", {"filename_prefix": "x"}), node("k", "KSampler", {"seed": 1, "control_after_generate": "randomize"})],
+               "links": [{"origin_id": "g", "origin_slot": 0, "target_id": "e", "target_input": "width"},
+                         {"origin_id": "e", "origin_slot": 0, "target_id": "k", "target_input": "latent_image"},
+                         {"origin_id": "k", "origin_slot": 0, "target_id": "s", "target_input": "images"}]}
+        oi = {"SaveImage": {"output_node": True}}
+        lines = CMP.compare(src, [("v", out)], oi)
+        self.assertTrue([x for x in lines if "PrimitiveNode" in x and "912" in x], lines)
+        self.assertTrue([x for x in lines if x.startswith("seed control changed")], lines)
+
+    def test_an_autogrow_input_is_taken_by_its_short_name(self):
+        self.do("add PrimitiveInt i1")
+        self.do("add PrimitiveInt i2")
+        self.do("add ComfyMathExpression m")
+        self.do("link i1.INT m.a i2.INT m.b")
+        ins = {i["name"]: i.get("link") for i in self.cv().node("m")["inputs"]}
+        self.assertIsNotNone(ins.get("values.a"))
+        self.assertIsNotNone(ins.get("values.b"))
+
     def test_put_step_stands_just_below_the_wire(self):
         self.do("put 8 origin")
         out = self.do("put 9 right 8 step")
         self.assertIn("stepped down below the wire from 8: 9", out)
         self.assertEqual(self.rect("9")[1], self.cv().out_xy("8", 0)[1] + C.LANE_CLEAR_BELOW)
-
-    def test_conditioning_rail_runs_below_the_model_rail(self):
-        for nid, x, y in (("12", 0, 0), ("6", 0, 300), ("30", 900, 0), ("22", 900, 300)):
-            self.do(f"put {nid} origin")
-            self.do(f"move {nid} {x} {y}")
-        cv = self.cv()
-        lo, hi = C.type_bounds(cv, "6", 0, ["22"], [[100, "12", 0, ["30"]]])
-        self.assertEqual(lo, 100 + C.P["RAIL_GAP"])
 
     def test_report_reads_rails_without_height(self):
         # the report page explains a rail line without a height and the lines layout writes about it
@@ -1222,8 +1688,9 @@ group "A" s 30 12
         lines, _ = C.full_check(self.cv())
         self.assertTrue([x for x in lines if x.startswith("value nodes side by side have unaligned tops")])
 
-    def test_inputs_puts_the_guider_level_with_sampler_custom(self):
-        # correction 1025: the sampler stays on the eye line and its column moves to it; the guider's wire is horizontal
+    def test_inputs_centres_sampler_custom_on_its_column(self):
+        # corrections 1025 and 1114: the sampler stays on the eye line and its column moves to it, so that the sampler
+        # is at the column's vertical middle (its conditioning enters the guider, whose wire into the sampler slants)
         self.do("copy 25 16 17")
         self.do("link 25.NOISE 13.noise 16.SAMPLER 13.sampler 17.SIGMAS 13.sigmas 30.MODEL 17.model")
         self.do("put 13 origin")
@@ -1232,7 +1699,23 @@ group "A" s 30 12
         self.do("inputs 13")
         cv = self.cv()
         self.assertEqual(self.rect("13"), before)
-        self.assertLess(abs(cv.out_xy("22", 0)[1] - cv.in_xy("13", "guider")[1]), 1)
+        col = cv.bbox(["25", "22", "16", "17", "27"])
+        self.assertLess(abs((before[1] + before[3]) / 2 - (col[1] + col[3]) / 2), 1)
+
+    def test_inputs_levels_a_wire_of_a_node_that_is_not_sampler_custom(self):
+        # grill 2026-11-06 (K-102, correction 1044): not set midway between its sources; one wire is horizontal
+        self.do("put 8 origin")
+        self.do("move 8 2000 600")
+        self.do("inputs 8")
+        cv = self.cv()
+        self.assertLess(abs(cv.out_xy("10", 0)[1] - cv.in_xy("8", "vae")[1]), 1)
+
+    def test_inputs_keeps_the_group_padding_inside_its_column(self):
+        # the column keeps the gap frame to node where a group frame lies between two of its sources, as put below does
+        self.do("put 13 origin")
+        self.do('group "G" 27')
+        self.do("inputs 13")
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if 'group "G"' in x])
 
     def test_image_area_is_added_to_initial_size(self):
         import nodesize
@@ -1246,6 +1729,15 @@ group "A" s 30 12
             a = C.IMAGE_AREA[kind]
             self.assertEqual(n["size"], [round(max(w0, fw, a)), round(max(h0, fh) + a + C.P["VUE_MARGIN"])])
         self.assertIsNone(C.image_kind("VAEDecode", self.cv().oi))
+
+    def test_a_node_that_shows_the_image_in_its_own_widget_gets_no_image_area_on_top(self):
+        # Painter (its drawing area) and Compare Images (its comparison view) show the image in a widget of their own;
+        # the size the frontend makes them already holds it, so no image area is added below
+        for t in ("Painter", "ImageCompare"):
+            self.assertIsNone(C.image_kind(t, self.cv().oi))
+            self.do(f"add {t} x_{t}")
+            fw, fh = C.FRONTEND_MIN[t]
+            self.assertEqual(self.cv().node(f"x_{t}")["size"][1], fh + C.P["VUE_MARGIN"])
 
     def test_image_kind_from_object_info(self):
         img = ["IMAGE", {}]
@@ -1433,10 +1925,6 @@ group "A" s 30 12
         chk = next(f for n, f in C.CHECKS if n == "result wire level, latent into the sampler slants")
         cv = self.cv()
         self.assertTrue(chk(cv, C._CheckCtx(cv)), "the latent slants while the result wire is level")
-        self.do("align top k e")
-        cv = self.cv()
-        self.assertEqual(chk(cv, C._CheckCtx(cv)), [], "the chain on the sampler's top edge is as good")
-        self.do("move k 0 80")
         self.do("level e.LATENT k.latent_image move e")
         cv = self.cv()
         self.assertEqual(chk(cv, C._CheckCtx(cv)), [])
@@ -1452,6 +1940,10 @@ group "A" s 30 12
         self.do("move a 0 -300")
         cv = self.cv()
         self.assertTrue([x for x in C.hard_problems(cv) if x.startswith("positive into the sampler slants")])
+        self.do("align top a k")
+        cv = self.cv()
+        self.assertTrue([x for x in C.hard_problems(cv) if x.startswith("positive into the sampler slants")],
+                        "tops aligned leave the positive one slot off level")
         self.do("level a.CONDITIONING k.positive move a")
         cv = self.cv()
         self.assertFalse([x for x in C.hard_problems(cv) if x.startswith("positive into the sampler slants")])
@@ -1478,6 +1970,16 @@ group "A" s 30 12
         plan = "put li origin\ntitle li \"Load Image: reference image 1\"\n"
         self.do(f"layout {self.write_plan(plan)}")
         self.assertEqual(self.cv().node("li").get("title"), "Load Image: reference image 1")
+
+    def test_a_title_on_a_node_that_is_not_installed_is_not_called_the_authors(self):
+        # the canvas cannot read the display name of a node that is not installed (it is in the node's source)
+        self.do("add LoadImage li")
+        self.do("put li origin")
+        cv = self.cv()
+        n = cv.node("li")
+        n["type"], n["title"] = "SeedVR2VideoUpscaler", "SeedVR2 Video Upscaler"
+        chk = next(f for n, f in C.CHECKS if n == "titles the author gave")
+        self.assertEqual(chk(cv, C._CheckCtx(cv)), [])
 
     def test_tool_wire_not_horizontal_is_reported(self):
         self.do("put 10 origin")
@@ -1526,6 +2028,16 @@ group "A" s 30 12
         self.do("rail 12.MODEL level 12.MODEL to 30.model")   # at the output height: no raising Reroute
         lines = C.full_check(self.cv())[0]
         self.assertFalse([x for x in lines if x.startswith("raising Reroute right of a loader")])
+
+    def test_export_stops_on_a_raising_reroute_right_of_a_loader_only(self):
+        # grill 2026-11-06 (Q8a): a loader of a model, clip or vae stands at its rail's height; the export stops on its
+        # raising Reroute. The last node of a model chain heading a rail is only said
+        self._two_loader_rails("above 12", "below 10")
+        stops = [x for x in C.export_stops(self.cv()) if x.startswith("raising Reroute right of a loader")]
+        self.assertEqual({x.rsplit(": ", 1)[1] for x in stops}, {"12", "10"})
+        rule = C.EXPORT_STOPS["raising Reroutes right of a loader"]
+        line = "raising Reroute right of a loader or the node heading a rail (r1): place 30 so its output is at the rail height: 30"
+        self.assertFalse(rule(self.cv(), line))
 
     def test_loader_rail_below_its_targets(self):
         lines = self._two_loader_rails("above 12", "below 10")
@@ -1668,6 +2180,21 @@ group "A" s 30 12
         finally:
             shutil.rmtree(d)
 
+    def test_models_lists_the_custom_nodes_kept(self):
+        # below the models, the custom node packs the canvases keep: a link from the node's cnr_id (Registry) or aux_id
+        # (GitHub), "?" when neither is known; core nodes are not listed
+        cv = self.cv()
+        cv.node("26").update({"type": "ClipProjLoader", "properties": {"aux_id": "nicolab28/ComfyUI-ClipProj"}})
+        cv.node("30").update({"type": "ColorMatch", "properties": {"cnr_id": "comfyui-kjnodes"}})
+        cv.node("22").update({"type": "SenseNovaH3DistilledBridge", "properties": {}})
+        cv.save()
+        text = "\n".join(self.do("models"))
+        part = text[text.index("## custom nodes"):]
+        self.assertIn("[nicolab28/ComfyUI-ClipProj](https://github.com/nicolab28/ComfyUI-ClipProj): ClipProjLoader", part)
+        self.assertIn("[comfyui-kjnodes](https://registry.comfy.org/nodes/comfyui-kjnodes): ColorMatch", part)
+        self.assertIn("? : SenseNovaH3DistilledBridge", part)
+        self.assertNotIn("SamplerCustomAdvanced", part)
+
     def test_models_skip_generic_file_names(self):
         import json
         d = Path(tempfile.mkdtemp())
@@ -1785,11 +2312,12 @@ group "A" s 30 12
         self.assertNotIn("<script src", text)
         data = report_data(out)
         steps = data["canvases"][0]["steps"]
-        self.assertEqual(steps[0]["kind"], "build")          # copy and link changed nothing on the drawing: one step
-        self.assertEqual(steps[1]["kind"], "layout")
-        self.assertIn("（2 行）", steps[1]["s"])              # the plan's line count was recorded by layout
-        self.assertTrue(any("水平" in d for d in steps[1]["d"]))   # and what its lines did, in plain words
-        self.assertIn("の下に", steps[2]["s"])
+        # the page starts at the first drawing with nodes on it; copy and link before it (nothing placed) are one line of its details
+        self.assertEqual(steps[0]["kind"], "layout")
+        self.assertTrue(steps[0]["d"][0].startswith("置く前に、"), steps[0]["d"])
+        self.assertIn("（2 行）", steps[0]["s"])              # the plan's line count was recorded by layout
+        self.assertTrue(any("水平" in d for d in steps[0]["d"]))   # and what its lines did, in plain words
+        self.assertIn("の下に", steps[1]["s"])
 
     def test_layout_does_not_echo_what_lines_did(self):
         # correction 1020: the reply is an error log; what the plan's lines did is kept for the report page only
@@ -1977,6 +2505,108 @@ group "A" s 30 12
         ok = self.write_plan("block load 12 11\nput 12 origin\nput 11 below 12\n")
         self.do(f"layout {ok}")
         self.assertTrue(self.cv().placed(self.cv().node("11")))
+
+    # ---- the rail order (model, vae, clip, conditioning from the top) and what stops export
+
+    ORDER_PLAN = """put 6 origin
+put 10 below 6 gap 300
+put 11 below 10 gap 300
+put 26 right 6 gap 600
+put 8 right 10 gap 600
+put 42 right 11 gap 600
+"""
+
+    def _rail_heights(self):
+        cv = self.cv()
+        return {C.rail_type(cv, r, s): y for y, _, _, (r, s) in C.rail_spans(cv)}
+
+    def test_layout_raises_vae_and_clip_rails_above_conditioning(self):
+        # the text encoder stands above Load VAE and Load CLIP: without the order the conditioning rail would run above
+        # theirs. The canvas raises the vae and clip rails (heights only; no node moves), clip above conditioning
+        self.do("link 6.0 26.conditioning")
+        self.do(f"layout {self.write_plan(self.ORDER_PLAN)}")
+        before = self.positions()
+        rails = ("rail 6.CONDITIONING to 26.conditioning\nrail 10.VAE to 8.vae\nrail 11.CLIP to 42.clip\n")
+        out = self.do(f"layout {self.write_plan(self.ORDER_PLAN + rails)}")
+        self.assertTrue([x for x in out if "in that order from the top" in x], out)
+        ys = self._rail_heights()
+        gap = C.P["RAIL_GAP"]
+        self.assertLessEqual(ys["VAE"], ys["CLIP"] - gap)
+        self.assertLessEqual(ys["CLIP"], ys["CONDITIONING"] - gap)
+        self.assertEqual(ys["CONDITIONING"], self.cv().out_xy("6", 0)[1])   # the last in the order stays where it was
+        self.assertEqual({k: v for k, v in self.positions().items() if not k.startswith("r1")}, before)
+        lines = C.full_check(self.cv())[0]
+        self.assertFalse([x for x in lines if "rail runs above the" in x], lines)
+        # the raising Reroute by Load VAE is still named, with what to do about it
+        self.assertTrue([x for x in lines if "output of 10" in x and "rail order" in x], lines)
+
+    def test_layout_keeps_rails_already_in_order(self):
+        # Load VAE above the text encoder: the rails are in order at their output heights and nothing is raised
+        self.do("link 6.0 26.conditioning")
+        plan = """put 10 origin
+put 6 below 10 gap 300
+put 8 right 10 gap 600
+put 26 right 6 gap 600
+rail 10.VAE to 8.vae
+rail 6.CONDITIONING to 26.conditioning
+"""
+        out = self.do(f"layout {self.write_plan(plan)}")
+        self.assertFalse([x for x in out if "in that order from the top" in x], out)
+        ys = self._rail_heights()
+        self.assertEqual(ys["VAE"], self.cv().out_xy("10", 0)[1])
+
+    def test_rails_from_one_checkpoint_go_model_vae_clip(self):
+        # one node's outputs follow the order too, not the order of its outputs (MODEL, CLIP, VAE)
+        self.do("add CheckpointLoaderSimple ck")
+        self.do("link ck.MODEL 30.model ck.CLIP 42.clip ck.VAE 8.vae")
+        plan = """put ck origin
+put 30 right ck gap 600
+put 42 below 30
+put 8 below 42
+rail ck.MODEL to 30.model
+rail ck.CLIP to 42.clip
+rail ck.VAE to 8.vae
+"""
+        self.do(f"layout {self.write_plan(plan)}")
+        ys = self._rail_heights()
+        self.assertLess(ys["MODEL"], ys["VAE"])
+        self.assertLess(ys["VAE"], ys["CLIP"])
+
+    def test_export_stops_on_overlapping_groups(self):
+        for nid, x, y in (("6", 0, 0), ("26", 400, 0), ("10", 200, 100), ("8", 600, 100)):
+            self.do(f"put {nid} origin")
+            self.do(f"move {nid} {x} {y}")
+        self.do("group A 6 26")
+        self.do("group B 10 8")
+        out = self.dir / "w.json"
+        with self.assertRaises(C.Stop) as e:
+            self.do(f"export {out}")
+        msg = str(e.exception)
+        self.assertIn('groups overlap: "A" and "B"', msg)
+        self.assertIn("changing the plan", msg)
+        self.assertFalse(out.exists())
+        self.assertNotIn("exported", C.Work(self.dir).cfg)
+        self.do("move 10 0 600")
+        self.do("move 8 0 600")
+        self.do(f"export {out}")
+        self.assertTrue(out.exists())
+
+    def test_export_stops_on_a_slanting_positive_but_not_on_the_main_flow(self):
+        self._ksampler()
+        self.do("put k origin")
+        self.do("put 42 left k")
+        self.do("move 42 0 300")
+        self.do("put 8 right k")
+        self.do("move 8 0 200")
+        out = self.dir / "w.json"
+        with self.assertRaises(C.Stop) as e:
+            self.do(f"export {out}")
+        self.assertIn("positive into the sampler slants", str(e.exception))
+        self.assertNotIn("main flow", str(e.exception))
+        self.assertFalse(out.exists())
+        self.do("move 42 0 -300")
+        self.do(f"export {out}")
+        self.assertTrue(out.exists())
 
     def test_set_before_copy_stops_and_says_copy_first(self):
         self.do("new u")

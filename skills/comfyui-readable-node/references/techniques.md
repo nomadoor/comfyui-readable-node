@@ -102,8 +102,7 @@ After:  positive conditioning → ConditioningZeroOut → negative
 
 - With cfg 1.0 the sampler does not use the negative in its calculation. The negative input only needs a conditioning connected; there is no need to encode a text.
 - This holds when the author wrote a negative text too (it has no effect at cfg 1.0). Replace it the same way.
-  - When raising cfg is an ordinary choice: write the author's negative text in the Caution of a Note (it is needed if cfg is raised).
-  - When a Lightning or turbo LoRA fixes cfg at 1: do not put it in a Note; remove it and say so in the conversation report.
+  - Do not put the author's negative text in a Note; remove it.
 - Does not apply: cfg is higher than 1.0 (encoding an empty text and a zeroed conditioning then give different results).
 - Where verified: comfy/samplers.py (with cfg 1.0 the negative is not calculated), nodes.py ConditioningZeroOut (only sets the conditioning it receives to zero).
 
@@ -116,7 +115,7 @@ Before: the original workflow connects the LoRA's clip, so LoraLoader is used
 After:  read only the safetensors header of the LoRA file; if there are text encoder keys, LoraLoader, otherwise LoraLoaderModelOnly
 ```
 
-- If the file is not at hand, read the header of the one on HuggingFace or similar. If you cannot check, write in the report what you did.
+- If the file is not at hand, read the header of the one on HuggingFace or similar. If you cannot read it, keep the original's wiring: connecting the clip of a LoRA that has no text encoder keys changes nothing.
 
 ## String processing
 
@@ -129,7 +128,7 @@ After:  text → Replace Text (Regex)(pattern: image|photo|picture, replace: X) 
 
 - Replace Text (StringReplace), Replace Text (Regex) (RegexReplace).
 - When it does not apply: each word is replaced with a different target (image → A, photo → B).
-- Watch out: Replace Text is case-sensitive and does not look at word boundaries. Replace Text (Regex)'s case_insensitive is on by default, so to keep it the same as the original, turn it off. Adding `\b` to the pattern drops words like "images", and the result changes from the original. Which to choose is decided by meaning.
+- Watch out: Replace Text is case-sensitive and does not look at word boundaries. Replace Text (Regex)'s case_insensitive is on by default, so to keep it the same as the original, turn it off. Adding `\b` to the pattern drops words like "images", and the result changes from the original.
 - Where verified: comfy_extras/nodes_string.py (StringReplace, RegexReplace).
 
 ### If an instruction and the body text are joined and fed into Generate Text, put the instruction in system_prompt
@@ -158,15 +157,15 @@ After:  A → B
 - Watch out: Preview as Text also has a STRING output, but do not connect anything onward from it (that would put it back in the flow).
 - Where verified: comfy_extras/nodes_preview_any.py (the input `source` accepts anything).
 
-### Remove outputs that only decode and show the result of an intermediate stage
+### Remove the decode of a picture that is still being drawn
 
 ```
-Before: KSampler(stage 1) → VAE Decode → Save Image / Preview Image   (an intermediate picture before it has finished drawing)
-        KSampler(stage 1) → … → KSampler(stage 2) → …
-After:  KSampler(stage 1) → … → KSampler(stage 2) → …
+Before: KSamplerAdvanced(steps 0–10 of 20) → VAE Decode → Preview Image
+        KSamplerAdvanced(steps 0–10 of 20) → KSamplerAdvanced(steps 10–20 of 20) → …
+After:  KSamplerAdvanced(steps 0–10 of 20) → KSamplerAdvanced(steps 10–20 of 20) → …
 ```
 
-- It has nothing to do with the final result and only makes things heavier by the decode. Remove it and write it in the report.
+- The picture still has noise left in it, so there is nothing to see; the decode only makes the run heavier. Remove it.
 
 ## Reusing the latent
 
@@ -184,17 +183,19 @@ After:  reference image → VAE Encode → (edit conditioning), sampler.latent_i
 
 ## Branches and options
 
-### A switch that chooses one from candidate values (resolutions, prompts, and so on) is kept with Get Item From List or Create List
+### A switch that chooses one of the author's candidates is kept with Branch
 
 ```
-Before: candidate values A, B, C (resolutions, prompts, and so on) → (a switch that chooses one of several) → …
-After:  candidates A, B, C → Create List → Get Item From List(index) → …   (choose by number)
-        candidates A, B, C → Create List → …                              (run them all at once)
+Before: candidates A, B, C (resolutions, prompts, generated images, and so on) → (a switch that chooses one of several) → …
+After:  candidates A, B, C → Branch (type BranchNode; each input renamed for what it is; choose by name) → …   (only the chosen one runs)
+        candidates A, B, C → Create List → …                                              (run them all at once)
 ```
 
+- First decide whether the candidates are things to split (content.md, Split): Branch is for a choice inside one task.
 - Keep the ability to choose as a whole. Do not keep only the one that is currently chosen.
-- A switch that chooses between ways of doing it is merged into the one the workflow's author chose, as in "Split" in content.md.
-- Where verified: comfy_extras/nodes_toolkit.py (Create List, Get Item From List). Whether the type of the chosen value matches where it plugs in is `canvas check`.
+- Its type in object_info is `BranchNode` (`add BranchNode`). In a ComfyUI that has no BranchNode, use Create List → Get Item From List(index) (it runs every candidate).
+- Value nodes wired into a Branch or a Create List as candidates are not value nodes with a single target.
+- Where verified: comfy_extras/nodes_logic.py (Branch: only the chosen input is evaluated; inputs renamed by double-clicking them), comfy_extras/nodes_toolkit.py (Create List, Get Item From List). Whether the type of the chosen value matches where it plugs in is `canvas check`.
 
 ### Return a build that restricts the output's resolution or shape for no reason to the standard form
 
@@ -204,7 +205,7 @@ After:  Empty Latent Image → sampler.latent_image
 ```
 
 - Write in the report that it was returned.
-- When it does not apply: values or builds the author chose on purpose (hand-arranged sigmas, and so on).
+- When it does not apply: values the author chose on purpose (hand-arranged sigmas, and so on).
 - How to verify: in the node's source, how that output is decided (in this example, the latent's resolution).
 
 ## Turning custom nodes into core

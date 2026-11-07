@@ -150,10 +150,28 @@ class Canvas:
                 + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
 
 
+_WIDGET_INFO = {}
+
+
 def widget_info(n, oi):
     info = oi.get(n.get("type"))
     if not info:
         return [], set()
+    # the same node type with the same values gives the same names: computed once (the checks ask millions of times)
+    try:
+        key = (id(info), repr(n.get("widgets_values")))
+    except Exception:
+        key = None
+    hit = _WIDGET_INFO.get(key) if key else None
+    if hit is not None and hit[0] is info:
+        return list(hit[1]), set(hit[2])
+    names, grow = _widget_info(info, n)
+    if key:
+        _WIDGET_INFO[key] = (info, list(names), set(grow))
+    return names, grow
+
+
+def _widget_info(info, n):
     names = comfy_schema.widget_names(info, n.get("widgets_values"))
     grow = set()
     for nm, spec, _ in comfy_schema.ordered_input_specs(info):

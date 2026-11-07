@@ -15,9 +15,9 @@ The understanding of the workflow, written before building (`$W/understanding.md
 - What it does (from what comes out at the end and what the user wants to do; do not mistake an intermediate means for the goal). What the user puts in and gets out.
 - The core, and the base form (t2i / i2i / t2v …, the kind of sampler, CFG, how the model is loaded). Pre- and post-processing added to the base. Disabled functions.
 - Values (values changed on each generation and values that do not change once decided; which are handed out from one). Models.
-- The table of custom nodes (one by one. For each function: "the value in this workflow, the default value, whether core can do it". Whether the part core cannot do changes the shape of the output. Whether to keep it or use core).
+- The table of custom nodes (one by one. For each function: "the value in this workflow, the default value, whether core can do it". Whether core does the same thing the same way. Whether to keep it or use core).
   - For ones in replacements.md, copy that row.
-  - For ones not there, always look at the "core nodes with similar names" that `canvas open` gives, and check in the source.
+  - For ones not there, always look at the "core nodes with names close to" that `canvas open` gives, and check in the source.
 - Groupings (which nodes form one grouping; units of work, and units of role such as loader, text encoder, sampler).
 - For every node: what it does with its values here (content.md, "Read before deciding"). Then: things that look like the author's mistakes, processing that does nothing, candidates to remove and candidates to replace, and why.
 
@@ -30,10 +30,11 @@ Read the author's Notes, group names and titles (`canvas src words`) after writi
 
 ## D. What you do not know
 
-If there is someone to ask, ask. If you cannot ask, lean towards keeping, and report it.
+The way it is built is not kept for this reason.
 
 ## E. Candidates for Notes
 
 - Explanations the user needs.
 - The author's techniques (ones with the author's words).
-- Warnings about puzzling processing that was kept.
+- What the lines of techniques.md and replacements.md say to write in a Note.
+- Puzzling processing that could not be fixed, and why.

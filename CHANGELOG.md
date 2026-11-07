@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.4 (2026-11-07)
+
+The rules were untangled into one set: sentences that contradicted each other were merged, and what stays undecided is shown as worked examples instead of rules.
+
+- Fixed (values were changed silently):
+  - A text of several lines given to `set` had its line breaks written as the two characters `\n`. Give it as `<widget>=@<file>` (the path from the current folder); a value holding `\n` stops, and so does a missing file.
+  - Inside a subgraph holding a custom node that is not installed, values from outside were not written in, and the old defaults ran. The widget order is now read from the node's inputs.
+  - `canvas diff` missed a changed value on a widget turned into an input (the old value stayed), and a seed changed from `fixed`.
+- New: `rail <A>.<out> … move <unit> to …` moves the source's unit so its output is at the rail height, instead of a Reroute raising the wire. Rails above and below keep their order and clearance.
+- `rail … below <a node that grows>` runs below the room the node grows into. A Reroute on a rail stays in its column; it no longer steps aside.
+- Content:
+  - A node is replaced by core only when it is the same calculation. Ultimate SD Upscale becomes core's tiles (the seams and the size may differ a little; the report says so). A model of another size is another model: it is kept and the core way is suggested in a Caution Note.
+  - A value is fixed only when something written shows it is wrong (the author's words, or what the model or node asks for); the report names it.
+  - The decode of a picture still being drawn is removed; other previews and saves are kept.
+  - Color Transfer is used only when the original uses it.
+  - A speed-up node left with nothing to attach to gets its core counterpart, bypassed, with how to turn it on.
+- The conversation report at the end is short (references/report.md): the folder and each file with what it makes, what was changed that makes the result differ (with the reason when needed), other ways it could be built when there are any, and a few other notes. Nothing is asked while working; what does not change the result is not told.
+- The exported file is named `<original>_readable.json`, and `<original>_readable_<what it does>.json` when the workflow was split.
+- The overview and models Note stands at the upper left, its top edge on the topmost node or group frame. Notes never move the layout.
+- Branch is written as the frontend writes it (named inputs, the chosen name and the list); a third input no longer loses the earlier names.
+- Painter is not used; the mask editor of Load Image is. A save that only writes generation data into the image becomes core's Save Image.
+- `canvas open` names deprecated nodes. `canvas models` drafts the list of custom nodes for the models Note.
+- `canvas report` is faster (about two thirds of the time), and the report page was redesigned.
+- Smaller fixes: autogrow inputs accept the short names shown on screen (`a`, `image_1`); a Note named like a block, or placed against the group it falls in, no longer stops the layout; the models tree no longer doubles a folder name.
+
 ## 0.0.3 (2026-10-29)
 
 - Fixed: values of VideoHelperSuite nodes (`VHS_`) read from an API-format workflow, or added on the canvas, landed in the wrong widgets (for example `frame_load_cap` in `skip_first_frames`). They are now written by name, as VideoHelperSuite saves them.

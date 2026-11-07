@@ -182,15 +182,28 @@ def model_note_text(models):
         top = tree
         for x in _parts(d) or [d]:    # a "/" in the folder name ("ultralytics/bbox") nests too
             top = top.setdefault(x + "/", {})
+        dp = _parts(d)
         for m in ms:
             t = top
             *sub, base = _parts(m["name"])
+            # a name that starts with the folder's last parts ("bbox/face.pt" in "ultralytics/bbox"): those parts are
+            # the folder itself, not one more level
+            k = next((k for k in range(min(len(sub), len(dp)), 0, -1) if dp[-k:] == sub[:k]), 0)
+            sub = sub[k:]
             for x in sub:
                 t = t.setdefault(x + "/", {})
             t[base] = None
     lines += ["", "```text", "📂ComfyUI/", "└── 📂models/"]
     lines += _tree_lines(tree, "    ")
     lines.append("```")
+    return "\n".join(lines)
+
+
+def custom_nodes_text(packs):
+    """The custom nodes part of the model Note, below the models: one line per pack, linked when its place is known."""
+    lines = ["## custom nodes", ""]
+    for (label, url, _), names in packs.items():
+        lines.append(f"- [{label}]({url}): {', '.join(names)}" if url else f"- {label} : {', '.join(names)}")
     return "\n".join(lines)
 
 
