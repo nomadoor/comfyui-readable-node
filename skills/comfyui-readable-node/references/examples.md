@@ -1,6 +1,7 @@
 # Examples
 
 How the rules applied in real workflows: "Layout" under the section headings of readable-form.md, then "Content" and "Notes" by topic. "Before" is a form an agent built, "After" the corrected form, "Layout" a layout arranged by hand. In the same situation, lean towards this form.
+An example marked **Exception (<rule>)** is a correct counter-example: there that rule gives way. Every other example is a rule applied as written.
 
 ## Layout
 
@@ -22,6 +23,24 @@ After: Save Image, which matters more, stands next to VAE Decode; Compare where 
        The wire to Compare passed behind Save Image: one of them steps down so the wire passes above
        When Compare's other input comes on a rail, Compare is set at the rail's height so no Reroute is needed before it
 After: a stage whose result is made by another node than VAE Decode (Merge List of Tiles to Image after redrawing tiles): Save Image next to that node
+```
+
+**One latent node between two samplers (Hires.fix: KSampler → Upscale Latent By → KSampler)**
+```
+Before: Upscale Latent By set lower so its wire into the second KSampler was level; the longer wire from the first KSampler slanted
+After:  Upscale Latent By on the eye line, its top edge on the KSamplers'; the longer wire from the first KSampler is level, the short one into the second KSampler slants
+```
+
+**A stage whose conditioning node stands just left of its sampler (MiniMax H3 hires fix, image to video)**
+```
+Before: the chain (Separate AV Latent → Latent Upscaler → Concat AV Latent) at the height of the second KSampler's latent slot, the wire from the first KSampler slanting into it
+After:  MiniMax H3 Image to Video just left of the second KSampler, its positive level; the chain below that column (under Conditioning Zero Out)
+```
+
+**A stage with SamplerCustomAdvanced taking the previous stage's latent (KSampler → Upscale Latent By → SamplerCustomAdvanced)**
+```
+Before: Upscale Latent By at the first KSampler's height, left of the sources column, its wire from the KSampler level
+After:  Upscale Latent By at the bottom of the sources column (the latent is the last input); both its wires slant
 ```
 
 **Stages in a row (t2i → tiled upscale, t2i → Hires.fix → upscale)**
@@ -78,9 +97,9 @@ After:  WanImageToVideo top-aligned with CLIP Text Encode; the main flow continu
 ```
 After: its sources in one column on its left, top to bottom in input order, right edges aligned (`inputs`)
 Before: the model row (… → Skip Layer Guidance → EasyCache) ending at the right edge of the text encoders, one column left of WanFunControlToVideo, the sampler's source column
-After:  the model row ending at WanFunControlToVideo's right edge; when the gap left of that column is widened, the model row moves with it (Wan 2.1 Fun Control)
+After:  the model row ending at WanFunControlToVideo's right edge; when the gap left of that column is wide, the model row ends there too (Wan 2.1 Fun Control)
 Before: WanSoundImageToVideo's 9 input slots in a row left 700px between it and the prompt column
-After:  Load Image and Load Audio pulled close to the node that receives them, even at the cost of some wire overlap
+After:  Load Image and Load Audio pulled close to the node that receives them
 ```
 
 **The row of an image chain**
@@ -107,9 +126,10 @@ Layout: the image Switches of all stages, the loader and the saver at one height
 ```
 
 **Layers, same-shape chains**
-- Nodes that stack layers (Add Layer → Create Layered Image) go from the bottom up, background at the bottom. Only these.
+- **Exception (sources in the order of the inputs)**: nodes that stack layers (Add Layer → Create Layered Image) go from the bottom up, background at the bottom. Only these.
 - Two chains of the same shape (Wan 2.2 high and low noise; two AnimateDiff keyframe chains): the one for the later node on top, so their wires do not cross.
-- Several large loading nodes (Load Image, Load Video) into one node: a staircase, the first at the upper left at its slot's height, the next lower right. Stacked in one column they make the workflow too tall.
+- **Exception (sources in the order of the inputs)**: in Wan Animate, WanAnimateToVideo's face_video slot is above pose_video, yet the chain that cuts the face out with SDPose (SDPose Face Bounding Boxes → Crop By BBoxes) stands below the DWPose chain.
+- **Exception (sources in one column)**: several large loading nodes (Load Image, Load Video) into one node: a staircase, the first at the upper left at its slot's height, the next lower right. Stacked in one column they make the workflow too tall.
 
 **Spacing**
 ```
@@ -122,6 +142,7 @@ After:  no wider space to a wired neighbour without a reason
 ```
 Layout: basic t2i: Load VAE above the KSampler (it is first used by VAE Decode)
 Layout: Load VAE next to the VAE Encode of the bottom row when it is first used there (Anima pose, Krea2 head swap, SeedVR2)
+Layout: an edit (Flux.2 Klein, Anima with Klein): Load VAE below the text encoder; without a Reroute, between Conditioning Zero Out and Resize Image
 Before: a second Load Checkpoint used only from the third stage, at the far left with a long diagonal wire
 After:  in the column left of its first user
 Before: Load Upscale Model at the far left, feeding one node
@@ -147,10 +168,10 @@ Layout: a single stage: Load Checkpoint just left of the text encoders (its CLIP
 
 ### 7. Groups and colour
 
-- A t2i with IPAdapter has no group.
+- A two-stage LTX workflow has three groups (stage 1, stage 2, decode). A t2i with IPAdapter has no group.
 - A Detail pass whose every node was coloured green inside its group: the group already guides the eye.
 - Colour split finely (SCAIL 2): the core green; taking the person in the input video pale_blue; taking the person in the reference image cyan; CLIP Vision brown.
-- In a two-stage LTX workflow, the decode of the Stage 1 result and the decode after upscaling are different outputs: they were split out of one "Decode" group.
+- In that two-stage LTX workflow, when the Stage 1 result is decoded too, that decode belongs to the stage 1 group; only the decode after upscaling is in the decode group.
 
 ### 8. Names
 

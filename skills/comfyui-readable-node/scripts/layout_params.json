@@ -15,13 +15,13 @@
   "GAP_WIDE": {
     "value": 120,
     "unit": "px",
-    "meaning": "Gap the canvas gives two columns when wires cross each other CROSS_WIDEN times or more in the gap between them (the agent does not choose it)",
+    "meaning": "Gap the plan writes (gap wide) between two columns where wires cross each other CROSS_WIDEN times or more; the check names such a gap",
     "source": "Twice H_GAP. The skill author (nomadoor): a crowded gap is about twice the usual"
   },
   "CROSS_WIDEN": {
     "value": 3,
     "unit": "crossings",
-    "meaning": "Number of wire crossings inside the gap between two columns from which the canvas widens that gap to GAP_WIDE",
+    "meaning": "Number of wire crossings inside the gap between two columns from which the check names that gap (write gap wide)",
     "source": "The same measurement: gaps with 3 or more crossings are about 90 wide in hand-made layouts. Decided by the skill author (nomadoor)"
   },
   "RAIL_GAP": {

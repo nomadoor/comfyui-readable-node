@@ -117,7 +117,7 @@ class FinishTest(unittest.TestCase):
         with self.assertRaises(C.Stop) as e:
             self.review(answer="fixed")
         self.assertIn("same as in the picture", str(e.exception))
-        self.review(answer='left: "preparation further left than the loaders" applies')   # leaving it needs no change
+        self.review(answer='left: "preparation further left than the loaders" applies — reviewer: not Bad')   # leaving it needs no change
 
     def test_stale_review_stops_finish(self):
         self.do(f"export {self.out / 't.json'}")
@@ -140,11 +140,11 @@ class FinishTest(unittest.TestCase):
         self.do(f"export {self.out / 't.json'}")
         f = self.w / "review_t.md"
         f.write_text("| rule | nodes | what to change | answer |\n|---|---|---|---|\n"
-                     "| readable-form.md: Left to right. | 1 | swap them | | left: “preparation further left than the loaders” |\n", encoding="utf-8")
+                     "| readable-form.md: Left to right. | 1 | swap them | | left: “preparation further left than the loaders” — reviewer: not Bad |\n", encoding="utf-8")
         self.do(f"review {f}")
         row = C.Work(self.w).current().s["review"]["rows"][0]
         self.assertEqual((row["rule"], row["nodes"], row["change"], row["answer"]),
-                         ("readable-form.md: Left to right.", "1", "swap them", "left: “preparation further left than the loaders”"))
+                         ("readable-form.md: Left to right.", "1", "swap them", "left: “preparation further left than the loaders” — reviewer: not Bad"))
 
     def test_review_rows_with_a_pipe_in_the_rule_and_a_missing_header(self):
         self.do(f"export {self.out / 't.json'}")
@@ -154,7 +154,7 @@ class FinishTest(unittest.TestCase):
             self.do(f"review {f}")
         self.assertIn("no header row", str(e.exception))
         f.write_text("| rule | nodes | what to change | answer |\n|---|---|---|---|\n"
-                     "| readable-form: use `put … right|left` | 1 99 | put it right | left: 「preparation further left than the loaders」 |\n", encoding="utf-8")
+                     "| readable-form: use `put … right|left` | 1 99 | put it right | left: 「preparation further left than the loaders」 — reviewer: not Bad |\n", encoding="utf-8")
         out = self.do(f"review {f}")
         self.assertTrue([x for x in out if "put … right|left" in x], out)
         self.assertTrue([x for x in out if "not a node of the exported workflow" in x and "99" in x], out)
@@ -186,8 +186,10 @@ class FinishTest(unittest.TestCase):
         head = "| rule | nodes | what to change | answer |\n|---|---|---|---|\n"
         for rows, word in (("| r | 1 | a | left: there is no room |\n", "quoted line"),
                            ('| r | 1 | a | left: "a line that is in no rule file" |\n', "quoted line"),
-                           ('| r | 1 | a | left: "preparation further left than the loaders" |\n| s | 1 | b | left: "preparation further left than the loaders" |\n',
-                            "same words")):
+                           ('| r | 1 | a | left: "preparation further left than the loaders" — reviewer: not Bad |\n| s | 1 | b | left: "preparation further left than the loaders" — reviewer: not Bad |\n',
+                            "same words"),
+                           ('| r | 1 | a | left: "preparation further left than the loaders" |\n', "same reviewer first"),
+                           ('| r | 1 | a | left: "preparation further left than the loaders" — reviewer: Bad |\n', "Fix it")):
             f.write_text(head + rows, encoding="utf-8")
             with self.assertRaises(C.Stop) as e:
                 self.do(f"review {f}")

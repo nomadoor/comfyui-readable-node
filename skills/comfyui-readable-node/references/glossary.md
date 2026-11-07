@@ -40,7 +40,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **rail**: a value, or several side by side, carried far or to several places with Reroutes (`rail`).
 - **Reroute**: a small node that relays a wire. Used for rails.
 - **raising / lowering Reroute**: the Reroute that takes a rail from its source's output up or down to the height the rail runs at, and the one that takes it from the rail down or up into a target.
-- **column gap / row gap**: the gap the canvas keeps between columns and between nodes stacked in a column (layout_params.json, H_GAP and V_GAP). A gap where wires cross several times is widened (GAP_WIDE).
+- **column gap / row gap**: the gap the canvas keeps between columns and between nodes stacked in a column (layout_params.json, H_GAP and V_GAP). A gap where wires cross three times or more is made wide in the plan (`gap wide`, GAP_WIDE); the check names it.
 - **rail gap**: the vertical distance the canvas keeps between two rails (layout_params.json, RAIL_GAP).
 - **title band**: the strip at the top of a group frame where its title is written.
 - **step (staircase)**: a node placed just below the wire that passes it (`put <node> right <ref> step`), so the wire runs on above it.

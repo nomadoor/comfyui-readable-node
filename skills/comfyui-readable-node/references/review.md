@@ -11,6 +11,7 @@ Another agent reviews each exported workflow. You do not judge your own layout: 
 3. Fix the rows one at a time: change the plan (or the build) for that row, run `canvas layout`, and keep the change if the row's form is gone and the check list gained no new item; otherwise `canvas undo` and try another way. Then export again.
    When you think a row itself is wrong (the reviewer misread the picture), do not answer it yourself: send that row and why to the same reviewer, once. It withdraws the row (moves it under the table as "Withdrawn: <rule> — <why>") or keeps it. If the same reviewer cannot be reached, answer the row as below.
    Answer every row in the last column, once: `fixed`, or `left: <why, in the user's language>`. A row is left only with a quoted line of readable-form.md or notes.md, written between quotes as it is in the file (the whole line or a part of it, eight characters or more, copied exactly): the Fine line that applies, or the bold line of the rule that fixing it would break. Each left row gives its own reason. `canvas review` stops on a left row without such a quote. Do not edit the reviewer's rows or its `Checked:` line.
+   Send every left row, with your answer, to the same reviewer. It looks only at whether the form in the picture is the Bad of that row's rule. If it is, the row is not left: fix it. Write its reply after your answer: `reviewer: not Bad`, or `reviewer: not reached` when the same reviewer cannot be reached (`left: "<quoted line>" <why> — reviewer: not Bad`). `canvas review` stops on a left row without it, and on one where the reviewer said Bad.
 4. `canvas use <canvas>`, `canvas review $W/review_<canvas>.md`, then `canvas report` again. The report page shows every row with your answer. `canvas finish` stops while a review is missing, a row is unanswered, or the canvas changed after its review was registered; `review` stops when a row says `fixed` but nothing changed since the picture the reviewer saw. Each canvas is reviewed once: after fixing the rows, do not start another review.
 
 ## The brief (give it as written)
@@ -35,6 +36,7 @@ Write <$W/review_<canvas>.md> in <the user's language>, keeping node names, rule
 
 Leave the answer column empty. If nothing breaks a rule, write "No findings." instead of the table.
 If the builder later sends you a row it thinks is wrong, look again once: withdraw it (move it under the table as "Withdrawn: <rule> — <why>", above the "Checked:" line) or keep it, and reply in one line.
+If the builder sends you a row it answered "left", look only at whether the form in the picture is the Bad of that row's rule, and reply in one line: "Bad: fix it" or "not Bad: left stands".
 End the file with: "Checked: readable-form.md <n> rules, notes.md <n> rules".
 Reply with one line: the number of rows and the "Checked:" line.
 ```

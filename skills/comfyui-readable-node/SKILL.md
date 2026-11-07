@@ -47,7 +47,7 @@ The rules in the references serve these principles and goals; how to read a rule
 **What the canvas does (things with exactly one answer)**: node sizes, calculating positions, the default colours of loaders, LoRAs and Notes, group padding, checks (check), export. When reading the original (`canvas open`), it fixes what has exactly one way of fixing, such as turning wireless links back into wires, and applying the official node-replacement list and replacements that give the same calculation. It returns everything it did.
 
 **How to use the canvas**
-- Do not write coordinate numbers. Point at things: "put it to the right of A", "make the wire horizontal", "align the top edges". The canvas does the calculation.
+- Do not write coordinate numbers. Point at things: "put it to the right of A", "make the wire horizontal", "align the top edges". The canvas does the calculation. Only what you point at moves.
 - Every call of the tool takes time. Do in one call what can be done in one call (build with `run` on build.txt, arrange with `layout` on layout.txt). Read things side by side, at once.
 
 ## What not to do
