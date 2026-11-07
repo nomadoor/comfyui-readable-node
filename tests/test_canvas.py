@@ -1117,6 +1117,13 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         cv = self.cv()
         self.assertGreaterEqual(G.rect(cv.node("13"))[0] - G.rect(cv.node("22"))[2], C.H_GAP)
 
+    def test_widening_a_column_keeps_a_wide_gap(self):
+        # as above, with `gap wide` between the columns: the gap stays wide
+        plan = ["put 22 origin", "put 26 below 22 left", "put 13 right 22 gap wide"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        self.assertGreaterEqual(G.rect(cv.node("13"))[0] - G.rect(cv.node("22"))[2], C.GAP_WIDE)
+
     def test_a_loader_left_of_a_node_widens_to_the_left_and_keeps_its_gap(self):
         # Load CLIP placed left of its text encoder, then the loaders' width grows (another loader is wider): widening the
         # CLIP loader to the right would eat the gap to the encoder, so it widens to the left

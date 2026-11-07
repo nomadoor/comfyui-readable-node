@@ -483,7 +483,7 @@ class Canvas:
                     if to_left:
                         n["pos"][0] -= cand - base
                     if not (self.placed(n) and (any(rect_overlap(G.rect(n), G.rect(m))
-                                                    or self._gap_eaten(before, G.rect(n), G.rect(m))
+                                                    or self._gap_eaten(n, before, G.rect(n), m)
                                                     for m in self.s["nodes"] if m is not n and self.placed(m))
                                                 or self.sticks_out(n, base))):
                         n["loader_base"] = base
@@ -548,7 +548,7 @@ class Canvas:
                 n["size"][0] = w
                 if right:
                     n["pos"][0] -= d
-                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(before, G.rect(n), G.rect(m))
+                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(n, before, G.rect(n), m)
                        for m in self.s["nodes"] if m is not n and self.placed(m)):
                     n["size"][0] -= d
                     if right:
@@ -560,10 +560,11 @@ class Canvas:
                     n["col_x"] = n["pos"][0]
                 self.changed.add(n["id"])
 
-    @staticmethod
-    def _gap_eaten(before, after, m):
-        """Widening a node from rect before to rect after brings it closer than H_GAP to m, beside it in the same rows
-        (the gap between two columns stays the gap the layout gave them). A gap already narrower is not made narrower."""
+    def _gap_eaten(self, n, before, after, mn):
+        """Widening node n from rect before to rect after brings it closer than H_GAP to node mn, beside it in the same
+        rows (closer than GAP_WIDE where the plan wrote `gap wide` between them): the gap between two columns stays the
+        gap the layout gave them. A gap already narrower is not made narrower."""
+        m = G.rect(mn)
         if min(after[3], m[3]) - max(after[1], m[1]) <= 0:
             return False
         if m[0] >= before[2]:
@@ -572,7 +573,9 @@ class Canvas:
             old, new = before[0] - m[2], after[0] - m[2]
         else:
             return False
-        return new < old and new < min(old, H_GAP)
+        wide = any((n["id"] in a and mn["id"] in b) or (n["id"] in b and mn["id"] in a)
+                   for a, b in self.s.get("wide_pairs", []))
+        return new < old and new < min(old, GAP_WIDE if wide else H_GAP)
 
     def same_column_loader_width(self):
         """Loaders stacked in one column (any node whose type name contains Loader and that takes no wire: IPAdapter Model
@@ -609,7 +612,7 @@ class Canvas:
                 n["size"][0] = w
                 if right:
                     n["pos"][0] -= d
-                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(before, G.rect(n), G.rect(m))
+                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(n, before, G.rect(n), m)
                        for m in self.s["nodes"] if m is not n and self.placed(m)):
                     n["size"][0] -= d
                     if right:
