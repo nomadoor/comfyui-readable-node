@@ -467,24 +467,35 @@ class Canvas:
             left = self.placed(n) and any(abs(G.rect(m)[2] - G.rect(n)[2]) < 1 and self.stacked(n, m) for m in self.s["nodes"]
                                           if m is not n and self.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES
                                           and "Loader" not in (m.get("type") or "") and not self.is_model_loader(m))
-            # widest first; if that overlaps a neighbour, at least the minimum width; else leave it as it is
+            # widest first; if that overlaps a neighbour, at least the minimum width; else leave it as it is. A loader
+            # not kept on a right edge widens to the right, or to the left when widening to the right would eat the gap
+            # to the node right of it (a loader placed left of a node keeps its gap to that node)
+            before, done = G.rect(n) if self.placed(n) else None, False
+            # a loader on the left edge of a node stacked right below or above it keeps that edge: it never widens left
+            on_left_edge = self.placed(n) and any(abs(G.rect(m)[0] - G.rect(n)[0]) < 1 and self.stacked(n, m)
+                                                  for m in self.s["nodes"] if m is not n and self.placed(m)
+                                                  and m.get("type") not in {"Reroute"} | NOTE_TYPES)
             for cand in (w, max(base, LOADER_MIN_W)):
-                if cand == base:
+                if cand == base or done:
                     break
-                n["size"][0] = cand
-                if left:
-                    n["pos"][0] -= cand - base
-                if not (self.placed(n) and (any(rect_overlap(G.rect(n), G.rect(m)) for m in self.s["nodes"]
-                                                if m is not n and self.placed(m)) or self.sticks_out(n, base))):
-                    n["loader_base"] = base
-                    if left:
-                        n["loader_shift"] = cand - base
-                        n["loader_x"] = n["pos"][0]
-                    self.changed.add(n["id"])
-                    break
-                n["size"][0] = base
-                if left:
-                    n["pos"][0] += cand - base
+                for to_left in ((True,) if left else (False,) if on_left_edge else (False, True)):
+                    n["size"][0] = cand
+                    if to_left:
+                        n["pos"][0] -= cand - base
+                    if not (self.placed(n) and (any(rect_overlap(G.rect(n), G.rect(m))
+                                                    or self._gap_eaten(before, G.rect(n), G.rect(m))
+                                                    for m in self.s["nodes"] if m is not n and self.placed(m))
+                                                or self.sticks_out(n, base))):
+                        n["loader_base"] = base
+                        if to_left:
+                            n["loader_shift"] = cand - base
+                            n["loader_x"] = n["pos"][0]
+                        self.changed.add(n["id"])
+                        done = True
+                        break
+                    n["size"][0] = base
+                    if to_left:
+                        n["pos"][0] += cand - base
         self.same_column_loader_width()
         self.same_column_width()
 
@@ -533,10 +544,12 @@ class Canvas:
                 d = w - n["size"][0]
                 if d <= 0 or n.get("width_set"):
                     continue
+                before = G.rect(n)
                 n["size"][0] = w
                 if right:
                     n["pos"][0] -= d
-                if any(rect_overlap(G.rect(n), G.rect(m)) for m in self.s["nodes"] if m is not n and self.placed(m)):
+                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(before, G.rect(n), G.rect(m))
+                       for m in self.s["nodes"] if m is not n and self.placed(m)):
                     n["size"][0] -= d
                     if right:
                         n["pos"][0] += d
@@ -546,6 +559,20 @@ class Canvas:
                 if n["col_shift"]:
                     n["col_x"] = n["pos"][0]
                 self.changed.add(n["id"])
+
+    @staticmethod
+    def _gap_eaten(before, after, m):
+        """Widening a node from rect before to rect after brings it closer than H_GAP to m, beside it in the same rows
+        (the gap between two columns stays the gap the layout gave them). A gap already narrower is not made narrower."""
+        if min(after[3], m[3]) - max(after[1], m[1]) <= 0:
+            return False
+        if m[0] >= before[2]:
+            old, new = m[0] - before[2], m[0] - after[2]
+        elif m[2] <= before[0]:
+            old, new = before[0] - m[2], after[0] - m[2]
+        else:
+            return False
+        return new < old and new < min(old, H_GAP)
 
     def same_column_loader_width(self):
         """Loaders stacked in one column (any node whose type name contains Loader and that takes no wire: IPAdapter Model
@@ -578,10 +605,12 @@ class Canvas:
                 d = w - n["size"][0]
                 if d <= 0:
                     continue
+                before = G.rect(n)
                 n["size"][0] = w
                 if right:
                     n["pos"][0] -= d
-                if any(rect_overlap(G.rect(n), G.rect(m)) for m in self.s["nodes"] if m is not n and self.placed(m)):
+                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(before, G.rect(n), G.rect(m))
+                       for m in self.s["nodes"] if m is not n and self.placed(m)):
                     n["size"][0] -= d
                     if right:
                         n["pos"][0] += d

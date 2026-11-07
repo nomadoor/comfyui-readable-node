@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (the version number is set when it is published)
+## 0.0.5 (2026-11-08)
 
 Layout came out worse in 0.0.4: rules lost while untangling sentences, and the canvas telling the agent fixes it could not make. This puts them back and makes the canvas and the rules agree.
 
@@ -14,6 +14,7 @@ Layout came out worse in 0.0.4: rules lost while untangling sentences, and the c
 - `canvas guide` prints every line uncut; `canvas core` lists the Layout examples for the nodes of its draft; the last line of `canvas layout` names what is left to fix.
 - Review: a row answered `left` goes back to the reviewer, whose reply is written after the answer (`reviewer: not Bad`); `canvas review` stops without it or when the reviewer said Bad.
 - A short one-line text in a field that is not a prompt (an expression, a regex) gets the frontend's smallest field.
+- Widening a column or a loader to one width never eats the gap beside it: a loader placed left of a node widens to the left.
 - `set <widget>=@<file>` stops when the file is missing (the path is read from the current folder).
 - The conversation report at the end follows references/report.md (files and what each makes, what was changed that makes the result differ, other ways it could be built, other notes).
 - Examples are marked "Exception (<rule>)" where a rule gives way.

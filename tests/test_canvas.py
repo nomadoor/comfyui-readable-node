@@ -1109,6 +1109,28 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         cv = self.cv()
         self.assertEqual([cv.node(i)["size"][0] for i in ("42", "26", "22")], [400, 270, 270])
 
+    def test_widening_a_column_to_the_right_keeps_the_gap_to_the_next_column(self):
+        # a left-aligned column (BasicGuider 225 over FluxGuidance 270) with a node right of the narrower one: the
+        # narrower is not widened into the gap between the columns
+        plan = ["put 22 origin", "put 26 below 22 left", "put 13 right 22"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        self.assertGreaterEqual(G.rect(cv.node("13"))[0] - G.rect(cv.node("22"))[2], C.H_GAP)
+
+    def test_a_loader_left_of_a_node_widens_to_the_left_and_keeps_its_gap(self):
+        # Load CLIP placed left of its text encoder, then the loaders' width grows (another loader is wider): widening the
+        # CLIP loader to the right would eat the gap to the encoder, so it widens to the left
+        plan = ["put 6 origin", "put 11 left 6", "put 12 above 6 right"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        cv.node("12").pop("loader_base", None)
+        cv.node("12")["size"][0] = 360
+        cv.node("12")["width_set"] = True
+        cv.same_loader_width()
+        clip, enc = cv.node("11"), cv.node("6")
+        self.assertEqual(clip["size"][0], 360)
+        self.assertGreaterEqual(G.rect(enc)[0] - G.rect(clip)[2], C.H_GAP)
+
     def test_load_vae_above_the_sampler_keeps_its_left_edge_and_the_layout_is_stable(self):
         # Load VAE above the sampler, both 270 wide (narrower than the loader minimum): widening it to the left would put
         # its left edge off the sampler's, and to the right past the sampler, so it is not widened
