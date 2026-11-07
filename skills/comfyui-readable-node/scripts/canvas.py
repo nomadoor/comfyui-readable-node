@@ -1626,11 +1626,25 @@ def _chk_narrow(cv, c):
     return out
 
 
+def _only_the_curve_bulges(cv, l, nid):
+    """A wire whose curve bulges into a node standing in its target's column (a wire running far down into a Compare below
+    a Save Image), where the straight line from its output to its input passes behind nothing: the spline cannot avoid it,
+    so it is not a wire behind a node (readable-form.md, Wires)."""
+    t, n = cv.node(l["target_id"]), cv.node(nid)
+    if not (t and n and cv.placed(t) and cv.placed(n)):
+        return False
+    rt, rn = G.rect(t), G.rect(n)
+    if min(rt[2], rn[2]) - max(rt[0], rn[0]) <= 0:
+        return False
+    pts = cv.wire_pts(l)
+    return bool(pts) and not G.wire_hits([pts[0], pts[-1]], rn)
+
+
 @check_rule("wires behind nodes")
 def _chk_hidden(cv, c):
     out = []
     nodes, ws = c.nodes, c.ws  # noqa: F841
-    allh = hidden_wires(cv)
+    allh = [(l, nid) for l, nid in hidden_wires(cv) if not _only_the_curve_bulges(cv, l, nid)]
     hw = [(l, nid) for l, nid in allh
           if crosses_behind(cv, l, nid, allh) or _behind_output_node(cv, f"wire behind a node: x ({l['type']}) passes behind {nid}")]
     c.count["wires behind nodes"] = len(hw)

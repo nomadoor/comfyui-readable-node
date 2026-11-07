@@ -1117,6 +1117,18 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         cv = self.cv()
         self.assertGreaterEqual(G.rect(cv.node("13"))[0] - G.rect(cv.node("22"))[2], C.H_GAP)
 
+    def test_a_curve_bulging_into_the_node_above_its_target_is_not_a_wire_behind(self):
+        # VAE Decode's image into a Save Image far below another one in the next column: the straight line passes behind
+        # nothing, only the curve bulges into the upper Save Image
+        self.do("add SaveImage s2")
+        self.do("link 8.0 s2.images")
+        plan = ["put 8 origin", "put 9 right 8 top", "put s2 below 9 left gap 300"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        l = next(x for x in cv.s["links"] if x["target_id"] == "s2")
+        self.assertIn((l["id"], "9"), [(x["id"], nid) for x, nid in C.hidden_wires(cv)])
+        self.assertFalse([x for x in C.full_check(cv)[0] if "passes behind 9" in x])
+
     def test_widening_a_column_keeps_a_wide_gap(self):
         # as above, with `gap wide` between the columns: the gap stays wide
         plan = ["put 22 origin", "put 26 below 22 left", "put 13 right 22 gap wide"]

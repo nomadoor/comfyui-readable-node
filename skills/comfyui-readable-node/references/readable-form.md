@@ -36,6 +36,7 @@ How to read a rule: the bold line says what to do. **Why** names the principle o
 - Bad: a wire bent with Reroutes while neither its source nor its target was moved. One of a pair (positive and negative) on a rail and the other not. The same loader placed again for each stage. A rail that goes up and down. Two rails closer than the rail gap (a conditioning rail written just under the vae rail): the loaders heading the upper rails go up together, so the gap opens. A rail lifted off its source's output height by a Reroute where a line at that height would pass behind nothing (two values of Get Image Size raised to a height written in the rail line): the source stands at the height the rail runs, or the rail runs at the output height.
 - Fine: a rail inside or outside a group, off the group's title band. A rail of values (fps and so on) below the main flow.
 - Fine: wires passing behind a node that do not cross each other behind it (they come out in the order they went in).
+- Fine: a wire running far down whose curve bulges into a node in its target's column (a Compare below a Save Image), where a straight line from its output to its input would pass behind nothing: the curve cannot avoid it.
 - Fine: in the staircase of several large loading nodes into one node (examples.md), a wire that would pass behind the next loading node is carried on with Reroutes: the staircase is kept even when it needs more Reroutes.
 
 ## 4. Flow and position

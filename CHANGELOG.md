@@ -16,6 +16,7 @@ Layout came out worse in 0.0.4: rules lost while untangling sentences, and the c
 - A short one-line text in a field that is not a prompt (an expression, a regex) gets the frontend's smallest field.
 - Widening a column or a loader to one width never eats the gap beside it: a loader placed left of a node widens to the left.
 - A Reroute raising a wire to a rail stands on the left edge of the next column also across `gap wide`.
+- A wire whose curve only bulges into a node in its target's column (a straight line would pass behind nothing) is not a wire behind a node.
 - Load VAE or Load CLIP above a model loader: only meeting the model loader or its wires counts; crossing other wires does not.
 - `set <widget>=@<file>` stops when the file is missing (the path is read from the current folder).
 - The conversation report at the end follows references/report.md (files and what each makes, what was changed that makes the result differ, other ways it could be built, other notes).
