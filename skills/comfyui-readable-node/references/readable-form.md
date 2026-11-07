@@ -80,7 +80,7 @@ How to read a rule: the bold line says what to do. **Why** names the principle o
 
 **A loader stands in the column left of the node that first uses it.** Why: left to right; the wire from a loader is short and does not go back.
 - Bad: other columns between a loader and its first user. A loader at the far left that feeds only a later stage. A loader of one node's model (Load Upscale Model) away from that node. Load VAE or Load CLIP above the model loaders.
-- Fine: Load VAE or Load CLIP above a model loader where neither their nodes nor their wires can meet (no wire crosses another, nothing overlaps): then which is higher does not matter (Load VAE above the sampler).
+- Fine: Load VAE or Load CLIP above a model loader where neither it nor its wires meet the model loader or the model loader's wires (no crossing, nothing passing behind it): then which is higher does not matter (Load VAE above the sampler). Its wires crossing other wires (CLIP, conditioning) on the way down do not count.
 
 ## 6. Value nodes
 

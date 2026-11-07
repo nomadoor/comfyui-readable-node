@@ -7284,9 +7284,10 @@ def lane_nodes(lanes):
 
 def rail_raise_x(cv, ox1):
     """x of a raising Reroute: its left edge on the left edge of the column right of the source (as in hand-made layouts),
-    or half the column gap right of the source when there is no such column."""
+    or half the column gap right of the source when there is no such column. The column may stand up to a wide gap away
+    (`gap wide`), as for a lowering Reroute."""
     lefts = [G.rect(m)[0] for m in cv.s["nodes"] if cv.placed(m) and m.get("type") != "Reroute"
-             and ox1 + H_GAP / 3 <= G.rect(m)[0] <= ox1 + H_GAP + REROUTE_W / 2]
+             and ox1 + H_GAP / 3 <= G.rect(m)[0] <= ox1 + GAP_WIDE + REROUTE_W / 2]
     return min(lefts) if lefts else ox1 + H_GAP / 2
 
 

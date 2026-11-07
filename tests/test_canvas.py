@@ -1131,6 +1131,16 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.assertEqual(clip["size"][0], 360)
         self.assertGreaterEqual(G.rect(enc)[0] - G.rect(clip)[2], C.H_GAP)
 
+    def test_a_raising_reroute_stands_on_the_left_edge_of_the_column_across_a_wide_gap(self):
+        # Load VAE left of the sampler with `gap wide`, its wire raised to a rail above the sampler: the Reroute stands on
+        # the sampler's left edge, not in the middle of the gap
+        plan = ["put 13 origin", "put 8 right 13 wire", "put 10 left 13 gap wide", "rail 10.0 above 13 to 8.vae"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        rr = [n for n in cv.s["nodes"] if n.get("type") == "Reroute" and G.rect(n)[0] < G.rect(cv.node("13"))[0] + 1]
+        self.assertTrue(rr)
+        self.assertEqual(min(G.rect(n)[0] for n in rr), G.rect(cv.node("13"))[0])
+
     def test_load_vae_above_the_sampler_keeps_its_left_edge_and_the_layout_is_stable(self):
         # Load VAE above the sampler, both 270 wide (narrower than the loader minimum): widening it to the left would put
         # its left edge off the sampler's, and to the right past the sampler, so it is not widened
