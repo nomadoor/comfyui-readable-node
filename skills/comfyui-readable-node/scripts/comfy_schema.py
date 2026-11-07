@@ -23,6 +23,8 @@ import urllib.request
 WIDGET_TYPES = {
     "INT", "FLOAT", "BOOLEAN", "STRING", "COMBO", "MARKDOWN", "COLOR",
     "COMFY_DYNAMICCOMBO_V3", "IMAGEUPLOAD", "CURVE",
+    # Branch: the combo choosing an input by name, and the hidden list of the connected inputs' names
+    "COMFY_BRANCH_SELECTOR", "COMFY_BRANCH_INPUT_NAMES",
 }
 UPLOAD_FLAGS = ("image_upload", "video_upload", "audio_upload", "animated_image_upload", "file_upload")
 SEED_NAMES = ("seed", "noise_seed")
@@ -156,6 +158,8 @@ def input_slots(info, values=None, saved_names=None):
         if raw_t == "COMFY_AUTOGROW_V3":
             sockets.extend(_autogrow(name, opts, saved_names))
             return 0
+        if t == "COMFY_BRANCH_INPUT_NAMES":
+            return 1    # Branch's list of names: a hidden widget with no input slot (other socketless widgets keep one)
         if t in WIDGET_TYPES and not opts.get("forceInput"):
             used = 1
             children = []
@@ -215,7 +219,8 @@ def default_value(spec):
     if t == "COMFY_DYNAMICCOMBO_V3":
         o = opts.get("options") or []
         return o[0].get("key") if o else None
-    return {"INT": 0, "FLOAT": 0.0, "BOOLEAN": False, "STRING": ""}.get(t)
+    return {"INT": 0, "FLOAT": 0.0, "BOOLEAN": False, "STRING": "", "COMFY_BRANCH_SELECTOR": "",
+            "COMFY_BRANCH_INPUT_NAMES": []}.get(t)
 
 
 def map_widget_values(node_type, widgets_values, object_info, named=None):

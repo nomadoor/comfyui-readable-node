@@ -13,31 +13,20 @@ An agent skill that rebuilds ComfyUI workflows into a form people can read: **Re
 
 ## Install
 
-Install it once for each agent you use, with one of the ways below. To use it in both Claude and ChatGPT (Codex), install it in each. Installing it two ways for the same agent lists the skill twice.
+Use one of the ways below. Installing two lists the skill twice.
 
-### Claude desktop app
+### Claude Code
 
-1. In **Settings → Customize → Plugins**, choose **+ Add → Add marketplace → Add from a repository**
-2. Enter `nomadoor/comfyui-readable-node`
-3. Click **+** on `comfyui-readable-node`
+In a Claude Code session, run:
 
-### Claude Code (CLI)
-
-In a terminal, run:
-
-```bash
-claude plugin install comfyui-readable-node --marketplace nomadoor/comfyui-readable-node
+```
+/plugin marketplace add nomadoor/comfyui-readable-node
+/plugin install comfyui-readable-node@comfyui-readable-node
 ```
 
-### ChatGPT desktop app (Codex)
+To get updates automatically, open `/plugin`, go to Marketplaces, select `comfyui-readable-node` and choose Enable auto-update.
 
-1. Open **Plugins** and press **Add** to open **Add plugin marketplace**
-2. Enter `https://github.com/nomadoor/comfyui-readable-node.git` in **Source**. Leave **Git ref** and **Sparse paths** empty
-3. On the **Personal** tab, click **+** on `comfyui-readable-node`
-
-### Codex CLI
-
-In a terminal, run:
+### Codex
 
 ```bash
 codex plugin marketplace add nomadoor/comfyui-readable-node
@@ -45,8 +34,6 @@ codex plugin add comfyui-readable-node@comfyui-readable-node
 ```
 
 ### Other agents (Gemini CLI, Cursor, GitHub Copilot and others)
-
-In a terminal, run:
 
 ```bash
 npx skills add nomadoor/comfyui-readable-node -g

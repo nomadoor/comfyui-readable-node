@@ -8,6 +8,9 @@ report to the user; if not, fix it.
   output appears somewhere in the rebuilt workflows (all versions are passed). A string that survives as part of
   another string is reported as "partly". Setting names from turning a custom node into core nodes, and things
   removed on purpose (saving metadata, etc.), show up too.
+  A widget driven by a wire keeps a stored value that is not used: it is left out on both sides. A PrimitiveNode (the
+  frontend's value node) is compared: its value is the one the widgets it drives use.
+- Seed controls: a version with fewer seeds kept fixed than the source, and some left to change (randomize, ...).
 - User inputs: the number of nodes where the user supplies a file, like Load Image / Load Video / Load Audio
   (inputs with *_upload in object_info, or types whose name starts with Load(Image|Video|Audio), VHS_LoadVideo,
   etc.). The same file in separate source nodes counts as separate inputs. Counts are compared per version.
@@ -129,33 +132,73 @@ def model_note(flat):
     return None
 
 
+def linked_widgets(flat):
+    """{node id: names of its widgets a wire drives}: their stored values are not used (the wire's value is)."""
+    out = {}
+    for l in flat["links"]:
+        out.setdefault(l["target_id"], set()).add(l["target_input"])
+    return out
+
+
+CONTROLS = ("fixed", "increment", "decrement", "randomize")
+
+
+def controls(flat, live=None):
+    """{control value: how many} over the active nodes (those reaching an output, if live): fixed, randomize, ... of
+    seeds, read by name where the node is known and from the value list where it is not (a custom node not installed)."""
+    out = {}
+    for n in flat["nodes"]:
+        if n["type"] in SKIP_TYPES or n.get("mode", 0) != 0 or (live is not None and n["id"] not in live):
+            continue
+        w = n.get("widgets")
+        vals = ([v for k, v in w.items() if k == "control_after_generate" or k.endswith(".control_after_generate")]
+                if isinstance(w, dict) else n.get("widgets_values") if isinstance(n.get("widgets_values"), list) else [])
+        for v in vals:
+            if isinstance(v, str) and v in CONTROLS:
+                out[v] = out.get(v, 0) + 1
+    return out
+
+
 def compare(src, outs, oi):
     """src: the source flat graph. outs: [(name, flat graph)]. Returns a list of fact lines."""
     lines = []
     live = reaching(src, oi)
 
-    # values
+    # values (a widget a wire drives keeps a value that is not used: it is left out on both sides)
     have, texts = set(), []
     for _, f in outs:
+        driven = linked_widgets(f)
         for n in f["nodes"]:
-            if n["type"] in SKIP_TYPES:
+            if n["type"] in SKIP_TYPES and n["type"] != "PrimitiveNode":
                 continue
-            for _, v in values_of(n):
+            for k, v in values_of(n):
+                if k in driven.get(n["id"], ()):
+                    continue
                 if keep(v):
                     have.add(norm(v))
                     if isinstance(v, str):
                         texts.append(v)
+    src_driven = linked_widgets(src)
     for n in src["nodes"]:
-        if n["type"] in SKIP_TYPES or n.get("mode", 0) != 0 or n["id"] not in live:
+        # a PrimitiveNode (the frontend's value node) holds the value the widgets it drives use: it is compared
+        if (n["type"] in SKIP_TYPES and n["type"] != "PrimitiveNode") or n.get("mode", 0) != 0 or n["id"] not in live:
             continue
         for k, v in values_of(n):
-            if not keep(v) or norm(v) in have:
+            if k in src_driven.get(n["id"], ()) or not keep(v) or norm(v) in have:
                 continue
             s = json.dumps(v, ensure_ascii=False)
             if isinstance(v, str) and any(v.strip() in t for t in texts):
                 lines.append(f"value kept only partly: source {n['id']} {n['type']}.{k} = {s[:80]}")
             else:
                 lines.append(f"value not found: source {n['id']} {n['type']}.{k} = {s[:120]}")
+
+    # seed controls: a seed the source kept fixed that a version lets change (fewer fixed, more of the others)
+    c0 = controls(src, live)
+    for name, f in outs:
+        c1 = controls(f)
+        if c1.get("fixed", 0) < c0.get("fixed", 0) and sum(c1.values()) > c1.get("fixed", 0):
+            fmt = lambda c: ", ".join(f"{k} ×{c[k]}" for k in CONTROLS if c.get(k)) or "none"
+            lines.append(f"seed control changed: {name} has {fmt(c1)} (source: {fmt(c0)})")
 
     # user inputs
     before = user_inputs(src, oi, only=live)

@@ -6,8 +6,8 @@ that point, and the words of each command with the names of the nodes they menti
 (Japanese for ja, English for every other language code) and the page: the nodes drawn on one <canvas> as the
 ComfyUI canvas draws them (title, slots, widgets, wires, groups), a timeline on which the nodes move smoothly from one step to the next, a switch to the
 original workflow, and a panel that says what each step did and which problems it made or solved.
-No external scripts: everything is inline. The Latin font is inside the page; Japanese text uses Zen Kaku Gothic New
-from Google Fonts when online, and the machine's font otherwise.
+No external scripts: everything is inline, the logo (logo.svg next to this file) too. The Latin font is inside the page;
+Japanese text uses Zen Kaku Gothic New from Google Fonts when online, and the machine's font otherwise.
 
 ``build(canvases, original, lang)`` returns the HTML text.
 """
@@ -31,15 +31,15 @@ LINK_COLORS = {
 
 # the page's parts: always English
 CHROME = {
-    "title": "Readable Node report", "brand": "ComfyUI Readable Node", "theme": {"system": "System", "light": "Light", "dark": "Dark"},
-    "original": "Original", "rebuilt": "Rebuilt", "compare": "Compare with the original workflow (O)",
-    "walk": "Walkthrough", "walk_title": "Walk through the finished workflow part by part (W)",
+    "title": "Readable Node report", "repo": "ComfyUI Readable Node on GitHub", "theme": {"system": "System", "light": "Light", "dark": "Dark"},
+    "original": "Original", "rebuilt": "Rebuilt",
+    "walk": "Walkthrough",
     "prev_part": "Previous part", "next_part": "Next part", "walk_whole": "The whole workflow (no part chosen)",
     "prev": "Previous step", "play": "Play", "pause": "Pause", "next": "Next step",
     "speed": "Speed", "step": "Step", "zoom_in": "Zoom in", "zoom_out": "Zoom out", "fit": "Fit",
     "follow": "Follow changes", "problems": "problems",
     "moved": "moved", "added": "added", "changed": "changed", "removed": "removed",
-    "legend": "rebuilt / original", "legend_one": "rebuilt", "unplaced_title": "Nodes not placed yet",
+    "legend": "rebuilt / original", "legend_one": "rebuilt", "legend_orig": "original", "legend_orig_all": "original (all the workflows together)", "unplaced_title": "Nodes not placed yet",
     "help_title": "Keys and mouse",
     "help": [["← →", "previous / next step"], ["Space", "play / pause"], ["Home End", "first / last step"], ["O", "original / rebuilt"], ["W", "walkthrough on / off (← → move by part, Esc the whole workflow)"],
              ["drag the bar", "go to a step"], ["drag", "move the view"], ["wheel, pinch", "zoom"], ["0  F", "fit"],
@@ -61,9 +61,9 @@ UI = {
         "units": {"moved": "moved", "added": "placed", "changed": "changed", "removed": "removed", "behind": "behind"},
         "show_all": "Show all", "show_less": "Show less",
         "empty": "Nothing is placed on the canvas yet.",
-        "review": "Review by another agent", "review_none": "The review file says: No findings.",
+        "review": "Review by another agent", "review_none": "The review file says: No findings.", "review_withdrawn": "Withdrawn by the reviewer after the builder replied",
         "review_unchecked": "The review file has no line saying what the reviewer checked.",
-        "review_fixed": "Fixed", "review_left": "Left as it is", "review_open": "Not answered yet", "walk_toc": "Parts",
+        "review_fixed": "Fixed", "review_left": "Left as it is", "review_open": "Not answered yet", "walk_toc": "Parts", "walk_whole": "All",
         "hand": "Wide gaps (gap wide) and the wires between",
         "counts": CHROME["counts"],
     },
@@ -76,9 +76,9 @@ UI = {
         "units": {"moved": "動かした", "added": "置いた", "changed": "変えた", "removed": "消した", "behind": "裏を通る"},
         "show_all": "すべて見る", "show_less": "たたむ",
         "empty": "キャンバスにはまだ何も置かれていません。",
-        "review": "別のエージェントによるレビュー", "review_none": "レビューのファイルには「No findings.」（何も見つからなかった）とあります。",
+        "review": "別のエージェントによるレビュー", "review_none": "レビューのファイルには「No findings.」（何も見つからなかった）とあります。", "review_withdrawn": "作った側の返事を受けて、レビュー役が取り下げた",
         "review_unchecked": "レビューのファイルに、レビュー役が何を確かめたかの一行がありません。",
-        "review_fixed": "直した", "review_left": "残した", "review_open": "まだ答えていない", "walk_toc": "部分",
+        "review_fixed": "直した", "review_left": "残した", "review_open": "まだ答えていない", "walk_toc": "部分", "walk_whole": "全体",
         "hand": "広い間（gap wide）と、その間の線の数",
         "counts": {"overlaps": "重なり", "wires behind nodes": "ノードの裏を通る線", "crossings": "交差",
                    "non-horizontal wires": "水平でない線", "unplaced": "未配置",
@@ -433,8 +433,9 @@ BUILD_CMDS = {"copy": ("copied {n} nodes", "ノードを {n} 個写し"), "add":
               "title": ("named {n} nodes", "ノード {n} 個に題名を付け"), "mode": ("changed the mode of {n} nodes", "ノード {n} 個の mode を変え")}
 
 
-def build_summary(xs, lang):
-    """One sentence for several commands that did not change the drawing (building the graph before it is placed)."""
+def build_summary(xs, lang, before_placing=False):
+    """One sentence for several commands that did not change the drawing (building the graph before it is placed).
+    before_placing: the sentence is a detail of the first step with nodes on the drawing (the graph built before it)."""
     S = Say(lang)
     count = {}
     for x in xs:
@@ -449,9 +450,11 @@ def build_summary(xs, lang):
             parts.append((ja if S.ja else en).format(n=count[c]))
     other = sum(v for c, v in count.items() if c not in BUILD_CMDS)
     if S.ja:
-        head = f"{len(xs)} 個の命令でノードと線を組み立てました（絵の上ではまだ何も動いていません）"
+        head = (f"置く前に、{len(xs)} 個の命令でノードと線を組み立てました" if before_placing else
+                f"{len(xs)} 個の命令でノードと線を組み立てました（絵の上ではまだ何も動いていません）")
         return head + ("。" + "、".join(parts) + "ました" if parts else "") + (f"。ほかの命令 {other} 個" if other else "")
-    head = f"Built nodes and wires with {len(xs)} commands (nothing moved on the drawing yet)"
+    head = (f"Before placing, built nodes and wires with {len(xs)} commands" if before_placing else
+            f"Built nodes and wires with {len(xs)} commands (nothing moved on the drawing yet)")
     return head + (": " + ", ".join(parts) if parts else "") + (f"; {other} other commands" if other else "")
 
 
@@ -504,11 +507,8 @@ PROBLEMS = [
      lambda S, m: S.L(f"The value nodes {S.node(m.group(2))} and {S.node(m.group(3))} side by side have tops {m.group(1)} px apart",
                       f"横に並んだ値のノード {S.node(m.group(2))} と {S.node(m.group(3))} の上端が {m.group(1)} px ずれています")),
     ("order", r"^(vae|clip) loader (\S+) is above the model loader (\S+):",
-     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (loaders go model, vae, clip from the top)",
-                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（loader は上から model、vae、clip）")),
-    ("order", r"^clip loader (\S+) is above the vae loader (\S+):",
-     lambda S, m: S.L(f"{S.node(m.group(1))} sits above the vae loader {S.node(m.group(2))} (loaders go model, vae, clip from the top)",
-                      f"{S.node(m.group(1))} が vae の loader {S.node(m.group(2))} より上にあります（loader は上から model、vae、clip）")),
+     lambda S, m: S.L(f"{S.node(m.group(2))} sits above the model loader {S.node(m.group(3))} (the vae and clip loaders go below the model loader)",
+                      f"{S.node(m.group(2))} が model の loader {S.node(m.group(3))} より上にあります（vae と clip の loader は model の下）")),
     ("order", r"^(MODEL|VAE|CLIP|CONDITIONING) rail runs above the (MODEL|VAE|CLIP) rail .*: rail of (\S+) and rail of (\S+)$",
      lambda S, m: S.L(f"The {m.group(1)} rail of {S.node(m.group(3))} runs above the {m.group(2)} rail of {S.node(m.group(4))} (model, vae, clip from the top)",
                       f"{S.node(m.group(3))} の {m.group(1)} のレールが、{S.node(m.group(4))} の {m.group(2)} のレールより上を通っています（上から model、vae、clip）")),
@@ -694,7 +694,7 @@ def _review_view(rev):
     if not rev:
         return None
     return {"rows": rev.get("rows") or [], "not_reviewed": rev.get("not_reviewed"), "no_findings": rev.get("no_findings"),
-            "checked": rev.get("checked")}
+            "checked": rev.get("checked"), "withdrawn": rev.get("withdrawn") or []}
 
 
 def build(canvases, original, lang="en"):
@@ -713,6 +713,9 @@ def build(canvases, original, lang="en"):
                 say, det = build_summary(st["x"], lang), [e["s"] for e in ex]
             else:
                 say, det = ex[0]["s"], ex[0]["d"] + [e["s"] for e in ex[1:]]
+            if st.get("pre") and st["pre"][1]:
+                # the graph built before anything was placed, in one line
+                det = [build_summary(st["pre"][1], lang, before_placing=True)] + det
             steps.append({"kind": st["kind"], "c": st["c"], "s": say, "d": det, "v": st["v"], "p": st["p"],
                           "counts": st["counts"]})
         probs = []
@@ -724,7 +727,8 @@ def build(canvases, original, lang="en"):
     data = json.dumps({"lang": lang, "ui": UI[lang], "chrome": CHROME, "colors": LINK_COLORS, "canvases": out, "original": original},
                       ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     title = html.escape(CHROME["title"])
-    return (PAGE.replace("%LANG%", html.escape(code, quote=True)).replace("%TITLE%", title).replace("%STYLE%", _font_face() + STYLE)
+    return (PAGE.replace("%LANG%", html.escape(code, quote=True)).replace("%TITLE%", title).replace("%FAVICON%", FAVICON)
+            .replace("%LOGO%", _logo()).replace("%REPO%", REPO).replace("%STYLE%", _font_face() + STYLE)
             .replace("%DATA%", data).replace("%SCRIPT%", SCRIPT))
 
 
@@ -740,18 +744,31 @@ def _font_face():
             f"src:url(data:font/woff2;base64,{data}) format('woff2');unicode-range:U+0000-00FF,U+2000-206F,U+2190-2193,U+2212}}\n")
 
 
+# Icons: Tabler's outline icons (MIT, tabler.io/icons) drawn with a 1.75 stroke, except "rebuilt", which is the wire of
+# the logo (a dot, a wire stepping down, a dot). class "draw" marks the strokes that draw themselves when chosen.
 ICONS = {
-    "prev": '<path d="M15 5l-8 7 8 7"/>',
-    "play": '<path d="M8 5v14l11-7z" class="fill"/>',
-    "next": '<path d="M9 5l8 7-8 7"/>',
-    "minus": '<path d="M5 12h14"/>', "plus": '<path d="M12 5v14M5 12h14"/>',
-    "fit": '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
-    "map": '<path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z"/><path d="M9 4v13M15 7v13"/>',
-    "follow": '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
-    "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
-    "moon": '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
-    "system": '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/>',
-    "help": '<path d="M8.5 8.8a3.6 3.6 0 1 1 4.6 3.4c-.7.3-1.1.9-1.1 1.6v.9"/><circle cx="12" cy="18.6" r="1.1" class="fill"/>',
+    "prev": '<path d="M15 6l-6 6l6 6"/>',
+    "next": '<path d="M9 6l6 6l-6 6"/>',
+    "play": '<path d="M7 4v16l13 -8z" class="fill"/>',
+    "pause": '<path d="M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z" class="fill"/>'
+             '<path d="M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z" class="fill"/>',
+    "minus": '<path d="M5 12l14 0"/>', "plus": '<path d="M12 5l0 14"/><path d="M5 12l14 0"/>',
+    "fit": '<path d="M4 8v-2a2 2 0 0 1 2 -2h2"/><path d="M4 16v2a2 2 0 0 0 2 2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v2"/><path d="M16 20h2a2 2 0 0 0 2 -2v-2"/>',
+    "map": '<path d="M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13"/><path d="M9 4v13"/><path d="M15 7v13"/>',
+    "follow": '<path d="M12 12m-.5 0a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0"/><path d="M12 12m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/>'
+              '<path d="M12 3l0 2"/><path d="M3 12l2 0"/><path d="M12 19l0 2"/><path d="M19 12l2 0"/>',
+    "sun": '<path d="M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/>',
+    "moon": '<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>',
+    "system": '<path d="M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10z"/><path d="M7 20h10"/><path d="M9 16v4"/><path d="M15 16v4"/>',
+    "help": '<path d="M8 8a3.5 3 0 0 1 3.5 -3h1a3.5 3 0 0 1 3.5 3a3 3 0 0 1 -2 3a3 4 0 0 0 -2 4"/><path d="M12 19l0 .01"/>',
+    # the workflow as its author saved it: a tangle (Tabler "scribble")
+    "original": '<path class="draw" pathLength="1" d="M3 15c2 3 4 4 7 4s7 -3 7 -7s-3 -7 -6 -7s-5 1.5 -5 4s2 5 6 5s8.408 -2.453 10 -5"/>',
+    # the rebuilt workflow: the logo's wire
+    "rebuilt": '<circle cx="3.5" cy="17" r="1.75" class="fill"/><path class="draw" pathLength="1" d="M6.8 17h4.7a1.5 1.5 0 0 0 1.5 -1.5v-7a1.5 1.5 0 0 1 1.5 -1.5h2.7"/>'
+               '<circle cx="20.5" cy="7" r="1.75" class="fill dot2"/>',
+    # the walkthrough: Tabler "book"
+    "github": '<path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5"/>',
+    "walk": '<path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/><path d="M3 6l0 13"/><path d="M12 6l0 13"/><path d="M21 6l0 13"/>',
 }
 
 
@@ -759,105 +776,140 @@ def _icon(name):
     return f'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{ICONS[name]}</svg>'
 
 
-ACCENT = "#ff5a1f"   # the one colour that marks "now" (the needle, the current step, the moved nodes)
+ACCENT = "#ff5a1f"   # the one colour that marks "now" (the needle, the current step, the moved nodes); the logo's wire
+LOGO_FILE = Path(__file__).with_name("logo.svg")
+REPO = "https://github.com/nomadoor/comfyui-readable-node"
+# the browser tab's icon: the logo's wire on a dark rounded square
+FAVICON = ("data:image/svg+xml," + "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23121314'/%3E"
+           "%3Cpath d='M10 21h4.5a2 2 0 0 0 2 -2v-6a2 2 0 0 1 2 -2H22' fill='none' stroke='%23ff5a1f' stroke-width='2.6' stroke-linecap='round'/%3E"
+           "%3Ccircle cx='6.5' cy='21' r='2' fill='%23ff5a1f'/%3E%3Ccircle cx='25.5' cy='11' r='2' fill='%23ff5a1f'/%3E%3C/svg%3E")
 
+
+def _logo():
+    return LOGO_FILE.read_text(encoding="utf-8").strip() if LOGO_FILE.is_file() else '<span class="name">ComfyUI Readable Node</span>'
+
+
+# Colour only where it means something: the accent for "now", green for solved or added, red for problems, yellow for
+# changed. A button's name floats just above it (or below, at the top of the page); nothing moves when the system asks
+# for less motion.
 STYLE = """
-:root{--bg:#000;--tile:#1c1c1e;--tile2:#2c2c2e;--text:#d1d1d6;--muted:#7c7c80;--faint:#48484a;--head:#f5f5f7;
+:root{--bg:#000;--tile:#1c1c1e;--tile2:#2c2c2e;--text:#b4b4b9;--muted:#7c7c80;--faint:#48484a;--head:#dcdce0;
 --accent:%ACCENT%;--good:#5fbf7a;--bad:#ff6b5f;--warn:#e0b25c;
 --cv-bg:#121214;--cv-dot:#2a2a2d;--node-bg:#353535;--node-title:#2c2c2c;--node-text:#c8c8c8;--slot-text:#a8a8a8;
 --w-bg:#222;--w-text:#dddddd;--w-label:#999;--casing:rgba(0,0,0,.6);--shadow:rgba(0,0,0,.45);--mix:100;--wmix:100;--gop:.2;
 --font:"Plus Jakarta Sans","Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic UI",system-ui,sans-serif;
---mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--code:var(--mono),"Zen Kaku Gothic New","Hiragino Sans","Noto Sans CJK JP";--r-lg:22px;--r-md:16px;--ease:cubic-bezier(.2,.8,.2,1);color-scheme:dark}
-@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#e2dfe5;--tile:#f4f2f6;--tile2:#e8e6eb;--text:#3a3a3c;
---muted:#7c7a80;--faint:#c7c6cb;--head:#1d1d1f;--good:#1f7a3e;--bad:#c4321f;--warn:#a8670f;
---cv-bg:#f6f5f8;--cv-dot:#d4d2d8;--node-bg:#ffffff;--node-title:#e9e9ec;--node-text:#222;--slot-text:#4a4a52;
---w-bg:#f0f0f2;--w-text:#1a1a1a;--w-label:#6a6a72;--casing:rgba(255,255,255,.9);--shadow:rgba(0,0,0,.12);--mix:30;--wmix:70;--gop:.1;color-scheme:light}}
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--code:var(--mono),"Zen Kaku Gothic New","Hiragino Sans","Noto Sans CJK JP";
+--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M4.5 2.5L8 6l-3.5 3.5' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--r-box:12px;--r-field:6px;--inset:12px;--t-hover:120ms;--t-seg:160ms;--ease:cubic-bezier(.2,.8,.2,1);--ease-out:cubic-bezier(.25,1,.5,1);color-scheme:dark}
 :root[data-theme=light]{--bg:#e2dfe5;--tile:#f4f2f6;--tile2:#e8e6eb;--text:#3a3a3c;--muted:#7c7a80;--faint:#c7c6cb;--head:#1d1d1f;
 --good:#1f7a3e;--bad:#c4321f;--warn:#a8670f;--cv-bg:#f6f5f8;--cv-dot:#d4d2d8;--node-bg:#fff;--node-title:#e9e9ec;--node-text:#222;
 --slot-text:#4a4a52;--w-bg:#f0f0f2;--w-text:#1a1a1a;--w-label:#6a6a72;--casing:rgba(255,255,255,.9);--shadow:rgba(0,0,0,.12);
 --mix:30;--wmix:70;--gop:.1;color-scheme:light}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--text);font:14px/1.55 var(--font);overflow:hidden}
-button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+body{background:var(--bg);color:var(--text);font:14px/1.55 var(--font);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,a{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+:focus-visible{outline:none}
 [hidden]{display:none!important}
-.icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .icon .fill{fill:currentColor;stroke:none}
 .app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 372px;grid-template-rows:auto minmax(0,1fr);gap:0 10px;padding:0 10px 10px}
-/* header: the name and the tabs over the canvas column, the theme switch over the side panel; no space above it */
-.top{grid-column:1/-1;display:grid;grid-template-columns:subgrid;height:48px}
-.top .lead{display:flex;align-items:stretch;gap:12px;min-width:0}
-.top .name{flex:none;align-self:center;font-size:13px;font-weight:700;color:var(--head);padding-left:6px;white-space:nowrap}
-.seg.theme{justify-self:end;align-self:center;padding:2px}
+
+/* header: the logo and the tabs over the canvas column, GitHub and the theme switch over the side panel; no space above it */
+.top{grid-column:1/-1;display:grid;grid-template-columns:subgrid;grid-template-rows:56px;height:56px}
+.top .lead{display:flex;align-items:stretch;gap:14px;min-width:0}
+.brand{flex:none;align-self:center;display:block;color:var(--head);line-height:0;padding-left:6px;cursor:default}
+.brand .logo{height:30px;width:auto;display:block;overflow:visible}
+.top .name{font-size:14px;font-weight:700;white-space:nowrap}
+.tr{justify-self:end;align-self:center;display:flex;align-items:center;gap:8px}
+.tr .ext{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;color:var(--muted);transition:color var(--t-hover) ease}
+.tr .ext:hover{color:var(--head)}
+.seg.theme{padding:2px}
 .seg.theme .knob{top:2px;bottom:2px}
 .seg.theme button{display:grid;place-items:center;width:28px;height:24px;padding:0}
 .seg.theme .icon{width:15px;height:15px}
 
+/* the logo's wire runs from the left dot to the right one; nothing else in the logo moves */
+.brand.play .lw{animation:rn-draw .75s cubic-bezier(.65,0,.35,1) backwards}
+@keyframes rn-draw{from{stroke-dasharray:1 1;stroke-dashoffset:1}to{stroke-dasharray:1 1;stroke-dashoffset:0}}
+@keyframes rn-fade{from{opacity:0}to{opacity:1}}
+
 .stage{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
 /* segmented switch: a dark capsule with a light capsule on the chosen item */
-.seg{position:relative;display:inline-flex;padding:4px;border-radius:999px;background:var(--tile2);gap:2px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.seg{position:relative;display:inline-flex;align-items:center;padding:4px;border-radius:999px;background:var(--tile2);gap:2px;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .seg::-webkit-scrollbar{display:none}
-.seg button{height:32px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;transition:background .15s var(--ease),color .15s}
+.seg button{position:relative;z-index:1;display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 16px;border-radius:999px;font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap;transition:color var(--t-seg) ease-out}
 .seg button:hover{color:var(--head)}
-.seg button{position:relative;z-index:1}
 .seg button[aria-pressed=true]{color:var(--bg)}
 .seg .knob{position:absolute;top:4px;bottom:4px;left:0;border-radius:999px;background:var(--head);pointer-events:none;transition:transform .25s var(--ease),width .25s var(--ease)}
+.seg button .icon{width:16px;height:16px}
+.seg button[aria-pressed=true] .draw{animation:rn-draw .45s cubic-bezier(.65,0,.35,1) backwards}
+.seg button[aria-pressed=true] .dot2{animation:rn-fade .22s .36s ease-out backwards}
 /* workflow tabs, like a browser's: the chosen tab has the canvas colour and runs into the canvas below */
 .tabs{display:flex;align-items:flex-end;gap:2px;min-width:0;padding:0 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tabs button{position:relative;flex:none;height:40px;padding:0 16px 8px;border-radius:9px 9px 0 0;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+.tabs button{position:relative;flex:none;height:40px;padding:0 16px 8px;border-radius:9px 9px 0 0;font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap;transition:color var(--t-hover) ease}
 .tabs button:hover{color:var(--text)}
-.tabs button[aria-pressed=true]{background:var(--cv-bg);color:var(--head)}
-.tabs button[aria-pressed=true]::before,.tabs button[aria-pressed=true]::after{content:"";position:absolute;bottom:0;width:9px;height:9px}
-.tabs button[aria-pressed=true]::before{left:-9px;background:radial-gradient(circle at 0 0,transparent 9px,var(--cv-bg) 9.5px)}
-.tabs button[aria-pressed=true]::after{right:-9px;background:radial-gradient(circle at 100% 0,transparent 9px,var(--cv-bg) 9.5px)}
-#view{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--cv-bg);border-radius:var(--r-lg);cursor:grab;touch-action:none;user-select:none}
+.tabs button[aria-selected=true]{background:var(--cv-bg);color:var(--head)}
+.tabs button[aria-selected=true]::before,.tabs button[aria-selected=true]::after{content:"";position:absolute;bottom:0;width:9px;height:9px}
+.tabs button[aria-selected=true]::before{left:-9px;background:radial-gradient(circle at 0 0,transparent 9px,var(--cv-bg) 9.5px)}
+.tabs button[aria-selected=true]::after{right:-9px;background:radial-gradient(circle at 100% 0,transparent 9px,var(--cv-bg) 9.5px)}
+#view{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--cv-bg);border-radius:var(--r-box);cursor:grab;touch-action:none;user-select:none}
 #view.drag{cursor:grabbing}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
-#seg{position:absolute;left:12px;bottom:12px;z-index:2}
+.float{position:absolute;z-index:2}
+#seg{left:var(--inset);bottom:var(--inset)}
+#seg button{padding:0 16px 0 13px}
 /* the workflows of one tab that differ only in values (one per model): a switch at the top of the canvas */
-#variants{position:absolute;left:12px;top:12px;z-index:2}
-#variants button{height:28px;padding:0 12px;font-size:12px}
-.tools{position:absolute;right:12px;bottom:12px;display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--tile2);z-index:2}
+#variants{left:var(--inset);top:var(--inset)}
+#variants button{height:28px;padding:0 12px;font-size:13px}
+.tools{right:var(--inset);bottom:var(--inset);display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;background:var(--tile2)}
+.tools .sep{width:1px;height:18px;margin:0 4px;background:var(--faint);flex:none}
 .tool{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;color:var(--text)}
 .tool:hover{background:var(--faint);color:var(--head)}
 .tool[aria-pressed=true]{background:var(--head);color:var(--bg)}
 .tool.off{opacity:.35;pointer-events:none}
-.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);pointer-events:none;font-size:13px;padding:24px;text-align:center}
-.ntip{position:absolute;pointer-events:none;padding:4px 10px;border-radius:999px;font-size:12px;background:var(--tile2);color:var(--head);white-space:nowrap;z-index:3}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:var(--muted);pointer-events:none;font-size:14px;padding:24px;text-align:center}
+.empty .mark{width:120px;height:auto;color:var(--faint)}
+.empty .mark .draw{animation:rn-draw 1.1s .2s cubic-bezier(.65,0,.35,1) backwards}
+.ntip{position:absolute;pointer-events:none;padding:4px 8px;border-radius:var(--r-field);font-size:13px;background:var(--tile2);color:var(--head);white-space:nowrap;z-index:3;animation:rn-fade var(--t-hover) ease-out}
 .ntip small{color:var(--muted);margin-left:6px}
-.help{position:absolute;right:12px;bottom:56px;max-width:300px;padding:12px 16px;border-radius:var(--r-md);font-size:12px;line-height:1.75;
+.bubble{position:fixed;z-index:20;width:max-content;max-width:280px;padding:4px 8px;border-radius:var(--r-field);
+background:var(--head);color:var(--bg);font-size:13px;font-weight:500;line-height:16px;pointer-events:none;visibility:hidden;opacity:0}
+.bubble.on{visibility:visible;opacity:1;transition:opacity var(--t-hover) ease-out}
+.help{position:absolute;right:var(--inset);bottom:60px;width:320px;padding:10px 16px;border-radius:var(--r-box);font-size:13px;line-height:1.5;
 background:var(--tile2);color:var(--text);z-index:3}
-.help b{color:var(--head);font-weight:600;font-family:var(--mono);font-size:11.5px;margin-right:6px}
+.help div{display:flex;gap:12px;align-items:baseline;padding:3px 0}
+.help b{flex:none;width:96px;color:var(--head);font-weight:600}
+.help .t{color:var(--text)}
 /* the deck: play, step, and the timeline, all one height */
-.deckwrap{position:relative;flex:none}
-.deck{display:flex;align-items:center;gap:6px;flex:none;height:32px}
+.deckwrap{position:relative;flex:none;background:var(--tile);border-radius:var(--r-box);padding:4px}
+.deck,.walkbar{display:flex;align-items:center;gap:6px;flex:none;height:40px}
 .deck.off{opacity:.35;pointer-events:none}
-.round{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--tile);color:var(--text);flex:none}
+.round{display:grid;place-items:center;width:40px;height:40px;border-radius:999px;color:var(--text);flex:none}
 .round:hover{background:var(--tile2);color:var(--head)}
-.round .icon{width:16px;height:16px;display:block}
+.round .icon{width:18px;height:18px;display:block}
 #playicon{display:grid;place-items:center}
-.speed{height:32px;width:44px;padding:0;text-align:center;border-radius:8px;background:var(--tile);font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;flex:none}
+.speed{height:40px;min-width:48px;padding:0 12px;text-align:center;border-radius:999px;font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;flex:none}
 .speed:hover{background:var(--tile2);color:var(--head)}
-.bar{position:relative;flex:1;min-width:0;height:32px;border-radius:8px;background:var(--tile);cursor:pointer;touch-action:none;user-select:none}
-.bar .in{position:absolute;top:0;bottom:0;left:10px;right:10px}
-.spark{position:absolute;left:0;bottom:5px;width:100%;height:20px;overflow:visible}
-.spark path{fill:var(--faint);fill-opacity:.55;stroke:none}
+.bar{position:relative;flex:1;min-width:0;height:40px;margin:0 4px;border-radius:var(--r-field);background:var(--tile2);cursor:pointer;touch-action:none;user-select:none}
+.bar .in{position:absolute;top:0;bottom:0;left:12px;right:12px}
+.spark{position:absolute;left:0;bottom:6px;width:100%;height:26px;overflow:visible}
+.spark path{fill:var(--faint);fill-opacity:.7;stroke:none}
 .tk{position:absolute;bottom:0;width:1px;height:4px;background:var(--faint)}
-.ph{position:absolute;top:5px;bottom:5px;width:2px;margin-left:-1px;border-radius:1px;background:var(--accent);pointer-events:none}
-.tip{position:absolute;bottom:40px;transform:translateX(-50%);padding:5px 10px;border-radius:8px;font-size:12px;
-background:var(--tile2);color:var(--text);pointer-events:none;white-space:nowrap;z-index:5}
+.ph{position:absolute;top:7px;bottom:5px;width:2px;margin-left:-1px;border-radius:1px;background:var(--accent);pointer-events:none}
+.ph::before{content:"";position:absolute;left:50%;top:-2px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:var(--accent)}
+.tip{position:absolute;bottom:54px;transform:translateX(-50%);padding:4px 8px;border-radius:var(--r-field);font-size:13px;
+background:var(--tile2);color:var(--text);pointer-events:none;white-space:nowrap;z-index:5;animation:rn-fade var(--t-hover) ease-out}
 .tip b{color:var(--head);font-weight:700;margin-right:6px}
 /* the walkthrough: the parts in processing order instead of the timeline (same height as the deck) */
-.walkbar{display:flex;align-items:center;gap:6px;height:32px}
-.wparts{flex:1;min-width:0;height:32px;display:flex;gap:4px;overflow:hidden}
-.wpart{min-width:0;height:32px;padding:0 10px;border-radius:8px;background:var(--tile);font-size:12px;font-weight:600;color:var(--muted);
-white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s var(--ease),color .15s}
-.wpart:hover{color:var(--head)}
+.wparts{flex:1;min-width:0;height:40px;display:flex;gap:2px;overflow:hidden;margin:0 4px}
+.wpart{min-width:0;height:40px;padding:0 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--muted);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background-color var(--t-hover) ease,color var(--t-hover) ease}
+.wpart:hover{color:var(--head);background:var(--tile2)}
 .wpart[aria-current=true]{background:var(--head);color:var(--bg)}
 .wwhole[aria-pressed=true]{background:var(--head);color:var(--bg)}
-.wtitle{font-size:19px;font-weight:600;line-height:1.35;color:var(--head);margin:2px 8px 6px}
-.wbody{margin:0 8px;font-size:13.5px;line-height:1.7;color:var(--text)}
+.wtitle{font-size:20px;font-weight:700;line-height:1.35;letter-spacing:-.005em;color:var(--head);margin:4px 8px 10px}
+.wbody{margin:0 8px;font-size:14px;line-height:1.7;color:var(--text)}
 .wbody p{margin:0 0 6px}
 /* bullets: the walkthrough text and the lists of the side panel */
 .wbody ul,ul.plain{list-style:none;margin:0;padding:0}
@@ -865,69 +917,68 @@ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background 
 .wbody li::before,ul.plain li::before{content:"";position:absolute;left:2px;top:12px;width:4px;height:4px;border-radius:50%;background:var(--muted)}
 .wbody ul ul{padding-left:14px}
 .wbody ul ul li::before{background:none;border:1px solid var(--muted);width:3px;height:3px}
-.wbody code{font:12px var(--code);background:var(--tile);border-radius:4px;padding:1px 5px;color:var(--head)}
+.wbody code{font:13px var(--code);background:var(--tile);border-radius:5px;padding:1px 5px;color:var(--head)}
 .wbody b{color:var(--head);font-weight:600}
 .wanswer{color:var(--muted);margin-top:2px}
 /* the whole workflow in the walkthrough: the parts as links, then the review, folded */
 .wtoc{list-style:none;margin:0 0 14px;padding:0;counter-reset:wtoc}
-.wtoc li{counter-increment:wtoc;padding:4px 0 4px 22px;position:relative}
-.wtoc li::before{content:counter(wtoc);position:absolute;left:0;top:4px;color:var(--muted);font-variant-numeric:tabular-nums}
+.wtoc li{counter-increment:wtoc;padding:4px 0 4px 26px;position:relative}
+.wtoc li::before{content:counter(wtoc);position:absolute;left:0;top:4px;width:16px;text-align:right;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
 .wtoc a{color:var(--head);text-decoration:none;font-weight:600}
 .wtoc a:hover,.wtoc a:focus-visible{text-decoration:underline}
 .wtoc .wtocs{color:var(--muted);margin-top:2px}
-details.wreview{border-top:1px solid var(--line);padding-top:8px}
-details.wreview summary{cursor:pointer;color:var(--muted)}
+details.wreview{border-top:1px solid var(--tile2);padding-top:8px}
 /* the side panel */
 aside{display:flex;flex-direction:column;min-height:0;gap:10px}
 .phead{display:flex;flex-direction:column;gap:10px;flex:none}
 .ptop{display:flex;align-items:flex-end;justify-content:flex-end;gap:12px;padding:6px 6px 0;height:40px}
 .stepno{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-.stepno b{display:inline-block;text-align:right;font-size:22px;font-weight:600;color:var(--head)}
-.lab{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.legend{font-size:10.5px;font-weight:500;letter-spacing:.02em;color:var(--faint);text-align:right;padding:0 8px;height:17px;line-height:17px;white-space:nowrap;overflow:hidden}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 8px}
-.pill-tile{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;padding:13px 18px 13px 22px;border-radius:999px;background:var(--tile)}
+.stepno b{display:inline-block;text-align:right;font-size:22px;font-weight:600;color:var(--head);margin-right:2px}
+.lab{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend{font-size:12px;font-weight:500;color:var(--muted);text-align:right;padding:0 8px;height:16px;line-height:16px;white-space:nowrap;overflow:hidden}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pill-tile{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-width:0;padding:12px 12px 11px 14px;border-radius:var(--r-box);background:var(--tile)}
 .pt{min-width:0}
-.pill-tile .v{font-size:22px;font-weight:300;line-height:1.15;color:var(--head);font-variant-numeric:tabular-nums;white-space:nowrap}
-.pill-tile .was{font-size:15px;color:var(--muted)}
-.pill-tile .lab{font-size:9.5px;letter-spacing:.03em;color:var(--muted);margin-top:2px}
-.pill-tile svg{flex:none;width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.pill-tile svg .f{fill:var(--muted);fill-opacity:.3}
-.keys{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:7px 10px;padding:4px 8px 2px;font-size:11.5px}
+.pill-tile .v{font-size:22px;font-weight:600;letter-spacing:-.01em;line-height:1.15;color:var(--head);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill-tile .was{font-size:14px;font-weight:500;color:var(--muted)}
+.pill-tile .lab{margin-top:3px}
+.pill-tile svg{flex:none;width:18px;height:18px;margin-top:2px;fill:none;stroke:var(--muted);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.pill-tile svg .f{fill:var(--muted);fill-opacity:.25}
+.keys{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:6px 10px;padding:2px 8px;font-size:13px}
 .keys>span{cursor:default}
 .keys .sw{width:14px;height:10px;border-radius:3px;border:2px solid}
 .keys .sw.removed{border:0;background:var(--faint);opacity:.45}
 .keys .sw.behind{border:1.5px dashed var(--bad)}
 .keys .d{line-height:1.45}
-.keys .k{color:var(--text)}.keys .d{color:var(--muted)}
-.pbody{flex:1;min-height:0;overflow-y:scroll;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--tile2) transparent;padding:4px 4px 24px 6px}
-.pbody::-webkit-scrollbar{width:8px}.pbody::-webkit-scrollbar-thumb{background:var(--tile2);border-radius:4px}.pbody::-webkit-scrollbar-track{background:transparent}
-.say{font-size:13.5px;line-height:1.6;color:var(--text);margin:4px 0 10px}
-h3{font-size:11px;font-weight:600;color:var(--muted);margin:16px 0 4px;padding:0 8px;display:flex;gap:6px}
-h3 .c{color:var(--text)}
+.keys .k{color:var(--head);font-weight:600}.keys .d{color:var(--muted)}
+.pbody{flex:1;min-height:0;overflow-y:scroll;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--tile2) transparent;padding:6px 2px 24px 0;border-top:1px solid var(--tile)}
+.pbody::-webkit-scrollbar{width:6px}.pbody::-webkit-scrollbar-thumb{background:var(--tile2);border-radius:4px}.pbody::-webkit-scrollbar-track{background:transparent}
+.say{font-size:14px;line-height:1.65;color:var(--head);margin:8px 8px 12px}
 ul.plain li{padding:3px 0 3px 14px;font-size:13px}
-.more{color:var(--head);padding:4px 0;font-size:12px;font-weight:600}
-.quiet{color:var(--muted);font-size:13px;margin:6px 0}
+.more{color:var(--head);padding:4px 0;font-size:13px;font-weight:600}
+.quiet{color:var(--muted);font-size:14px;margin:8px}
 .probs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.probs button{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;border-radius:8px;padding:3px 8px;font-size:11.5px;line-height:1.55;color:var(--muted)}
+.probs button{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;border-radius:var(--r-field);padding:3px 8px;font-size:13px;line-height:1.55;color:var(--muted);transition:background-color var(--t-hover) ease,color var(--t-hover) ease}
 .probs button>span:last-child{min-width:0}
 .probs button:hover,.probs button[aria-pressed=true]{color:var(--text)}
 .probs button:hover{background:var(--tile)}
 .probs button[aria-pressed=true]{background:var(--tile2)}
-.probs .dot{flex:none;width:5px;height:5px;border-radius:50%;transform:translateY(-1px);background:var(--bad);opacity:.7}
+.probs .dot{flex:none;width:6px;height:6px;border-radius:50%;transform:translateY(-1px);background:var(--bad)}
 .probs .good .dot{background:var(--good)}
-details{margin-top:10px}
-details{padding:0 8px}details>summary{cursor:pointer;color:var(--muted);font-size:11px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px}
-details>summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
-details[open]>summary::before{transform:rotate(45deg)}
+details{margin-top:10px;padding:0 8px}
+details>summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px;height:24px;transition:color var(--t-hover) ease}
+details>summary:hover{color:var(--head)}
+details>summary::before{content:"";flex:none;width:12px;height:12px;background:currentColor;-webkit-mask:var(--chev) center/12px no-repeat;mask:var(--chev) center/12px no-repeat;transition:transform .15s}
+details[open]>summary::before{transform:rotate(90deg)}
+details>summary .n{color:var(--head);margin-left:4px;font-variant-numeric:tabular-nums}
 details>summary::-webkit-details-marker{display:none}
-pre.cmd{font:12px/1.6 var(--code);color:var(--text);background:var(--tile);border-radius:12px;padding:10px 12px;margin:8px 0 0;
+pre.cmd{font:12px/1.6 var(--code);color:var(--text);background:var(--tile);border-radius:var(--r-field);padding:10px 12px;margin:6px 0 0;
 white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto}
 .ref{color:inherit;cursor:pointer}
 .ref:hover{color:var(--head);text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:3px}
-.ref small{color:var(--faint);font-weight:400;margin-left:3px;font-size:.85em}
-.say .ref{color:var(--head)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.ref small{color:var(--muted);opacity:.75;font-weight:500;margin-left:3px;font-size:.85em}
+.say .ref{color:var(--head);font-weight:600}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 @media (max-width:900px){
 body{overflow:auto;height:auto}
 .app{display:flex;flex-direction:column;height:auto}
@@ -938,31 +989,38 @@ body{overflow:auto;height:auto}
 }
 """.replace("%ACCENT%", ACCENT)
 
+# the small wire of the logo, large and faint, where the canvas is empty
+EMPTY_MARK = ('<svg class="mark icon" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width:1.2">'
+              '<circle cx="3.5" cy="17" r="1.3" class="fill"/><path class="draw" pathLength="1" d="M6.5 17h5a1.5 1.5 0 0 0 1.5 -1.5v-7a1.5 1.5 0 0 1 1.5 -1.5h3"/>'
+              '<circle cx="20.5" cy="7" r="1.3" class="fill"/></svg>')
+
 PAGE = """<!doctype html>
 <html lang="%LANG%"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>%TITLE%</title>
+<link rel="icon" href="%FAVICON%">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
-<style>%STYLE%</style></head>
+<style>%STYLE%</style>
+<script>try{const v=localStorage.getItem("rn-theme");document.documentElement.dataset.theme=v==="light"||v==="dark"?v:matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}catch(e){}</script></head>
 <body>
 <main class="app">
-<header class="top"><div class="lead"><span class="name" id="brand"></span><nav class="tabs" id="tabs" role="tablist"></nav></div>
-<div class="seg theme" id="theme"><button data-v="light">""" + _icon("sun") + """</button><button data-v="dark">""" + _icon("moon") + """</button><button data-v="system">""" + _icon("system") + """</button></div></header>
+<header class="top"><div class="lead"><span class="brand" id="brand">%LOGO%</span><nav class="tabs" id="tabs" role="tablist"></nav></div>
+<div class="tr"><a class="ext" id="gh" href="%REPO%" target="_blank" rel="noopener">""" + _icon("github") + """</a><div class="seg theme" id="theme"><button data-v="light">""" + _icon("sun") + """</button><button data-v="dark">""" + _icon("moon") + """</button><button data-v="system">""" + _icon("system") + """</button></div></div></header>
 <section class="stage">
 <div id="view"><canvas id="cv"></canvas>
-<div class="seg" id="variants" hidden></div><div class="seg" id="seg"><button id="sOrig" aria-pressed="false"></button><button id="sNew" aria-pressed="true"></button><button id="sWalk" aria-pressed="false" hidden></button></div>
-<div class="empty" id="empty" hidden></div><div class="ntip" id="ntip" hidden></div>
-<div class="tools"><button class="tool" id="zout">""" + _icon("minus") + """</button><button class="tool" id="zin">""" + _icon("plus") + """</button>
-<button class="tool" id="fit">""" + _icon("fit") + """</button><button class="tool" id="follow" aria-pressed="false">""" + _icon("follow") + """</button>
+<div class="seg float" id="variants" hidden></div><div class="seg float" id="seg"><button id="sOrig" aria-pressed="false">""" + _icon("original") + """<span></span></button><button id="sNew" aria-pressed="true">""" + _icon("rebuilt") + """<span></span></button><button id="sWalk" aria-pressed="false" hidden>""" + _icon("walk") + """<span></span></button></div>
+<div class="empty" id="empty" hidden>""" + EMPTY_MARK + """<span id="emptyt"></span></div><div class="ntip" id="ntip" hidden></div>
+<div class="tools float"><button class="tool" id="zout">""" + _icon("minus") + """</button><button class="tool" id="zin">""" + _icon("plus") + """</button>
+<button class="tool" id="fit">""" + _icon("fit") + """</button><button class="tool" id="follow" aria-pressed="false">""" + _icon("follow") + """</button><span class="sep"></span>
 <button class="tool" id="helpb" aria-pressed="false">""" + _icon("help") + """</button></div><div class="help" id="help" hidden></div></div>
 <div class="deckwrap"><div class="deck" id="transport">
-<button class="round" id="play"><span id="playicon">""" + _icon("play") + """</span></button>
+<button class="round" id="play"><span id="playicon">""" + _icon("play") + """</span><template id="pauseicon">""" + _icon("pause") + """</template></button>
 <button class="round" id="prev">""" + _icon("prev") + """</button><button class="round" id="next">""" + _icon("next") + """</button>
 <div class="bar" id="bar"><div class="in" id="barin"><svg class="spark" id="spark" preserveAspectRatio="none"></svg><div id="ticks"></div><div class="ph" id="ph"></div></div></div>
 <button class="speed" id="speed">2×</button>
-</div><div class="walkbar" id="walkbar" hidden><button class="round" id="wprev">""" + _icon("prev") + """</button>
-<button class="round wwhole" id="wwhole" aria-pressed="true">""" + _icon("map") + """</button>
-<div class="wparts" id="wparts"></div><button class="round" id="wnext">""" + _icon("next") + """</button></div>
+</div><div class="walkbar" id="walkbar" hidden><button class="round wwhole" id="wwhole" aria-pressed="true">""" + _icon("map") + """</button>
+<button class="round" id="wprev">""" + _icon("prev") + """</button><button class="round" id="wnext">""" + _icon("next") + """</button>
+<div class="wparts" id="wparts"></div></div>
 <div class="tip" id="tip" hidden></div></div>
 </section>
 <aside id="panel" aria-live="polite">
@@ -985,7 +1043,7 @@ SCRIPT = r"""
 const D = JSON.parse(document.getElementById('data').textContent), U = D.ui, X = D.chrome;   // U: the side panel, X: the rest of the page (English)
 const $ = id => document.getElementById(id);
 const ICON_PLAY = $('playicon').innerHTML;
-const ICON_PAUSE = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>';
+const ICON_PAUSE = $('pauseicon').innerHTML;
 const TITLE = 30, SLOT = 20, WIDGET = 24, SPEEDS = [0.5, 1, 2, 4];
 const view = $('view'), cv = $('cv'), ctx = cv.getContext('2d');
 // the canvas is drawn in the frontend's font (Inter), as ComfyUI draws it; the page's own text uses --font
@@ -1000,7 +1058,12 @@ function C(){ return D.canvases[ci]; }
 function walkOf(){ return inWalk ? C().walk : null; }
 function curPart(){ const w = walkOf(); return w && partNo > 0 ? w.parts[partNo - 1] : null; }
 function N(){ return C().steps.length; }
+// the name of a button with only an icon: read aloud, and shown by the tooltip
+let madeOpen = true;   // the list of the problems a step made: open unless the reader closed it
+let tipOn = null;   // the button whose tooltip shows (see tooltips)
+function label(e, text){ e.dataset.tip = text; e.setAttribute('aria-label', text); if (tipOn === e) bubble.textContent = text; }
 function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function sum(text, n){ const e = el('summary', null, text); e.appendChild(el('span', 'n', String(n))); return e; }   // a fold's heading with its count
 
 // ---------- colours (read from the CSS variables, so the drawing follows the light and dark themes)
 const TH = {};
@@ -1027,7 +1090,7 @@ function readTheme(){
   mixCache.clear(); request();
 }
 if (document.fonts) document.fonts.ready.then(() => { widthCache.clear(); cutCache.clear(); wrapCache.clear(); request(); });
-matchMedia('(prefers-color-scheme: light)').addEventListener('change', readTheme);
+const LIGHT = matchMedia('(prefers-color-scheme: light)');
 function wcol(type){ return mix(D.colors[type] || D.colors[String(type).toUpperCase()] || '#9aa59a', '#000', TH.wmix); }
 
 // ---------- text (widths measured once and kept)
@@ -1384,7 +1447,6 @@ function rich(parent, s){
     if (m.index > last) parent.appendChild(document.createTextNode(s.slice(last, m.index)));
     const ids = m[2].split(','), sp = el('span', 'ref', m[3]);
     if (m[1] === 'n' && ids[0].length <= 8) sp.appendChild(el('small', null, '#' + ids[0]));
-    sp.title = ids.length > 1 ? ids.length + ' nodes' : '#' + ids[0];
     sp.onmouseenter = () => { hover = ids; request(); };
     sp.onmouseleave = () => { hover = null; request(); };
     sp.onclick = e => { e.stopPropagation(); showBox(idsBox(ids), false); };
@@ -1436,7 +1498,14 @@ function makeTiles(){
   }
 }
 function updateTiles(){
-  const c = C(), cnt = c.steps[k].counts, cmp = OC && ONE;
+  const c = C(), cmp = OC && ONE;
+  if (orig && OC){
+    // the original: its own numbers (with several workflows rebuilt from it, the original holds them all)
+    $('legend').textContent = ONE ? X.legend_orig : X.legend_orig_all;
+    for (const key of KEYS){ T.m[key].now.textContent = OC[key] || 0; T.m[key].was.textContent = ''; }
+    return;
+  }
+  const cnt = c.steps[k].counts;
   $('legend').textContent = cnt.unplaced ? `${X.unplaced_title} ${cnt.unplaced}` : cmp ? X.legend : X.legend_one;
   for (const key of KEYS){
     const m = T.m[key];
@@ -1447,13 +1516,15 @@ function updateTiles(){
 function stepNo(){
   // the step, or in the walkthrough the part; nothing in the original or the whole workflow (hidden, not emptied: the row keeps its height)
   const K = $('kpos'), n = inWalk ? walkOf().parts.length : N(), num = el('b', null, String(inWalk ? partNo : k + 1));
-  K.style.visibility = orig || (inWalk && !partNo) ? 'hidden' : '';
+  if (inWalk && !partNo){ K.style.visibility = ''; K.replaceChildren(el('b', null, U.walk_whole), ` / ${n}`); return; }
+  K.style.visibility = orig ? 'hidden' : '';
   num.style.minWidth = String(n).length + 'ch'; K.replaceChildren(num, ` / ${n}`);
 }
 function panel(){
   if (!T) makeTiles();
   stepNo(); updateTiles();
-  for (const id of ['tiles', 'legend', 'keys']) $(id).hidden = inWalk;
+  for (const id of ['tiles', 'legend']) $(id).hidden = inWalk;
+  $('keys').hidden = inWalk || orig;
   const B = $('pbody'); B.innerHTML = '';
   if (inWalk){ walkPanel(B); return; }
   if (orig){ B.appendChild(el('p', 'quiet', D.original && D.original.api ? U.original_note_api : U.original_note)); return; }
@@ -1461,16 +1532,17 @@ function panel(){
   if (st.kind !== 'layout'){ const say = el('p', 'say'); rich(say, st.s); B.appendChild(say); }
   const cur = new Set(st.p.filter(x => real(c, x))), prev = new Set(k > 0 ? c.steps[k - 1].p.filter(x => real(c, x)) : []);
   const added = [...cur].filter(x => !prev.has(x)), gone = [...prev].filter(x => !cur.has(x));
-  if (added.length){ const h = el('h3', null, U.appeared); h.appendChild(el('span', 'c', String(added.length))); B.appendChild(h);
-    const ul = el('ul', 'probs'); B.appendChild(ul); probItems(ul, added.map(x => c.problems[x]), 'bad'); }
-  if (gone.length){ const det = el('details'), ul = el('ul', 'probs'); det.appendChild(el('summary', null, `${U.solved} ${gone.length}`)); ul.style.marginTop = '8px';
+  const made = el('details'), mul = el('ul', 'probs'); made.open = madeOpen; made.ontoggle = () => { madeOpen = made.open; };
+  made.appendChild(sum(U.appeared, added.length)); mul.style.marginTop = '8px'; made.appendChild(mul);
+  probItems(mul, added.map(x => c.problems[x]), 'bad'); B.appendChild(made);
+  if (gone.length){ const det = el('details'), ul = el('ul', 'probs'); det.appendChild(sum(U.solved, gone.length)); ul.style.marginTop = '8px';
     det.appendChild(ul); probItems(ul, gone.map(x => c.problems[x]), 'good'); B.appendChild(det); }
-  if (st.d.length){ const det = el('details'); det.appendChild(el('summary', null, `${U.details} ${st.d.length}`)); list(det, st.d, 50); B.appendChild(det); }
-  const all = el('details'); all.appendChild(el('summary', null, `${U.all_problems} ${cur.size}`));
+  if (st.d.length){ const det = el('details'); det.appendChild(sum(U.details, st.d.length)); list(det, st.d, 50); B.appendChild(det); }
+  const all = el('details'); all.appendChild(sum(U.all_problems, cur.size));
   const box = el('ul', 'probs'); box.style.marginTop = '8px'; all.appendChild(box);
   all.ontoggle = () => { if (all.open && !box.childNodes.length) probItems(box, [...cur].map(x => c.problems[x]), 'bad'); };
   B.appendChild(all);
-  const raw = el('details'); raw.appendChild(el('summary', null, st.c.length > 1 ? `${U.commands} ${st.c.length}` : U.command));
+  const raw = el('details'); raw.appendChild(st.c.length > 1 ? sum(U.commands, st.c.length) : el('summary', null, U.command));
   raw.appendChild(el('pre', 'cmd', st.c.join('\n'))); B.appendChild(raw);
   B.scrollTop = 0;
 }
@@ -1538,11 +1610,12 @@ function walkPanel(B){
           li.appendChild(a); ul.appendChild(li);
         }
       }
+      for (const w of (R.withdrawn || [])){ const p = el('p'); inline(p, U.review_withdrawn + ': ' + w); body.appendChild(p); }
     }
     // plan lines that ask for a wide gap between columns, each with the number of wires between
     const H = C().hand || [];
     if (H.length){
-      const box = el('details', 'wreview'); box.appendChild(el('summary', null, U.hand + ' ' + H.length)); B.appendChild(box);
+      const box = el('details', 'wreview'); box.appendChild(sum(U.hand, H.length)); B.appendChild(box);
       const ul = el('ul'); const body = el('div', 'wbody'); body.appendChild(ul); box.appendChild(body);
       for (const h of H){ const li = el('li'); inline(li, '`' + h.plan + '`'); const a = el('div', 'wanswer'); inline(a, h.why); li.appendChild(a); ul.appendChild(li); }
     }
@@ -1550,7 +1623,8 @@ function walkPanel(B){
   B.scrollTop = 0;
 }
 function walkbar(){
-  // the parts in processing order, each its own cell; the map button before them shows the whole workflow (no part).
+  // the parts in processing order, each its own cell; the map button at the left end shows the whole workflow (no part),
+  // with the previous and next buttons beside it as play is beside them on the timeline.
   // The cells are made once per canvas and only the current one changes, so the focus stays on the cell pressed
   const B = $('wparts');
   if (wbarOf !== ci){
@@ -1558,7 +1632,7 @@ function walkbar(){
     walkOf().parts.forEach((q, i) => {
       const n = [...q.title].length, b = el('button', 'wpart', q.title);
       b.style.flex = `${n + 2} 1 0`; if (n <= 4) b.style.minWidth = 'max-content';   // widths in proportion to the titles; a short one is never cut
-      b.title = q.title; b.onclick = () => goPart(i + 1); B.appendChild(b);
+      b.onclick = () => goPart(i + 1); B.appendChild(b);
     });
   }
   $('wwhole').setAttribute('aria-pressed', String(partNo === 0));
@@ -1643,14 +1717,14 @@ bar.addEventListener('pointerleave', () => { $('tip').hidden = true; });
 const STEP_MS = 1200;
 function stop(){
   if (playing){ cancelAnimationFrame(playing.raf); playing = null; }
-  $('playicon').innerHTML = ICON_PLAY; $('play').title = X.play; $('play').setAttribute('aria-label', X.play);
+  $('playicon').innerHTML = ICON_PLAY; label($('play'), X.play);
 }
 function play(){
   if (playing) return stop();
   if (orig) return;
   if (tween){ cancelAnimationFrame(tween.raf); tween = null; }
   if (t >= N() - 1) setT(0);
-  $('playicon').innerHTML = ICON_PAUSE; $('play').title = X.pause; $('play').setAttribute('aria-label', X.pause);
+  $('playicon').innerHTML = ICON_PAUSE; label($('play'), X.pause);
   playing = {last: performance.now()};
   const tick = now => {
     const p = playing; if (!p) return;
@@ -1701,7 +1775,7 @@ function tabs(){
     const b = el('button', null, tabLabel(kk)); b.dataset.k = kk; b.setAttribute('role', 'tab');
     b.onclick = () => goCanvas(lastOf[kk] ?? D.canvases.findIndex(c => tabKey(c) === kk)); B.appendChild(b);
   });
-  B.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === key)));
+  B.querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.k === key)));
   const group = D.canvases.map((c, j) => [c, j]).filter(([c]) => tabKey(c) === key);
   V.hidden = group.length < 2;
   if (V.dataset.k !== key){
@@ -1716,35 +1790,78 @@ function setOrig(v){
   segState(); timeline(); panel(); marks(); request();
 }
 function showAll(at){
-  $('sWalk').hidden = !C().walk; $('seg').hidden = !D.original && !C().walk;
+  $('sWalk').hidden = !C().walk; $('seg').hidden = !D.original && !C().walk; if (!$('seg').hidden) knob($('seg'), true);
   if (inWalk && !C().walk){ inWalk = false; segState(); }   // this canvas has no walkthrough: show its rebuilt workflow
   partNo = 0; tabs(); timeline(); k = -1; setT(at === undefined ? t : at); if (inWalk) goPart(0, true);
 }
-$('sOrig').textContent = X.original; $('sNew').textContent = X.rebuilt; $('seg').title = X.compare;
-$('sWalk').textContent = X.walk; $('sWalk').title = X.walk_title;
+$('sOrig').lastChild.textContent = X.original; $('sNew').lastChild.textContent = X.rebuilt;
+$('sWalk').lastChild.textContent = X.walk;
 $('sOrig').hidden = !D.original;
 $('sOrig').onclick = () => inWalk ? setWalk(false, true) : setOrig(true);
 $('sNew').onclick = () => inWalk ? setWalk(false, false) : setOrig(false);
 $('sWalk').onclick = () => setWalk(true);
 for (const [id, key] of [['prev', 'prev'], ['next', 'next'], ['zin', 'zoom_in'], ['zout', 'zoom_out'], ['fit', 'fit'], ['follow', 'follow'],
-                         ['play', 'play'], ['speed', 'speed'], ['wprev', 'prev_part'], ['wnext', 'next_part'], ['wwhole', 'walk_whole'], ['helpb', 'help_title']]){
-  $(id).title = X[key]; $(id).setAttribute('aria-label', X[key]);
+                         ['play', 'play'], ['wprev', 'prev_part'], ['wnext', 'next_part'], ['wwhole', 'walk_whole'], ['helpb', 'help_title']]){
+  label($(id), X[key]);
 }
-$('empty').textContent = X.empty;
-for (const [key, text] of X.help){ const row = el('div'); row.append(el('b', null, key), ' ' + text); $('help').appendChild(row); }
+$('emptyt').textContent = X.empty;
+for (const [key, text] of X.help){ const row = el('div'); row.append(el('b', null, key), el('span', 't', text)); $('help').appendChild(row); }
 $('helpb').onclick = () => { const open = $('help').hidden; $('help').hidden = !open; $('helpb').setAttribute('aria-pressed', String(open)); };
 if (!D.canvases.length){ D.canvases.push({name: '', defs: [], nodes: [[]], wires: [[]], groups: [[]], problems: [], steps: [{kind: 'cmd', c: [], s: U.empty, d: [], v: [0, 0, 0], p: [], counts: {}}]}); }
 // light, dark, or as the system says; the choice is kept in this browser
+let theme = 'system';
 function setTheme(v){
-  if (v === 'light' || v === 'dark') document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme;
-  for (const b of $('theme').children) b.setAttribute('aria-pressed', String(b.dataset.v === (v || 'system')));
-  try { localStorage.setItem('rn-theme', v || 'system'); } catch (e) {}
+  theme = v === 'light' || v === 'dark' ? v : 'system';
+  document.documentElement.dataset.theme = theme === 'system' ? (LIGHT.matches ? 'light' : 'dark') : theme;
+  for (const b of $('theme').children) b.setAttribute('aria-pressed', String(b.dataset.v === theme));
+  try { localStorage.setItem('rn-theme', theme); } catch (e) {}
   readTheme();
 }
-for (const b of $('theme').children){ b.title = X.theme[b.dataset.v]; b.setAttribute('aria-label', X.theme[b.dataset.v]); b.onclick = () => setTheme(b.dataset.v); }
-$('brand').textContent = X.brand;
+for (const b of $('theme').children){ label(b, X.theme[b.dataset.v]); b.onclick = () => setTheme(b.dataset.v); }
+// the logo's wire draws itself once when the page opens, and again when the pointer comes onto the logo
+function logo(){ const b = $('brand'); b.classList.remove('play'); b.offsetWidth; b.classList.add('play'); }
+label($('gh'), X.repo); $('brand').onmouseenter = () => { if (!$('brand').getAnimations || !$('brand').getAnimations({subtree: true}).length) logo(); }; logo();
 let theme0 = 'system'; try { theme0 = localStorage.getItem('rn-theme') || 'system'; } catch (e) {}
+LIGHT.addEventListener('change', () => { if (theme === 'system') setTheme('system'); });
 setTheme(theme0); resize(); showAll(0);
+// ---------- tooltips: the name of an icon button (data-tip, from label()) beside the button, not at the pointer as the
+// browser's title is. It shows after the pointer rests TIP_DELAY on the button, at once within TIP_SKIP of the last one
+// hiding, and hides on a press, a wheel, a key or leaving. It stands TIP_GAP off the button, or off the rounded group
+// the button sits in: above, below for the buttons at the top of the page, on the other side when there is no room.
+const TIP_DELAY = 400, TIP_SKIP = 300, TIP_GAP = 8, TIP_EDGE = 8;
+const bubble = el('div', 'bubble'); bubble.setAttribute('role', 'tooltip'); document.body.appendChild(bubble);
+let tipTimer = 0, tipHidAt = -1e9, pressedOn = null;
+const tipOf = n => n instanceof Element ? n.closest('[data-tip]') : null;
+function tipHide(){
+  clearTimeout(tipTimer);
+  if (bubble.classList.contains('on')) tipHidAt = performance.now();
+  bubble.classList.remove('on'); tipOn = null;
+}
+function tipShow(b){
+  clearTimeout(tipTimer); tipOn = b; bubble.textContent = b.dataset.tip;
+  const c = b.getBoundingClientRect(), group = b.closest('.float,.seg,.deckwrap'), g = group ? group.getBoundingClientRect() : c;
+  const w = bubble.offsetWidth, h = bubble.offsetHeight;
+  const below = b.closest('.top') ? g.bottom + TIP_GAP + h <= innerHeight - TIP_EDGE : g.top - TIP_GAP - h < TIP_EDGE;
+  bubble.style.left = Math.round(Math.max(TIP_EDGE, Math.min(innerWidth - TIP_EDGE - w, c.left + c.width / 2 - w / 2))) + 'px';
+  bubble.style.top = Math.round(below ? g.bottom + TIP_GAP : g.top - TIP_GAP - h) + 'px';
+  bubble.classList.add('on');
+}
+document.addEventListener('pointerover', e => {
+  const b = tipOf(e.target); if (b === tipOn) return;
+  const quick = bubble.classList.contains('on') || performance.now() - tipHidAt < TIP_SKIP;
+  tipHide();
+  if (!b || e.buttons || b === pressedOn) return;
+  tipOn = b; if (quick) tipShow(b); else tipTimer = setTimeout(() => tipShow(b), TIP_DELAY);
+});
+document.addEventListener('pointerout', e => {
+  const from = tipOf(e.target), to = tipOf(e.relatedTarget);
+  if (from && to !== from){ if (from === pressedOn) pressedOn = null; if (from === tipOn) tipHide(); }
+});
+document.addEventListener('pointerdown', e => { pressedOn = tipOf(e.target); tipHide(); }, true);
+document.addEventListener('wheel', tipHide, {capture: true, passive: true});
+document.addEventListener('keydown', e => { if (e.key !== 'Tab') tipHide(); }, true);
+document.addEventListener('focusin', e => { const b = tipOf(e.target); if (b && b.matches(':focus-visible')) tipShow(b); });
+document.addEventListener('focusout', () => tipHide());
 // the light capsule of a switch slides to the chosen item
 function knob(seg, now){
   const on = seg.querySelector('button[aria-pressed=true]'); let k = seg.querySelector('.knob');

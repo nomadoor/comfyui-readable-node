@@ -63,6 +63,28 @@ SLOT_LAYOUT_KEYS = ("label", "pos", "slot_index")
 UE_TYPES = {"Prompts Everywhere", "Seed Everywhere"}
 
 
+CONTROL_VALUES = {"fixed", "increment", "decrement", "randomize"}
+
+
+def widget_names_from_inputs(node):
+    """Names for the positions of a node's widgets_values, from the widget inputs the workflow lists (in order), a
+    control_after_generate value counted after the widget it follows. None when that does not account for every value."""
+    wv = node.get("widgets_values")
+    order = [i["name"] for i in node.get("inputs") or [] if isinstance(i.get("widget"), dict)]
+    if not isinstance(wv, list) or not order:
+        return None
+    names, k = [], 0
+    for nm in order:
+        if k >= len(wv):
+            return None
+        names.append(nm)
+        k += 1
+        if k < len(wv) and isinstance(wv[k], str) and wv[k] in CONTROL_VALUES and not isinstance(wv[k - 1], str):
+            names.append("control_after_generate")
+            k += 1
+    return names if k == len(wv) else None
+
+
 class Flattener:
     def __init__(self, wf, object_info):
         self.wf = wf
@@ -251,8 +273,18 @@ class Flattener:
             wv[name] = value
             return True
         info = self.oi.get(node.get("type"))
+        if info is None and isinstance(wv, list):
+            # a custom node that is not installed: the order of its widgets is read from the inputs the workflow lists
+            # for them (each widget is an input with "widget"), a control_after_generate value standing after the widget
+            # it controls. Used only when that accounts for every value
+            names = widget_names_from_inputs(node)
+            if names and name in names:
+                wv[names.index(name)] = value
+                return True
         if info is None or not isinstance(wv, list):
-            self.warn(f"{nid} {node.get('type')}: cannot write a value to widget {name} (type unknown)")
+            self.warn(f"{nid} {node.get('type')}: the value {json.dumps(value, ensure_ascii=False)[:60]} given from outside the "
+                      f"subgraph could not be written to widget {name} (type unknown): the node keeps an old value. Set it "
+                      f"by hand on the canvas (set {nid} <index>=<value>) and say so in the report")
             return False
         names = comfy_schema.widget_names(info, wv)
         if name not in names or names.index(name) >= len(wv):
@@ -601,6 +633,9 @@ class Flattener:
                 n.pop(key, None)
             for slot in (n.get("inputs") or []) + (n.get("outputs") or []):
                 for key in SLOT_LAYOUT_KEYS:
+                    # a Branch chooses by its inputs' labels: there a label is meaning, not layout
+                    if key == "label" and n.get("type") == "BranchNode" and str(slot.get("name", "")).startswith("autogrow."):
+                        continue
                     slot.pop(key, None)
         return {
             "nodes": [self.nodes[n] for n in self.order],

@@ -1,21 +1,11 @@
 {
   "name": "comfyui-readable-node",
-  "interface": {
-    "displayName": "Readable Node"
-  },
-  "owner": {
-    "name": "nomadoor"
-  },
+  "owner": { "name": "nomadoor" },
   "plugins": [
     {
       "name": "comfyui-readable-node",
       "source": "./",
-      "description": "Rebuilds ComfyUI workflows into a form people can read (Readable Node).",
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Productivity"
+      "description": "Rebuilds ComfyUI workflows into a form people can read (Readable Node)."
     }
   ]
 }

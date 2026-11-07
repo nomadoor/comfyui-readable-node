@@ -3,7 +3,7 @@ name: comfyui-readable-node
 description: Builds a ComfyUI workflow (JSON) into a form people can read easily (Readable Node). Use it when the user mentions Readable Node, asks to make a ComfyUI workflow readable or tidy, takes an existing workflow apart to rebuild it, or builds a new workflow. Do not hide nodes, do not hide wires (turn wireless links back into wires), left to right, 1 task per workflow, fewer custom nodes, appropriate colouring.
 license: MIT
 metadata:
-  version: "0.0.3"
+  version: "0.0.4"
 ---
 
 # Readable Node
@@ -30,7 +30,7 @@ There are three goals.
 - The whole picture of the processing can be grasped at a glance (the shape is clear without reading the details).
 - The workflow, as a tool, is easy to rearrange and easy to reuse.
 
-The rules in the references serve these principles and goals; most rules name the one they serve ("Why"). When a case is not covered by a rule, decide by them. Where a rule says "Undecided", it is not decided yet: do not fill it with a rule or threshold of your own; report what you did and what you were unsure about. The words are defined in references/glossary.md.
+The rules in the references serve these principles and goals; how to read a rule is at the top of references/readable-form.md. When a case is not covered by a rule, decide by them. The words are defined in references/glossary.md.
 
 ## Language
 
@@ -47,7 +47,7 @@ The rules in the references serve these principles and goals; most rules name th
 **What the canvas does (things with exactly one answer)**: node sizes, calculating positions, the default colours of loaders, LoRAs and Notes, group padding, checks (check), export. When reading the original (`canvas open`), it fixes what has exactly one way of fixing, such as turning wireless links back into wires, and applying the official node-replacement list and replacements that give the same calculation. It returns everything it did.
 
 **How to use the canvas**
-- Do not write coordinate numbers. Point at things: "put it to the right of A", "make the wire horizontal", "align the top edges". The canvas does the calculation. Only what you point at moves.
+- Do not write coordinate numbers. Point at things: "put it to the right of A", "make the wire horizontal", "align the top edges". The canvas does the calculation.
 - Every call of the tool takes time. Do in one call what can be done in one call (build with `run` on build.txt, arrange with `layout` on layout.txt). Read things side by side, at once.
 
 ## What not to do
@@ -65,7 +65,7 @@ The rules in the references serve these principles and goals; most rules name th
 
 Moves marked "(when there is an original)" are only for rebuilding a given workflow. When building a new one, skip them.
 
-When the user asks for it fast, skip steps 9 and 10 (the review and the report page), finish with `canvas finish fast`, and say in the report that it was not reviewed.
+When the user asks for it fast, skip steps 9 and 10 (the review and the report page), finish with `canvas finish fast`.
 
 1. **Read the original (when there is an original)**  
    `canvas open <workflow.json> <object_info URL or saved object_info JSON>`
@@ -75,59 +75,58 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
 
 2. **Write the understanding document (`$W/understanding.md`)**  
    The understanding of the workflow, written before building. Write the first version after reading, and revise it while building. Keep what you revised as well.
-   - Read references/content.md, references/techniques.md, and the "Content" and "Notes" parts of references/examples.md before writing (its "Layout" part comes in step 5).
+   - Read references/content.md, references/techniques.md, and the "Content" and "Notes" parts of references/examples.md before writing (its "Layout" part comes in step 5). readable-form.md, notes.md and review.md are read in steps 5, 7 and 9, not now.
    - What to write is in references/understanding.md. For every node, write what it does with its values here.
 
-   When the understanding document is written, tell the user once, without waiting for an answer: what the workflow does, how many workflows it will be split into, and what will be replaced.
-
 3. **Split**  
-   Following the split in the understanding document, make one canvas per workflow (`canvas new <name>`, `canvas use <name>`). How many files there are after splitting is Undecided; how they are named is in content.md ("Split"). One canvas becomes one workflow JSON.
+   Following the split in the understanding document, make one canvas per workflow (`canvas new <name>`, `canvas use <name>`). How they are named is in step 8. One canvas becomes one workflow JSON.
    - Workflows of the same form that differ only in part (another input, an added stage): build one, then make the others with `canvas new <name> from <canvas>`, so the shared nodes keep their ids. Write what they share in one plan file, and in each canvas's plan only `include <that file>` and the lines of the part that differs. A fix to the shared part is made once.
 
 4. **Build (per canvas)**  
    The core first, then the added techniques.
    - This skill has no per-model templates: for how to build the core, refer to a workflow for the same use on nomadoor's site (Comfy-with-ComfyUI). `canvas refs <word>` lists, newest first, the workflows whose path or article title contains the word (a model name such as "flux" or "wan", or a use such as "inpaint"). Old workflows are sometimes built wrongly, so for the same use, choose the newer one. Refer only to how the core is built; do not copy the layout.
-   - Write all the build moves in build.txt and run them once with `canvas run build.txt`. If it stops, fix that line and run the rest. Once the nodes are on the canvas, `canvas guide` prints the lines of techniques.md and replacements.md (and of the rules and examples) that name them: read the first two before going on.
-   - An original node is `copy <original id> …` (copies type, values and mode; does not copy wires). A new node is `add <type>` (a type in object_info). Values are `set`. Wires are `link <A>.<output> <B>.<input> …`; a wire into a widget (seed, text) gives that widget its input. `canvas node <id>` shows a node's input and output names: look before writing the lines. Connect only what is needed.
-   - When the build is done (when there is an original), compare with the original using `canvas diff` (values, inputs the user puts in, outputs, mode). One item at a time: if it is an intended difference, note the reason; if not, fix it.
+   - Write all the build moves in build.txt and run them once with `canvas run build.txt`. If it stops, fix that line and run the rest.
+   - An original node is `copy <original id> …` (copies type, values and mode; does not copy wires). A new node is `add <type>` (a type in object_info). Values are `set` (whether a value gets a value node: readable-form.md, section 6). Wires are `link <A>.<output> <B>.<input> …`; a wire into a widget (seed, text) gives that widget its input. `canvas node <id>` shows a node's input and output names: look before writing the lines. Connect only what is needed.
    - Fix the content yourself. Compare with the understanding document and look for what falls under references/content.md. Also look for mistakes born from replacement and for lost functions.
+   - When the build is done (when there is an original), compare with the original using `canvas diff` (values, inputs the user puts in, outputs, mode). Take each difference against what counts as the same workflow:
+     1. Something the user could do is gone: put it back.
+     2. A small numeric difference within the same method (a size rounded to the model's multiple): keep it, and write it in the report.
+     3. A different model or a different method (another depth model, another speed-up): put the original back, and suggest the other in a Caution Note.
+     4. File names, metadata written into the image, previews and the way of wiring are not part of it: a difference there is not undone.
 
 5. **Arrange (per canvas)**  
-   After reading references/readable-form.md. In this order:
-   1. Run `canvas guide` again and read the lines of the rules and examples it prints for the nodes of this canvas.
-   2. Paste the lines of `canvas core <the first stage's sampler>` at the top of layout.txt. They are a draft of the core's block: adjust them to this workflow (a part the usual form lacks is named in a comment, to be placed by relations).
+   In this order:
+   1. Run `canvas guide` for each canvas and read its whole output, uncut: the lines of references/ that name the nodes of this canvas.
+   2. Read references/readable-form.md, references/glossary.md and the "Layout" part of references/examples.md, again here if you read them before. Then paste the lines of `canvas core <the first stage's sampler>` at the top of layout.txt. They are a draft of the core's block: adjust them to this workflow (a part the usual form lacks is named in a comment, to be placed by relations).
    3. For each grouping of the understanding document, write `block <name> <id> …` and the arrangement inside it.
-   4. Run `canvas between layout.txt` to see the wires between blocks and the outputs handed out to several blocks. A value handed out to several stages is written as a `rail` (readable-form.md, "Wires").
+   4. Run `canvas between layout.txt` to see the wires between blocks and the outputs handed out to several blocks. Whether a value handed out to several stages needs a `rail`: readable-form.md, "Wires".
    5. Write the arrangement between blocks: each block against the block it is wired to (`put <block> left|right <block> wire`). Groups, colours and the titles of value nodes and of nodes loading an image go in the same file (readable-form.md, "Groups and colour", "Names"); the canvas reads every group line before it places anything, so where in the file a group line stands does not change the layout.
    6. Run `canvas layout layout.txt`.
 
    How to place:
-   - A node's column comes from the node it feeds (just left of it); its row comes from the rows in readable-form.md. Neither comes from a node that merely stands nearby.
+   - A node's column comes from the node it feeds (just left of it); its row from readable-form.md, section 4 ("Other chains have their own rows"). Neither comes from a node that merely stands nearby.
    - Place by relations only (put, row, stack, align, level, inputs, rail). No numbers: gaps and widths are the canvas's; where a rail runs is in readable-form.md, "Wires". A place one reference does not give takes two (`put <unit> right <A> below <B>`).
    - Copy a shape with `canvas shape`. Split workflows give the same function the same layout (`canvas new <name> from <canvas>`).
 
 6. **Look, and fix**  
    1. Draw the picture with `canvas render $W/look.png` and look at it. Does it look as if a person arranged it? A node far from what it feeds, a wire running a long way, an empty area, a crowded area: fix the plan.
-   2. Read what `canvas layout` returned, as it is: each line names a rule of this skill that a form breaks (its file and section). Fix each in the plan; look at it on the picture. It stops nothing. `canvas check` lists every notice.
-   3. Rewrite the plan lines for everything to fix together and run `canvas layout` again (not item by item). `rail` stops when its line cannot be drawn (a target stands left of the source, or rails keep blocking each other's height); fix what it names. A rail that runs behind a node or has a Reroute that does nothing is drawn, and the check names it.
+   2. Read what `canvas layout` returned, as it is, uncut by grep or head (the `rule:` lines too): each line names a rule of this skill that a form breaks (its file and section); read that section again there. Fix each in the plan; look at it on the picture. `canvas check` lists every notice.
+   3. Rewrite the plan lines for everything to fix together and run `canvas layout` again (not item by item). `rail` stops when its line cannot be drawn (a target stands left of the source); fix what it names. A rail whose wires cross behind a node, or that has a Reroute doing nothing, is drawn, and the check names it.
    4. Repeat 1–3 until nothing is left to fix.
 
-   Leaving something:
-   - Leave an item only after trying, with what was tried and what happened.
-   - When no relation gives a place, leave it and report which two nodes you could not relate.
-   - The check list finds only what can be counted; an empty list does not mean the layout is right. The review (step 9) checks the rest.
+   The check list finds only what can be counted; an empty list does not mean the layout is right. The review (step 9) checks the rest.
 
 7. **Notes**  
-   Read references/notes.md. Export the canvas (a draft for the Note writer; the final export is step 8), then start a separate agent (a subagent) and give it: the exported workflow (a node keeps its number from one export to the next; a node the canvas named, such as a Reroute it made, gets a number of its own), `$W/understanding.md` (E lists the candidates), and references/notes.md, with this request: "Write the Notes for this ComfyUI workflow following notes.md: the one or two sentences at the top of the overview Note, and the Notes on part of the processing, one Markdown file each in $W/notes/, in <the user's language>. Write from what happens to the user, not from the nodes. Write nothing that the graph shows. Point at nodes by their display names. Each file holds only the text: no heading for the title. In your final message, list each file with the id of the node it explains and its title (one of the three in notes.md)." If no separate agent can be started, write them yourself and say so in the report.
-   - Add the models list from `canvas models` under the overview sentence.
-   - Place each Note where notes.md, "Where to place", says, with `note <file> <right|left|below|above> <node>` in the plan (it takes what `put` takes: an alignment, a second reference), give it its title with `title <Note id> "Markdown Note: …"` (the file holds only the text), and run `canvas layout`. When the place written is not clear, the canvas says what the Note lands on.
+   Read references/notes.md. Export the canvas (a draft for the Note writer; the final export is step 8), then start a separate agent (a subagent) and give it: the exported workflow (a node keeps its number from one export to the next; a node the canvas named, such as a Reroute it made, gets a number of its own), `$W/understanding.md` (E lists the candidates), and references/notes.md, with this request: "Write the Notes for this ComfyUI workflow following notes.md: the one or two sentences at the top of the overview Note, and the Notes on part of the processing, one Markdown file each in $W/notes/, in <the user's language>. Write from what happens to the user, not from the nodes. Write nothing that the graph shows. Point at nodes by their display names. Each file holds only the text: no heading for the title. In your final message, list each file with the id of the node it explains and its title (one of the three in notes.md; the overview Note has neither)." If no separate agent can be started, write them yourself.
+   - Add the models list and the custom nodes list from `canvas models` under the overview sentence.
+   - Place each Note where notes.md, "Where to place", says, with `note <file> <right|left|below|above> <node>` in the plan (it takes what `put` takes: an alignment, a second reference), give a Note on part of the processing its title with `title <Note id> "Markdown Note: …"` (the file holds only the text; the overview Note has no title), and run `canvas layout`. When the place written is not clear, the canvas says what the Note lands on.
    - One Note at a time, check that the node on the 🔗 line and the topics are about the same node; a topic about another node moves to that node's Note.
 
 8. **Export and compare**  
-   For each canvas, `canvas export <name>.json`. (When there is an original) run `canvas diff` again on every canvas, look at the differences one by one, and if one is not intended, fix it and export again.
+   For each canvas, `canvas export <name>.json`. The name is the original's file name with `_readable` after it (`image_flux2_klein_text_to_image_readable.json`), so it stands beside the original without overwriting it; when the workflow was split, a few English words after that say what each one does (`…_readable_upscale.json`). (When there is an original) run `canvas diff` again on every canvas, take the differences one by one against the four items of step 4 and content.md, "What becomes of each part", fix what they say, and export again.
 
 9. **Review (another agent)**  
-   Read references/review.md and follow it: draw the picture for each canvas, give the brief to a new agent, fix the rows one at a time, answer every row, export again and register the review with `canvas review`.
+   Read references/review.md and follow it: draw the picture for each canvas (not for one that differs from another only in values), give the brief to a new agent, fix the rows one at a time, answer every row, export again and register the review with `canvas review`.
 
 10. **Write the report page (`report.html`)**  
    Write the page where the user checks the result, as one HTML file. The page has three views. The canvas makes Original (the original workflow) and Rebuilt (what was done on the canvases, one move at a time). You write only the Walkthrough.
@@ -136,9 +135,8 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
    - Finally, write the page with `canvas report report.html <the user's language code>` (`ja`, `en`, `zh` and so on).
 
 11. **Report in the conversation**  
-    First, a few lines of summary: what was produced, what was changed, what the user should check. The path of the report page.
-    - Below that, the details: the understanding document, how it was split, what was changed and why (what was removed, what was replaced, the author's mistakes that were fixed), the diff differences and their reasons, what was left in check and why, the reviewer's one-line reply for each canvas (or that it was not reviewed), and the review rows that were left and why.
-    - `canvas finish` deletes the files of the working folder it knows, including the understanding document. Take what the report needs from it first, then run `canvas finish`, then give the report. While something is missing (an export, a review, an answer to a review row, an up-to-date report page) it stops, says what, and deletes nothing. When the environment keeps the working folder, it only lists the files: say so in the report.
+    Read references/report.md, and report as it says.
+    - `canvas finish` deletes the files of the working folder it knows, including the understanding document. Take what the report needs from it first, then run `canvas finish`, then give the report. While something is missing (an export, a review, an answer to a review row, an up-to-date report page) it stops, says what, and deletes nothing.
 
 ## References
 
@@ -149,5 +147,6 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
 - references/replacements.md: the replacement dictionary (custom nodes and deprecated nodes, things that may be removed, things to keep) and how to find the source.
 - references/readable-form.md: the layout rules (nodes, wires, flow and position, groups and colour, names).
 - references/notes.md: how to write Notes and the Walkthrough, and where to place Notes.
-- references/examples.md: examples (how the rules applied in real workflows), and the list of Undecided items.
+- references/examples.md: examples (how the rules applied in real workflows).
 - references/review.md: the review after export (what you do, and the brief for the agent that reviews).
+- references/report.md: what to tell the user in the conversation at the end.
