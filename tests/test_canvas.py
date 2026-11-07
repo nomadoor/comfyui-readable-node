@@ -1374,6 +1374,20 @@ group "A" s 30 12
         self.assertEqual(n["widgets_values"], ["Music", ["Music", "Instrument", "SFX", "One-shot"]])
         self.assertFalse([x for x in C.full_check(self.cv())[0] if x.startswith("Branch br chooses")])
 
+    def test_branch_keeps_its_input_names_when_set_rebuilds_its_inputs(self):
+        for x in "abc":
+            self.do(f"add PrimitiveFloat {x}")
+        self.do("add BranchNode br")
+        self.do("link a.0 br.Music b.0 br.Instrument c.0 br.SFX")
+        cv = self.cv()
+        n = cv.node("br")
+        n["inputs"] = n["inputs"][:-1]   # an input slot missing, as an imported Branch may be saved
+        cv.save()
+        self.do("set br branch=Instrument")
+        n = self.cv().node("br")
+        self.assertEqual([i.get("label") for i in n["inputs"] if i["name"].startswith("autogrow.")][:3],
+                         ["Music", "Instrument", "SFX"])
+
     def test_a_node_saved_before_an_input_was_added_takes_that_input(self):
         # the frontend builds a node from the current definition, so a node saved by an older version still shows an
         # input added since (Generate Text's system_prompt, a socket after audio); a wire can go to it

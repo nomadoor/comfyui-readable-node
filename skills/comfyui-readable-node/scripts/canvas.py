@@ -4787,9 +4787,13 @@ def _op_set(cv, work, args):
         cv.out.append(f"value {n['id']}.{k}: {json.dumps(old, ensure_ascii=False)[:60]} → {json.dumps(v, ensure_ascii=False)[:60]}")
     ins, outs = CS.new_node_slots(info, vals, [i["name"] for i in n.get("inputs") or []])
     keep = {i["name"]: i.get("link") for i in n.get("inputs") or []}
+    # a Branch chooses by its inputs' labels: keep them when the inputs are rebuilt
+    labels = {i["name"]: i["label"] for i in n.get("inputs") or [] if i.get("label")}
     if [i["name"] for i in ins] != [i["name"] for i in n.get("inputs") or []]:
         for i in ins:
             i["link"] = keep.get(i["name"])
+            if i["name"] in labels and not i.get("label"):
+                i["label"] = labels[i["name"]]
         n["inputs"] = ins
         cv.relink()
     cv.size_node(n)
