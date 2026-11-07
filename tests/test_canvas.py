@@ -1129,6 +1129,30 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.assertIn((l["id"], "9"), [(x["id"], nid) for x, nid in C.hidden_wires(cv)])
         self.assertFalse([x for x in C.full_check(cv)[0] if "passes behind 9" in x])
 
+    def test_a_one_target_rail_across_columns_lowers_next_to_its_target(self):
+        # a rail with one target and another column between its raising Reroute and the target: the rail lowers through
+        # a Reroute next to the target (not one long slanted wire), and the two Reroutes are not "consecutive"
+        # (FluxGuidance stands low between them, so a wire from the raising Reroute would pass behind nothing)
+        plan = ["put 13 origin", "put 26 right 13 top", "move 26 0 700", "put 8 right 26 top", "align top 13 8 move 8",
+                "put 10 left 13", "rail 10.0 above 13 to 8.vae"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        self.assertEqual(len([n for n in cv.s["nodes"] if n.get("type") == "Reroute"]), 2)
+        lines = C.full_check(cv)[0]
+        self.assertFalse([x for x in lines if "rail target without a lowering Reroute" in x or "consecutive Reroutes" in x])
+
+    def test_a_move_taking_a_sampler_s_sources_column_is_not_one_move(self):
+        # a wire into a node stacked with the guider and the sigmas of a SamplerCustomAdvanced (they stand level to it):
+        # making it horizontal would move the sampler's column of sources, so the check does not name it
+        self.do("copy 16 17 25")
+        self.do("link 25.0 13.noise 16.0 13.sampler 17.0 13.sigmas")
+        plan = ["put 13 origin", "inputs 13", "put 26 left 22 wire", "put 8 right 13 wire"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        for l, mv, d, start in C.one_move_levels(cv):
+            self.assertFalse(C.takes_a_sources_column(cv, mv))
+        self.assertTrue(C.takes_a_sources_column(cv, {"22", "17"}))
+
     def test_widening_a_column_keeps_a_wide_gap(self):
         # as above, with `gap wide` between the columns: the gap stays wide
         plan = ["put 22 origin", "put 26 below 22 left", "put 13 right 22 gap wide"]

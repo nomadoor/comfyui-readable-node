@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased (the version number is set when it is published)
+
+- A rail with one target lowers through a Reroute next to the target whenever another column stands between; the canvas no longer wires it straight from the raising Reroute, which its own check called Bad.
+- "A slanted wire one move makes horizontal" no longer counts a move that takes a sampler's column of sources along (a stage's chain on the row below stays there).
+- LATENT_UPSCALE_MODEL counts as a tool wire, not one a node works on.
+
 ## 0.0.5 (2026-11-08)
 
 Layout came out worse in 0.0.4: rules lost while untangling sentences, and the canvas telling the agent fixes it could not make. This puts them back and makes the canvas and the rules agree.

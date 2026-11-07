@@ -1734,12 +1734,23 @@ def _quick_bad(cv):
         {x for x in _chk_backward(cv, c) if x.startswith("backward wire (cannot be kept")}
 
 
+def takes_a_sources_column(cv, ids):
+    """Whether ids hold two or more nodes wired straight into one sampler: moving them moves that sampler's column of
+    sources, which its form places (readable-form.md, section 1), not one node at the end of a wire."""
+    fed = {}
+    for l in cv.s["links"]:
+        t = cv.node(l["target_id"])
+        if l["origin_id"] in ids and t and is_sampler(t):
+            fed.setdefault(t["id"], set()).add(l["origin_id"])
+    return any(len(v) >= 2 for v in fed.values())
+
+
 def one_move_levels(cv):
     """readable-form.md, Wires, Bad: "a slanted wire that becomes horizontal by moving the node at one end, without
     slanting another wire". Counted exactly: that node moves (with the nodes wired level to it, so no horizontal wire
     is slanted), lands on no node or Reroute. A Save or Preview stepped down below the wire passing on (a staircase),
-    the side inputs of SamplerCustomAdvanced, a loader's wires, a node in a sources column and a move that would take a
-    sampler along are left out. [(wire, ids that move, dy, node moved first)]."""
+    the side inputs of SamplerCustomAdvanced, a loader's wires, a node in a sources column, a move that would take a
+    sampler along and one that would take a sampler's column of sources along are left out. [(wire, ids that move, dy, node moved first)]."""
     nodes = cv.nodes
     solid = [m for m in cv.s["nodes"] if cv.placed(m) and m.get("type") != "Reroute" and m.get("type") not in NOTE_TYPES]
     pairs = horizontal_pairs(cv)
@@ -1766,7 +1777,8 @@ def one_move_levels(cv):
             # a node stacked with another source of a node it feeds stands in that node's sources column (`inputs`):
             # moving it alone breaks the column
             mv = move_closure(cv, solid, {start}, d, {other}, pairs)
-            if mv and not any(is_sampler(nodes[i]) for i in mv) and not lands_on_reroute(cv, mv, d):
+            if mv and not any(is_sampler(nodes[i]) for i in mv) and not lands_on_reroute(cv, mv, d) \
+                    and not takes_a_sources_column(cv, mv):
                 # the sampler fixes the band: it does not move for a side wire; and the move makes no other Bad form
                 bad = _quick_bad(cv)
                 if _try_move(cv, mv, d, lambda: _quick_bad(cv) <= bad):
@@ -2541,7 +2553,10 @@ def _chk_consecutive_reroute(cv, c):
                 direct = all(cv.placed(nodes.get(e, {})) and not any(
                     G.wire_hits(G.spline(a0, cv.in_xy(e, ei)), G.rect(m)) for m in cv.s["nodes"]
                     if cv.placed(m) and m["id"] != e and m.get("type") != "Reroute") for e, ei in ends)
-                if direct and not any(rect_overlap(G.rect(m), band) for m in cv.s["nodes"] if cv.placed(m) and m["id"] not in (n["id"], t["id"])):
+                # across other columns the rail lowers next to its target (rail targets off the rail): both are needed
+                across = any(nodes.get(e) and columns_between(cv, G.rect(n), nodes[e]) for e, _ in ends)
+                if direct and not across and not any(rect_overlap(G.rect(m), band) for m in cv.s["nodes"]
+                                                     if cv.placed(m) and m["id"] not in (n["id"], t["id"])):
                     out.append(f"consecutive Reroutes ({n['id']} leads straight into {t['id']}; one is enough): {n['id']} → {t['id']}")
     return out
 
@@ -2770,6 +2785,14 @@ def _chk_idle_reroute(cv, c):
     return out
 
 
+def columns_between(cv, r, t):
+    """Whether a node (not a Reroute or a Note) stands between rect r (a rail Reroute) and target t: then the rail lowers
+    into t through a Reroute in the column just left of it (readable-form.md, Wires), not with one long slanted wire."""
+    rt = G.rect(t)
+    return any(cv.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES and m is not t
+               and G.rect(m)[0] >= r[2] and G.rect(m)[2] <= rt[0] for m in cv.s["nodes"])
+
+
 @check_rule("rail targets off the rail")
 def _chk_rail_target_off_rail(cv, c):
     # a rail target wired straight from a rail Reroute far to its left, at another height: the rail ends in a long slanted
@@ -2782,11 +2805,8 @@ def _chk_rail_target_off_rail(cv, c):
         if not o or not t or o.get("type") != "Reroute" or t.get("type") == "Reroute" or not cv.placed(o) or not cv.placed(t):
             continue
         a, b = cv.out_xy(o["id"], 0), cv.in_xy(t["id"], l["target_input"])
-        ro, rt = G.rect(o), G.rect(t)
-        # a lowering Reroute stands in the column just left of its target: no node stands between them
-        between = any(cv.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES and m is not t
-                      and G.rect(m)[0] >= ro[2] and G.rect(m)[2] <= rt[0] for m in cv.s["nodes"])
-        if abs(a[1] - b[1]) >= 1 and between:
+        ro = G.rect(o)
+        if abs(a[1] - b[1]) >= 1 and columns_between(cv, ro, t):
             out.append(f"rail target without a lowering Reroute ({round(b[0] - a[0])}px across, {round(b[1] - a[1])}px down): "
                        f"{o['id']} → {lname(cv, l)}")
     return out
@@ -3300,7 +3320,7 @@ def _behind_save_into_output(cv, line):
     return bool(t and b) and is_output_node(cv, t) and "Preview" not in (b.get("type") or "")
 
 
-REFERENCE_TYPES = {"MODEL", "CLIP", "VAE", "CLIP_VISION", "CONTROL_NET", "UPSCALE_MODEL", "STYLE_MODEL", "GLIGEN",
+REFERENCE_TYPES = {"MODEL", "CLIP", "VAE", "CLIP_VISION", "CONTROL_NET", "UPSCALE_MODEL", "LATENT_UPSCALE_MODEL", "STYLE_MODEL", "GLIGEN",
                    "MODEL_PATCH", "INTERP_MODEL", "BBOX_DETECTOR", "SEGM_DETECTOR", "SAM_MODEL", "NOISE", "SAMPLER",
                    "SIGMAS", "GUIDER", "INT", "FLOAT", "STRING", "BOOLEAN", "MASK"}
 
@@ -7643,8 +7663,10 @@ def do_rail(cv, args):
             continue
         # a rail into one target after its raising Reroute: when a wire from that Reroute reaches the target passing behind
         # no node, a lowering Reroute would follow it straight, which the rules call Bad (consecutive Reroutes: one is enough)
+        # Only when no column stands between that Reroute and the target: across columns the rail lowers next to it
         if (prev[0] != oid and not lowered and (x0, tid, tin) == tg[-1] and direct_ok(tid, tin, prev[0])
-                and not any(t2 == tid for _, t2, _ in tg[:-1])):
+                and not any(t2 == tid for _, t2, _ in tg[:-1])
+                and not columns_between(cv, G.rect(cv.node(prev[0])), cv.node(tid))):
             cv.add_link(prev[0], prev[1], tid, tin)
             continue
         # the lowering Reroute stays in the column left of the target (same column), also below a node that grows: it is
