@@ -520,11 +520,18 @@ class Canvas:
             if len(col) > 1:
                 cols.append(col)
         for col in cols:
-            w = max(n["size"][0] for n in col)
             right = len({round(G.rect(n)[2]) for n in col}) == 1
+            widths = sorted({n["size"][0] for n in col})
             for n in col:
+                # the widest width less than SAME_WIDTH_UNDER wider than this node, stepping up through the widths
+                # in between (a Conditioning Zero Out takes the Empty Latent's width even when the column also holds a
+                # much wider text encoder)
+                w = n["size"][0]
+                for x in widths:
+                    if w < x < w + SAME_WIDTH_UNDER:
+                        w = x
                 d = w - n["size"][0]
-                if d <= 0 or d >= SAME_WIDTH_UNDER or n.get("width_set"):
+                if d <= 0 or n.get("width_set"):
                     continue
                 n["size"][0] = w
                 if right:

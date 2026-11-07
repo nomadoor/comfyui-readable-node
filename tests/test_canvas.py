@@ -1101,6 +1101,14 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.do(f"set r regex_pattern=@{f}")
         self.assertEqual(self.cv().node("r")["size"][1] - short, C.TEXT_MIN_H - C.nodesize.MULTILINE_H)
 
+    def test_a_column_widens_a_node_to_the_next_wider_within_60_not_only_the_widest(self):
+        # a text encoder (400) above FluxGuidance (270) above BasicGuider (225): the guider takes 270, as a Conditioning
+        # Zero Out takes the Empty Latent's width; the encoder keeps its own
+        self.do("put 42 origin")
+        self.do("stack 42 26 22")
+        cv = self.cv()
+        self.assertEqual([cv.node(i)["size"][0] for i in ("42", "26", "22")], [400, 270, 270])
+
     def test_load_vae_above_the_sampler_keeps_its_left_edge_and_the_layout_is_stable(self):
         # Load VAE above the sampler, both 270 wide (narrower than the loader minimum): widening it to the left would put
         # its left edge off the sampler's, and to the right past the sampler, so it is not widened
