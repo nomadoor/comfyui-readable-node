@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.0.5 (2026-11-08)
+
+Layout came out worse in 0.0.4: rules lost while untangling sentences, and the canvas telling the agent fixes it could not make. This puts them back and makes the canvas and the rules agree.
+
+- Rules restored: Load VAE stands above the sampler when only VAE Decode uses it; Load VAE or Load CLIP above the model loaders is Bad unless their nodes and wires cannot meet; a node put between columns that many wires pass through is Bad; ControlNet kinds are pale_blue.
+- A ControlNet that changes the model (it takes a MODEL_PATCH) stands like Apply ControlNet, just left of the sampler, the text encoders left of it, its Load Model Patch below the encoders. `canvas core` drafts it. Other model nodes come before it.
+- Stages: when no node taking the conditioning stands just left of the sampler, the nodes between two stages stand on the eye line and the wire from the previous stage is the level one. With SamplerCustomAdvanced, the latent from the previous stage comes last in the sources column.
+- Columns: nodes stacked in one column align their right edges (`put … above/below` and `stack` align right by default); nodes whose widths differ by less than 60px take the wider width.
+- The source heading a rail stands at the rail's height (not only loaders); a source whose wire into the node right of it is level may raise or lower the rail with a Reroute right after it.
+- The canvas no longer widens a gap by itself: a gap where wires cross three times or more is named by the check, and the plan writes `gap wide`. "Only what you point at moves."
+- New checks: a rail target reached without a lowering Reroute; a rail head away from its rail; an output node stepped down where the flow ends; uneven widths and right edges in a column; the wire from the previous stage slanting into the stage's chain.
+- `canvas guide` prints every line uncut; `canvas core` lists the Layout examples for the nodes of its draft; the last line of `canvas layout` names what is left to fix.
+- Review: a row answered `left` goes back to the reviewer, whose reply is written after the answer (`reviewer: not Bad`); `canvas review` stops without it or when the reviewer said Bad.
+- A short one-line text in a field that is not a prompt (an expression, a regex) gets the frontend's smallest field.
+- Widening a column or a loader to one width never eats the gap beside it: a loader placed left of a node widens to the left.
+- A Reroute raising a wire to a rail stands on the left edge of the next column also across `gap wide`.
+- A wire whose curve only bulges into a node in its target's column (a straight line would pass behind nothing) is not a wire behind a node.
+- Load VAE or Load CLIP above a model loader: only meeting the model loader or its wires counts; crossing other wires does not.
+- `set <widget>=@<file>` stops when the file is missing (the path is read from the current folder).
+- The conversation report at the end follows references/report.md (files and what each makes, what was changed that makes the result differ, other ways it could be built, other notes).
+- Examples are marked "Exception (<rule>)" where a rule gives way.
+- Tests: the fixes a check names are tested to work (tests/test_check_fixes.py).
+
 ## 0.0.4 (2026-11-07)
 
 The rules were untangled into one set: sentences that contradicted each other were merged, and what stays undecided is shown as worked examples instead of rules.

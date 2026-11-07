@@ -1047,11 +1047,124 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.assertLess(cv.node("10")["size"][0], C.LOADER_MIN_W)
         self.assertNotIn("loader_base", cv.node("10"))
 
+    def test_put_below_and_stack_align_right_edges_by_default(self):
+        # a column reads as one by its right edges: put above/below and stack align right edges unless told otherwise
+        self.do("put 13 origin")
+        self.do("put 27 above 13")
+        r, q = G.rect(self.cv().node("27")), G.rect(self.cv().node("13"))
+        self.assertEqual(r[2], q[2])
+        self.do("stack 26 22 below 13")
+        a, b = G.rect(self.cv().node("26")), G.rect(self.cv().node("22"))
+        self.assertEqual((a[2], b[2]), (q[2], q[2]))
+        self.do("put 27 above 13 left")
+        self.assertEqual(G.rect(self.cv().node("27"))[0], q[0])
+
+    def test_a_column_takes_one_width_when_the_widths_differ_by_less_than_60(self):
+        # nodes stacked in one column, right edges aligned: the narrower takes the wider width (it widens to the left);
+        # a node 60px or more narrower keeps its own width
+        self.do("put 13 origin")
+        w13 = self.cv().node("13")["size"][0]
+        self.do("put 26 above 13")
+        cv = self.cv()
+        a, b = cv.node("26"), cv.node("13")
+        self.assertLess(abs(a["size"][0] - w13), 60)
+        self.assertEqual(a["size"][0], b["size"][0])
+        self.assertEqual(G.rect(a)[2], G.rect(b)[2])
+        self.do("put 9 below 13")
+        cv = self.cv()
+        self.assertGreaterEqual(cv.node("9")["size"][0] - cv.node("13")["size"][0], 60)
+
+    def test_an_output_node_stepped_down_where_the_flow_ends_is_named(self):
+        # Save Image after VAE Decode, where nothing goes on: it stands on the wire, not a step below
+        self.do("put 13 origin")
+        self.do("put 8 right 13")
+        self.do("put 9 right 8 step")
+        self.assertTrue([x for x in C.full_check(self.cv())[0] if x.startswith("output node stepped down") and x.endswith(": 9")])
+        self.do("put 9 right 8")
+        self.assertFalse([x for x in C.full_check(self.cv())[0] if x.startswith("output node stepped down")])
+
+    def test_a_value_node_heading_a_rail_away_from_it_is_named(self):
+        # a node that takes no wire in heads its rail at the rail's height, as a loader does
+        self.do("add PrimitiveFloat v")
+        self.do("link v.0 26.guidance")
+        plan = ["put 13 origin", "put 26 left 13", "put v left 26", "rail v.0 below 13 to 26.guidance"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        self.assertTrue([x for x in C.full_check(self.cv())[0] if x.startswith("rail head away from its rail") and x.endswith(": v")])
+
+    def test_a_short_text_in_a_field_that_is_not_a_prompt_gets_half_a_text_area(self):
+        # Extract Text's pattern: a one-line pattern gets the frontend's smallest field; several lines, a full text area
+        self.do("add RegexExtract r")
+        self.do('set r regex_pattern="x"')
+        short = self.cv().node("r")["size"][1]
+        f = self.dir / "two_lines.txt"
+        f.write_text("a\nb", encoding="utf-8")
+        self.do(f"set r regex_pattern=@{f}")
+        self.assertEqual(self.cv().node("r")["size"][1] - short, C.TEXT_MIN_H - C.nodesize.MULTILINE_H)
+
+    def test_a_column_widens_a_node_to_the_next_wider_within_60_not_only_the_widest(self):
+        # a text encoder (400) above FluxGuidance (270) above BasicGuider (225): the guider takes 270, as a Conditioning
+        # Zero Out takes the Empty Latent's width; the encoder keeps its own
+        self.do("put 42 origin")
+        self.do("stack 42 26 22")
+        cv = self.cv()
+        self.assertEqual([cv.node(i)["size"][0] for i in ("42", "26", "22")], [400, 270, 270])
+
+    def test_widening_a_column_to_the_right_keeps_the_gap_to_the_next_column(self):
+        # a left-aligned column (BasicGuider 225 over FluxGuidance 270) with a node right of the narrower one: the
+        # narrower is not widened into the gap between the columns
+        plan = ["put 22 origin", "put 26 below 22 left", "put 13 right 22"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        self.assertGreaterEqual(G.rect(cv.node("13"))[0] - G.rect(cv.node("22"))[2], C.H_GAP)
+
+    def test_a_curve_bulging_into_the_node_above_its_target_is_not_a_wire_behind(self):
+        # VAE Decode's image into a Save Image far below another one in the next column: the straight line passes behind
+        # nothing, only the curve bulges into the upper Save Image
+        self.do("add SaveImage s2")
+        self.do("link 8.0 s2.images")
+        plan = ["put 8 origin", "put 9 right 8 top", "put s2 below 9 left gap 300"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        l = next(x for x in cv.s["links"] if x["target_id"] == "s2")
+        self.assertIn((l["id"], "9"), [(x["id"], nid) for x, nid in C.hidden_wires(cv)])
+        self.assertFalse([x for x in C.full_check(cv)[0] if "passes behind 9" in x])
+
+    def test_widening_a_column_keeps_a_wide_gap(self):
+        # as above, with `gap wide` between the columns: the gap stays wide
+        plan = ["put 22 origin", "put 26 below 22 left", "put 13 right 22 gap wide"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        self.assertGreaterEqual(G.rect(cv.node("13"))[0] - G.rect(cv.node("22"))[2], C.GAP_WIDE)
+
+    def test_a_loader_left_of_a_node_widens_to_the_left_and_keeps_its_gap(self):
+        # Load CLIP placed left of its text encoder, then the loaders' width grows (another loader is wider): widening the
+        # CLIP loader to the right would eat the gap to the encoder, so it widens to the left
+        plan = ["put 6 origin", "put 11 left 6", "put 12 above 6 right"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        cv.node("12").pop("loader_base", None)
+        cv.node("12")["size"][0] = 360
+        cv.node("12")["width_set"] = True
+        cv.same_loader_width()
+        clip, enc = cv.node("11"), cv.node("6")
+        self.assertEqual(clip["size"][0], 360)
+        self.assertGreaterEqual(G.rect(enc)[0] - G.rect(clip)[2], C.H_GAP)
+
+    def test_a_raising_reroute_stands_on_the_left_edge_of_the_column_across_a_wide_gap(self):
+        # Load VAE left of the sampler with `gap wide`, its wire raised to a rail above the sampler: the Reroute stands on
+        # the sampler's left edge, not in the middle of the gap
+        plan = ["put 13 origin", "put 8 right 13 wire", "put 10 left 13 gap wide", "rail 10.0 above 13 to 8.vae"]
+        self.do(f"layout {self.write_plan(chr(10).join(plan))}")
+        cv = self.cv()
+        rr = [n for n in cv.s["nodes"] if n.get("type") == "Reroute" and G.rect(n)[0] < G.rect(cv.node("13"))[0] + 1]
+        self.assertTrue(rr)
+        self.assertEqual(min(G.rect(n)[0] for n in rr), G.rect(cv.node("13"))[0])
+
     def test_load_vae_above_the_sampler_keeps_its_left_edge_and_the_layout_is_stable(self):
         # Load VAE above the sampler, both 270 wide (narrower than the loader minimum): widening it to the left would put
         # its left edge off the sampler's, and to the right past the sampler, so it is not widened
         self.do("put 13 origin")
-        self.do("put 10 above 13")
+        self.do("put 10 above 13 left")
         cv = self.cv()
         for i in ("10", "13"):
             cv.node(i)["size"][0] = 270
@@ -1103,12 +1216,21 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         out = C.run_cmd(C.Work(d), f"open {SUBJECT} {OI}")
         self.assertFalse([l for l in out if l.startswith("deprecated: ")])
 
+    def test_gap_wide_is_written_in_a_plan(self):
+        # a gap where wires cross three times or more is named by the check and made wide in the plan
+        C.HAND_PLACING_FOR_TESTS = False
+        try:
+            self.do(f"layout {self.write_plan('put 12 origin' + chr(10) + 'put 30 right 12 gap wide' + chr(10), why=False)}")
+            cv = self.cv()
+            self.assertGreaterEqual(G.rect(cv.node("30"))[0] - G.rect(cv.node("12"))[2], C.GAP_WIDE)
+        finally:
+            C.HAND_PLACING_FOR_TESTS = True
+
     def test_a_plan_places_without_numbers(self):
         C.HAND_PLACING_FOR_TESTS = False
         try:
             for plan, word in (("put 12 origin\nput 30 right 12\nmove 30 0 40\n", "there is no move"),
                                ("put 12 origin\nput 30 right 12 gap 100\n", "there is no gap 100"),
-                               ("put 12 origin\nput 30 right 12 gap wide\n", "there is no gap wide"),
                                ("put 12 origin\nput 30 right 12\nwidth 12 30\n", "there is no width")):
                 with self.assertRaises(C.Stop) as e:
                     self.do(f"layout {self.write_plan(plan, why=False)}")
@@ -1469,7 +1591,7 @@ group "A" s 30 12
         out = self.do("core 13")
         self.assertIn("inputs 13   # 22 is the guider: its conditioning enters it horizontally", out)
         self.assertIn("put 26 left 22 wire", out)
-        self.assertIn("put 10 above 13   # Load VAE used only by the decoder", out)
+        self.assertIn("put 10 above 13   # Load VAE used only by the decoder: above the sampler", out)
         self.assertIn("put 8 right 13 wire", out)
         self.do(f"layout {self.write_plan(chr(10).join(l for l in out if not l.startswith('#')))}")
         self.assertEqual(C.hard_problems(self.cv()), [])
@@ -1901,7 +2023,8 @@ group "A" s 30 12
         cv = self.cv()
         cv.same_loader_width()
         widest = max(cv.node(i)["size"][0] for i in ("12", "10"))
-        self.assertGreater(widest, cv.node("t")["size"][0])
+        # t stands in 11's column and is less than 60px narrower: the column takes one width
+        self.assertEqual(cv.node("t")["size"][0], widest)
         self.assertEqual(cv.node("11")["size"][0], widest)
         # written right-aligned with t: it widens to the left and keeps that edge
         self.assertEqual(G.rect(cv.node("11"))[2], G.rect(cv.node("t"))[2])
@@ -1911,21 +2034,20 @@ group "A" s 30 12
         cv.same_loader_width()
         self.assertEqual(cv.node("11")["size"][0], widest)
 
-    def test_a_stage_whose_result_wire_is_level_but_whose_latent_slants_is_fixed_in_the_plan(self):
-        # the previous stage's image (out of VAE Decode 8) enters the stage's VAE Encode level, while the latent into the
-        # stage's KSampler slants: the stage's chain is the one to move
+    def test_a_stage_whose_result_wire_slants_into_its_chain_is_named(self):
+        # no node taking the conditioning stands just left of the stage's KSampler: the chain stands on the eye line, the
+        # previous stage's image (out of VAE Decode 8) enters the stage's VAE Encode level, and the latent slants
         self.do("add VAEEncode e")
         self.do("add KSampler k")
         self.do("link 8.0 e.pixels 10.0 e.vae e.0 k.latent_image")
         self.do("put 8 origin")
         self.do("put e right 8")
-        self.do("level 8.IMAGE e.pixels move e")
         self.do("put k right e")
-        self.do("move k 0 80")
-        chk = next(f for n, f in C.CHECKS if n == "result wire level, latent into the sampler slants")
+        self.do("move e 0 60")
+        chk = next(f for n, f in C.CHECKS if n == "result wire slants into the stage's chain")
         cv = self.cv()
-        self.assertTrue(chk(cv, C._CheckCtx(cv)), "the latent slants while the result wire is level")
-        self.do("level e.LATENT k.latent_image move e")
+        self.assertTrue(chk(cv, C._CheckCtx(cv)), "the result wire slants")
+        self.do("level 8.IMAGE e.pixels move e")
         cv = self.cv()
         self.assertEqual(chk(cv, C._CheckCtx(cv)), [])
 

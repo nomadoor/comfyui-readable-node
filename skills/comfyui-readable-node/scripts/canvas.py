@@ -50,13 +50,13 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
   put <unit> origin                         top-left at (0, 0)
   There are no numbers in placing: the canvas keeps every gap (columns 60, rows 45, measured from hand-made layouts),
   plus the group padding where a group frame lies between two nodes (the gap is kept frame to node, frame to frame).
-  After the plan's lines, a gap between two columns where wires cross 3 times or more is widened to twice the column gap (the report
-  page lists each one); a node reaching over the gap whose right edge is the right edge of the column moved goes with it. Nothing else moves after the plan's lines: what the plan writes is where things stand.
-  Widths are the canvas's too: each node keeps its own, and loaders stacked in one column get the widest of them.
+  Nothing moves after the plan's lines: what the plan writes is where things stand. A gap between two columns where wires cross
+  3 times or more is named by the check: write `gap wide` on the line that places the right column there.
+  Widths are the canvas's too: nodes stacked in one column whose widths differ by less than 60px get the wider width.
   put <unit> right <ref> [top|wire|bottom|middle|step]   to the right of ref. Default: wire if a wire connects them, else top.
                            step: one step down, just below the wire leaving ref (a staircase: an output node under a wire that passes on)
   put <unit> left <ref> [top|wire|bottom|middle|step]   step: just below the wire entering ref (a side node under the image wire)
-  put <unit> below <ref> [left|right|center]       below ref. Default: left edges aligned
+  put <unit> below <ref> [left|right|center]       below ref. Default: right edges aligned
   put <unit> above <ref> [left|right|center]
       wire: at the height where the (first) wire between ref and unit is horizontal
   put <unit> right|left <A> below|above <B>   beside A and below or above B (x from A, y from B; also written
@@ -220,9 +220,9 @@ LAYOUT_SOLVE = False
 # the layout's own fixes after the plan (levelling, widening and closing gaps, clearing below growing nodes, pulling rails
 # together, railing wires along rails, separating groups, clearing frames). Off only to compare
 AUTO_FIX = False
-# after the plan's lines the canvas moves nothing by itself: the one move kept is widening a gap
-# between two columns where wires cross 3 times or more
-WIDE_GAP = True
+# after the plan's lines the canvas moves nothing by itself; a gap between two columns where wires cross 3 times or more
+# is named by the check, and the plan writes `gap wide` there (the skill author)
+WIDE_GAP = False
 # a Note goes where the plan writes it: the canvas does not try the other sides or turn below into above
 NOTE_SEARCH = False
 # level moves only the unit it names: the nodes wired level to it do not move along
@@ -230,6 +230,7 @@ LEVEL_CARRIES = False
 FRONTEND_MIN = json.loads((Path(__file__).resolve().parent / "frontend_min_sizes.json").read_text(encoding="utf-8"))["sizes"]
 PAD_L, PAD_T, PAD_R, PAD_B = P["GROUP_PAD_LEFT"], P["GROUP_PAD_TOP"], P["GROUP_PAD_RIGHT"], P["GROUP_PAD_BOTTOM"]
 GROUP_TITLE_H = 34          # height of the frontend's group title bar (font_size 24 x 1.4)
+PROMPT_FIELDS = {"text", "prompt", "value", "string", "system_prompt", "positive", "negative"}
 TEXT_MIN_H = 100            # minimum height of a text area (a number set by the skill author)
 # a CLIP Text Encode that only names what SAM3 looks for holds one short sentence: the width of the SAM3 nodes, a text
 # area of a few lines (the skill author keeps these small; 17 in 10 hand-made layouts, 250-303 wide)
@@ -238,6 +239,7 @@ SAM3_PROMPT_SIZE = (270, 100)
 IMAGE_AREA = {"save": P["IMAGE_AREA_SAVE"], "preview": P["IMAGE_AREA_PREVIEW"], "load": P["IMAGE_AREA_LOAD"]}
 IMAGE_UPLOAD_FLAGS = tuple(f for f in CS.UPLOAD_FLAGS if f in ("image_upload", "video_upload"))
 LOADER_MIN_W = 300          # minimum loader width (rounded from the median of 734 loaders in hand-made layouts, 301)
+SAME_WIDTH_UNDER = 60   # nodes stacked in one column whose widths differ by less than this get one width (the skill author)
 REROUTE_W, REROUTE_H = 75, 26
 COLORS = {
     "red": ("#322", "#533"), "brown": ("#332922", "#593930"), "green": ("#232", "#353"), "blue": ("#223", "#335"),
@@ -252,7 +254,7 @@ NOT_PROCESSING = {"Reroute"} | NOTE_TYPES   # on the canvas but not a step of th
 # working keys from reading, dropped when copying from the source. orig_size is kept (used for the size of custom nodes that are not installed)
 WORK_KEYS = WW.NODE_WORK_KEYS - {"orig_size"}
 # marks only the canvas adds. Dropped on export
-CANVAS_MARKS = {"size_min", "width_set", "loader_base", "loader_shift", "loader_x", "canvas_note", "layout_prev", "group_note", "note_ref"}
+CANVAS_MARKS = {"size_min", "width_set", "loader_base", "loader_shift", "loader_x", "col_base", "col_shift", "col_x", "canvas_note", "layout_prev", "group_note", "note_ref"}
 
 
 class Stop(Exception):
@@ -465,25 +467,115 @@ class Canvas:
             left = self.placed(n) and any(abs(G.rect(m)[2] - G.rect(n)[2]) < 1 and self.stacked(n, m) for m in self.s["nodes"]
                                           if m is not n and self.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES
                                           and "Loader" not in (m.get("type") or "") and not self.is_model_loader(m))
-            # widest first; if that overlaps a neighbour, at least the minimum width; else leave it as it is
+            # widest first; if that overlaps a neighbour, at least the minimum width; else leave it as it is. A loader
+            # not kept on a right edge widens to the right, or to the left when widening to the right would eat the gap
+            # to the node right of it (a loader placed left of a node keeps its gap to that node)
+            before, done = G.rect(n) if self.placed(n) else None, False
+            # a loader on the left edge of a node stacked right below or above it keeps that edge: it never widens left
+            on_left_edge = self.placed(n) and any(abs(G.rect(m)[0] - G.rect(n)[0]) < 1 and self.stacked(n, m)
+                                                  for m in self.s["nodes"] if m is not n and self.placed(m)
+                                                  and m.get("type") not in {"Reroute"} | NOTE_TYPES)
             for cand in (w, max(base, LOADER_MIN_W)):
-                if cand == base:
+                if cand == base or done:
                     break
-                n["size"][0] = cand
-                if left:
-                    n["pos"][0] -= cand - base
-                if not (self.placed(n) and (any(rect_overlap(G.rect(n), G.rect(m)) for m in self.s["nodes"]
-                                                if m is not n and self.placed(m)) or self.sticks_out(n, base))):
-                    n["loader_base"] = base
-                    if left:
-                        n["loader_shift"] = cand - base
-                        n["loader_x"] = n["pos"][0]
-                    self.changed.add(n["id"])
-                    break
-                n["size"][0] = base
-                if left:
-                    n["pos"][0] += cand - base
+                for to_left in ((True,) if left else (False,) if on_left_edge else (False, True)):
+                    n["size"][0] = cand
+                    if to_left:
+                        n["pos"][0] -= cand - base
+                    if not (self.placed(n) and (any(rect_overlap(G.rect(n), G.rect(m))
+                                                    or self._gap_eaten(n, before, G.rect(n), m)
+                                                    for m in self.s["nodes"] if m is not n and self.placed(m))
+                                                or self.sticks_out(n, base))):
+                        n["loader_base"] = base
+                        if to_left:
+                            n["loader_shift"] = cand - base
+                            n["loader_x"] = n["pos"][0]
+                        self.changed.add(n["id"])
+                        done = True
+                        break
+                    n["size"][0] = base
+                    if to_left:
+                        n["pos"][0] += cand - base
         self.same_column_loader_width()
+        self.same_column_width()
+
+    def same_column_width(self):
+        """Nodes stacked in one column whose width is less than SAME_WIDTH_UNDER narrower than the widest of that column take
+        the widest width (readable-form.md, section 4: a column reads as one). A column whose right edges are aligned keeps
+        them aligned (it widens to the left); otherwise it widens to the right. Not widened when that would overlap another
+        node, or when its width was set with width."""
+        skip = {"Reroute"} | NOTE_TYPES
+        for n in self.s["nodes"]:
+            if "col_base" in n:
+                n["size"][0] = n.pop("col_base")
+                shift, at = n.pop("col_shift", 0), n.pop("col_x", None)
+                if n.get("pos") is not None and shift and at is not None and abs(n["pos"][0] - at) < 1:
+                    n["pos"][0] += shift
+        ns = [n for n in self.s["nodes"] if self.placed(n) and n.get("size") and n.get("type") not in skip]
+        ns.sort(key=lambda n: G.rect(n)[1])
+        cols, seen = [], set()
+        for n in ns:
+            if n["id"] in seen:
+                continue
+            col, cur = [n], n
+            seen.add(n["id"])
+            for m in ns:
+                if m["id"] in seen:
+                    continue
+                r, q = G.rect(cur), G.rect(m)
+                if min(r[2], q[2]) > max(r[0], q[0]) and 0 <= q[1] - r[3] <= V_GAP + 1 \
+                        and (abs(r[2] - q[2]) < 1 or abs(r[0] - q[0]) < 1):
+                    col.append(m)
+                    seen.add(m["id"])
+                    cur = m
+            if len(col) > 1:
+                cols.append(col)
+        for col in cols:
+            right = len({round(G.rect(n)[2]) for n in col}) == 1
+            widths = sorted({n["size"][0] for n in col})
+            for n in col:
+                # the widest width less than SAME_WIDTH_UNDER wider than this node, stepping up through the widths
+                # in between (a Conditioning Zero Out takes the Empty Latent's width even when the column also holds a
+                # much wider text encoder)
+                w = n["size"][0]
+                for x in widths:
+                    if w < x < w + SAME_WIDTH_UNDER:
+                        w = x
+                d = w - n["size"][0]
+                if d <= 0 or n.get("width_set"):
+                    continue
+                before = G.rect(n)
+                n["size"][0] = w
+                if right:
+                    n["pos"][0] -= d
+                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(n, before, G.rect(n), m)
+                       for m in self.s["nodes"] if m is not n and self.placed(m)):
+                    n["size"][0] -= d
+                    if right:
+                        n["pos"][0] += d
+                    continue
+                n["col_base"] = n.get("col_base", w - d)
+                n["col_shift"] = n.get("col_shift", 0) + (d if right else 0)
+                if n["col_shift"]:
+                    n["col_x"] = n["pos"][0]
+                self.changed.add(n["id"])
+
+    def _gap_eaten(self, n, before, after, mn):
+        """Widening node n from rect before to rect after brings it closer than H_GAP to node mn, beside it in the same
+        rows (closer than GAP_WIDE where the plan wrote `gap wide` between them): the gap between two columns stays the
+        gap the layout gave them. A gap already narrower is not made narrower."""
+        m = G.rect(mn)
+        if min(after[3], m[3]) - max(after[1], m[1]) <= 0:
+            return False
+        if m[0] >= before[2]:
+            old, new = m[0] - before[2], m[0] - after[2]
+        elif m[2] <= before[0]:
+            old, new = before[0] - m[2], after[0] - m[2]
+        else:
+            return False
+        wide = any((n["id"] in a and mn["id"] in b) or (n["id"] in b and mn["id"] in a)
+                   for a, b in self.s.get("wide_pairs", []))
+        return new < old and new < min(old, GAP_WIDE if wide else H_GAP)
 
     def same_column_loader_width(self):
         """Loaders stacked in one column (any node whose type name contains Loader and that takes no wire: IPAdapter Model
@@ -516,10 +608,12 @@ class Canvas:
                 d = w - n["size"][0]
                 if d <= 0:
                     continue
+                before = G.rect(n)
                 n["size"][0] = w
                 if right:
                     n["pos"][0] -= d
-                if any(rect_overlap(G.rect(n), G.rect(m)) for m in self.s["nodes"] if m is not n and self.placed(m)):
+                if any(rect_overlap(G.rect(n), G.rect(m)) or self._gap_eaten(n, before, G.rect(n), m)
+                       for m in self.s["nodes"] if m is not n and self.placed(m)):
                     n["size"][0] -= d
                     if right:
                         n["pos"][0] += d
@@ -794,6 +888,9 @@ class Canvas:
         if n.get("type") in NOTE_TYPES:
             return
         n.pop("loader_base", None)   # the size is recomputed, so the loader width alignment is recomputed too
+        n.pop("col_base", None)
+        n.pop("col_shift", None)
+        n.pop("col_x", None)
         shift, at = n.pop("loader_shift", 0), n.pop("loader_x", None)
         if n.get("pos") is not None and shift and at is not None and abs(n["pos"][0] - at) < 1:
             n["pos"][0] += shift
@@ -824,7 +921,12 @@ class Canvas:
                 rows = max(len(sock), len(n.get("outputs") or []), 1)
                 start = rows * G.SLOT + 6
                 fixed = sum(G.WIDGET for x in names if x not in grow)
-                h = max(h, start + fixed + TEXT_MIN_H * len(grow))
+                # a one-line text in a field that is not a prompt (an expression, a pattern) gets the smallest field the
+                # frontend makes (nodesize.MULTILINE_H); a longer line scrolls in it (the skill author: as small as its
+                # content needs, a field never larger than needed)
+                vals = dict(zip(names, n.get("widgets_values") or [])) if isinstance(n.get("widgets_values"), list) else {}
+                short = [x for x in grow if x not in PROMPT_FIELDS and isinstance(vals.get(x), str) and "\n" not in vals[x]]
+                h = max(h, start + fixed + TEXT_MIN_H * (len(grow) - len(short)) + nodesize.MULTILINE_H * len(short))
         # Nodes 2.0 draws a node taller than the legacy renderer: one margin for every type (layout_params.json)
         if n.get("type") not in {"Reroute"} | NOTE_TYPES:
             h += P["VUE_MARGIN"]
@@ -1153,15 +1255,13 @@ def guide(cv):
             continue
         out.append(f"\n## {v['shown']} ({t})" + (f" ×{v['count']}" if v["count"] > 1 else ""))
         seen = set()
-        for f, h, b in hits[:6]:
+        # every line, uncut: a cut line hid the half of an example that says where the node goes
+        for f, h, b in hits:
             key = (f, b)
             if key in seen:
                 continue
             seen.add(key)
-            body = b if len(b) <= 600 else b[:600] + " …"
-            out.append(f"- {f} — {h}:\n  " + body.replace("\n", "\n  "))
-        if len(hits) > 6:
-            out.append(f"- ({len(hits) - 6} more: grep references/ for {v['shown']})")
+            out.append(f"- {f} — {h}:\n  " + b.replace("\n", "\n  "))
     if len(out) == 2:
         out.append("(no line of references/ names a node on this canvas)")
     return out
@@ -1214,16 +1314,36 @@ def core_plan(cv, sid):
     pos = src(cond_at, "positive") or src(cond_at, "conditioning")
     model_at = guider or sid
     mchain = upstream(model_at, "MODEL")
+    # a ControlNet that changes the model (it takes a MODEL_PATCH from Load Model Patch) is not part of the model row
+    # (readable-form.md, The usual form): it stands just left of the sampler, like Apply ControlNet
+    patch_cn = [x for x in mchain if any(i.get("type") == "MODEL_PATCH" for i in cv.node(x).get("inputs") or [])]
+    mchain = [x for x in mchain if x not in patch_cn]
+
+    def decoders_from(nid, depth=3):
+        # the decoders a sampler's latent reaches, through nodes that are not samplers (an AV latent split, …)
+        found, todo, seen = [], [(nid, 0)], {nid}
+        while todo:
+            cur, d = todo.pop(0)
+            for n in outs_of(cur):
+                if n["id"] in seen or is_sampler(n):
+                    continue
+                seen.add(n["id"])
+                if any(i.get("type") == "VAE" for i in n.get("inputs") or []) \
+                        and "LATENT" not in {o.get("type") for o in n.get("outputs") or []}:
+                    found.append(n)
+                elif d + 1 < depth:
+                    todo.append((n["id"], d + 1))
+        return found
     decodes = [n for n in outs_of(sid) if "LATENT" not in {o.get("type") for o in n.get("outputs") or []}
                and any(i.get("type") == "VAE" for i in n.get("inputs") or [])]
     dec = decodes[0]["id"] if decodes else None
+    far_decs = [] if dec else decoders_from(sid)
     outs = [n for n in outs_of(dec) if is_output_node(cv, n)] if dec else []
     save = next((n["id"] for n in outs if "Compare" not in n.get("type", "")), None)
     compare = next((n["id"] for n in outs if "Compare" in n.get("type", "")), None)
-    vae = src(dec, "vae") if dec else None
-    vae_only_decode = vae and cv.is_loader(cv.node(vae)) and all(
-        any(i.get("type") == "VAE" and src(t["id"], i.get("name")) == vae for i in t.get("inputs") or []) and t["id"] == dec
-        for t in outs_of(vae))
+    vae = src(dec, "vae") if dec else (src(far_decs[0]["id"], "vae") if far_decs else None)
+    dec_ids = {dec} if dec else {n["id"] for n in far_decs}
+    vae_only_decode = vae and cv.is_loader(cv.node(vae)) and all(t["id"] in dec_ids for t in outs_of(vae))
     out = [f"# the usual form around {sid} (readable-form.md, \"The usual form\"); paste into the plan and adjust",
            f"put {sid} origin",
            f"inputs {sid}" + ("" if not guider else f"   # {guider} is the guider: its conditioning enters it horizontally")]
@@ -1270,7 +1390,37 @@ def core_plan(cv, sid):
         out += [f"block model_{sid} {' '.join(mchain)}", f"row {' '.join(mchain)}",
                 f"put model_{sid} above {anchor} right   # the model row above the encoders; its wire may slant"]
     if vae and vae_only_decode and vae not in mchain:
-        out.append(f"put {vae} above {sid}   # Load VAE used only by the decoder")
+        out.append(f"put {vae} above {sid}   # Load VAE used only by the decoder: above the sampler")
+    for cn in patch_cn:
+        lp = next((l["origin_id"] for l in links if l["target_id"] == cn
+                   and next((i for i in cv.node(cn).get("inputs") or [] if i.get("name") == l["target_input"]), {}).get("type") == "MODEL_PATCH"), None)
+        if guider:
+            out.append(f"# {cn} changes the model as a ControlNet: with a guider ({guider}) its place is not drafted here; "
+                       f"place it by relations, like Apply ControlNet before the guider")
+            continue
+        if src(sid, "model") != cn:
+            out.append(f"# {cn} changes the model as a ControlNet: it goes last in the model chain, wired into {sid}.model "
+                       f"(rewire in the build when the source shows the nodes after it do not write the same setting), "
+                       f"then run core again")
+            continue
+        neg = src(sid, "negative")
+        lat = src(sid, "latent_image")
+        # like Apply ControlNet: just left of the sampler, the text encoders left of it, the positive level (it passes
+        # behind the ControlNet), its Load Model Patch below the encoders, the latent below the ControlNet
+        out = [x for x in out if not x.startswith(f"inputs {sid}")]
+        out.append(f"put {cn} left {sid} wire   # {cn} changes the model as a ControlNet: just left of {sid}")
+        if lat:
+            out.append(f"put {lat} below {cn} right")
+        if pos:
+            pl = next(l for l in links if l["target_id"] == sid and l["target_input"] == "positive")
+            out += [f"put {pos} left {cn} top", f"level {pos}.{pl['origin_slot']} {sid}.positive move {pos}"]
+            if neg and neg != pos:
+                out.append(f"put {neg} below {pos} right")
+        if lp:
+            out.append(f"put {lp} below {neg if neg and neg != pos else pos or cn} right   # its Load Model Patch")
+        # the model row is placed against the encoders: after them
+        mlines = [x for x in out if x.startswith(("block model_", "row ", "put model_"))]
+        out = [x for x in out if x not in mlines] + mlines
     if dec:
         out.append(f"put {dec} right {sid} wire")
     else:
@@ -1285,12 +1435,27 @@ def core_plan(cv, sid):
     if compare:
         out.append(f"# {compare} (Compare) is not placed here: where its wires need the fewest Reroutes, not between "
                    f"the decoder and Save Image")
+    # the Layout examples that name a node of this draft, uncut, next to it: the draft is the usual form, the examples
+    # say how it was placed in real workflows (read them before adjusting the draft)
+    ids = {sid, *mchain, *patch_cn, *([vae] if vae else []), *([dec] if dec else []), *([save] if save else []),
+           *([pos] if pos else []), *([guider] if guider else [])}
+    types = {cv.node(i).get("type"): (cv.oi.get(cv.node(i).get("type")) or {}).get("display_name") or cv.node(i).get("type")
+             for i in ids if i in cv.nodes}
+    ex = []
+    for h, b in _guide_pieces(REFS / "examples.md") if (REFS / "examples.md").is_file() else []:
+        if not h[:1].isdigit():
+            continue   # the Layout part of examples.md: its headings are the numbered sections of readable-form.md
+        if any(re.search(rf"(?<![\w]){re.escape(w)}(?![\w])", b) for t, sh in types.items() for w in {t, sh} if w and len(w) > 3):
+            ex.append(f"#   examples.md — {h}:\n#     " + b.replace("\n", "\n#     "))
     out.append("# not placed here: Load CLIP, "
                + (f"{vae} (Load VAE, used by more than the decoder: left of the node that first uses it), "
                   if vae and cv.is_loader(cv.node(vae)) and not vae_only_decode and vae not in mchain else "")
                + "the size nodes, "
                + ("the scheduler → split chain (in the sources column), " if guider else "")
                + "and everything added to the core")
+    if ex:
+        out.append("# the Layout examples that name these nodes (examples.md): read them before adjusting the draft")
+        out += ex
     return out
 
 
@@ -1461,11 +1626,25 @@ def _chk_narrow(cv, c):
     return out
 
 
+def _only_the_curve_bulges(cv, l, nid):
+    """A wire whose curve bulges into a node standing in its target's column (a wire running far down into a Compare below
+    a Save Image), where the straight line from its output to its input passes behind nothing: the spline cannot avoid it,
+    so it is not a wire behind a node (readable-form.md, Wires)."""
+    t, n = cv.node(l["target_id"]), cv.node(nid)
+    if not (t and n and cv.placed(t) and cv.placed(n)):
+        return False
+    rt, rn = G.rect(t), G.rect(n)
+    if min(rt[2], rn[2]) - max(rt[0], rn[0]) <= 0:
+        return False
+    pts = cv.wire_pts(l)
+    return bool(pts) and not G.wire_hits([pts[0], pts[-1]], rn)
+
+
 @check_rule("wires behind nodes")
 def _chk_hidden(cv, c):
     out = []
     nodes, ws = c.nodes, c.ws  # noqa: F841
-    allh = hidden_wires(cv)
+    allh = [(l, nid) for l, nid in hidden_wires(cv) if not _only_the_curve_bulges(cv, l, nid)]
     hw = [(l, nid) for l, nid in allh
           if crosses_behind(cv, l, nid, allh) or _behind_output_node(cv, f"wire behind a node: x ({l['type']}) passes behind {nid}")]
     c.count["wires behind nodes"] = len(hw)
@@ -1697,6 +1876,10 @@ def _chk_sampler_inputs(cv, c):
                         model = o["id"]
                     else:
                         srcs.append(o["id"])
+        # a ControlNet that changes the model stands just left of the sampler (readable-form §1): the other sources stand
+        # around it (the text encoders left of it, the latent below it), not in one column
+        if model and any(i.get("type") == "MODEL_PATCH" for i in nodes[model].get("inputs") or []):
+            continue
         # a source that also feeds another of them (a VAE Encode whose latent goes into Reference Latent as well) stands
         # left of it: its wire into that node would go back from the column (not into Conditioning Zero Out and the like,
         # which a wire may go back into, BACKWARD_OK_TYPES)
@@ -1796,6 +1979,18 @@ def _chk_width_and_value_tops(cv, c):
                 if 0 <= gap_v <= V_GAP * 2 and 1 <= dw < H_GAP and cv.is_model_loader(a) and cv.is_model_loader(b):
                     out.append(f"stacked loaders differ in width by {round(dw)}px: the canvas gives a column of loaders one width, but a node "
                                f"next to one is in the way of widening it: {a['id']} and {b['id']}")
+                # nodes stacked in one column (readable-form.md, section 4): right edges aligned, one width when the widths
+                # differ by less than SAME_WIDTH_UNDER (the canvas gives it; this names where something was in the way)
+                # a column: stacked with an edge aligned (the canvas widens only such a column); two nodes of different
+                # rows that merely stand one above the other are not a column
+                aligned = abs(ra[2] - rb[2]) < 1 or abs(ra[0] - rb[0]) < 1
+                if 0 <= gap_v <= V_GAP + 1 and not (cv.is_model_loader(a) and cv.is_model_loader(b)):
+                    if aligned and 1 <= dw < SAME_WIDTH_UNDER:
+                        out.append(f"stacked nodes differ in width by {round(dw)}px: the canvas gives a column one width, but a node "
+                                   f"next to one is in the way of widening it: {a['id']} and {b['id']}")
+                    elif not aligned:
+                        out.append(f"stacked nodes with right edges not aligned ({round(abs(ra[2] - rb[2]))}px): {a['id']} and {b['id']} "
+                                   f"(if they are one column, align their right edges; nodes of different rows need not)")
                 # a model loader stacked right on a sampler stands in its column: the two get one width
                 if 0 <= gap_v <= V_GAP + 1 and dw >= 1 and any(cv.is_model_loader(x) and is_sampler(y) for x, y in ((a, b), (b, a))):
                     out.append(f"a loader stacked on a sampler differs from it in width by {round(dw)}px: place one with "
@@ -1886,6 +2081,33 @@ def _chk_loader_order(cv, c):
                 if same_stack(cv, m["id"], n["id"], col) and G.rect(n)[1] < G.rect(m)[1]:
                     out.append(f"{k.lower()} loader {n['id']} is above the model loader {m['id']}: "
                                f"the vae and clip loaders stacked in one column go below the model loader")
+    # in other columns too, a vae or clip loader above the model loader is Bad when their nodes or wires meet (a wire
+    # from it crosses one from the model loader, or passes behind the model loader). Where nothing meets, which is higher
+    # does not matter (readable-form.md, Loaders: Fine)
+    ws = c.ws
+
+    def root(nid):
+        # the node a wire really comes from, through Reroutes (a rail)
+        seen = set()
+        while (c.nodes.get(nid) or {}).get("type") == "Reroute" and nid not in seen:
+            seen.add(nid)
+            up = next((x for x in cv.s["links"] if x["target_id"] == nid), None)
+            if not up:
+                break
+            nid = up["origin_id"]
+        return nid
+    for m in kinds.get("MODEL", []):
+        mw = [pts for l, pts in ws if root(l["origin_id"]) == m["id"]]
+        for k in ("VAE", "CLIP"):
+            for n in kinds.get(k, []):
+                if same_stack(cv, m["id"], n["id"], col) or G.rect(n)[1] >= G.rect(m)[1]:
+                    continue
+                nw = [(l, pts) for l, pts in ws if root(l["origin_id"]) == n["id"]]
+                meets = any(poly_cross(pa, pb) for _, pa in nw for pb in mw) or \
+                    any(G.wire_hits(pts, G.rect(m)) for _, pts in nw)
+                if meets:
+                    out.append(f"{k.lower()} loader {n['id']} is above the model loader {m['id']} and its wires meet the "
+                               f"model loader's (they cross, or pass behind it): put it below the model loader")
     # vae and clip take either order: Load VAE may stand below the text encoders, below Load CLIP
     return out
 
@@ -2208,12 +2430,12 @@ def _chk_wide_gap(cv, c):
 @check_rule("crossings in a gap between columns")
 def _chk_gap_crossings(cv, c):
     out = []
-    # wires that still cross CROSS_WIDEN times or more inside a gap between columns: the canvas widens such a gap when
-    # it can; crossing there means the sources stand in another order than the inputs, or far above or below them
-    for x0, x1, n, oid, tid in column_gaps(cv, GAP_WIDE + 1):
+    # wires that cross CROSS_WIDEN times or more inside a gap between columns narrower than GAP_WIDE: the plan writes
+    # gap wide there (or puts the sources in the order of the inputs)
+    for x0, x1, n, oid, tid in column_gaps(cv):
         if n >= CROSS_WIDEN:
-            out.append(f"wires cross {n} times in the gap between {oid} and {tid} (look at the order and height of the "
-                       f"sources: a node centred on its sources column keeps them from crossing)")
+            out.append(f"wires cross {n} times in the gap between {oid} and {tid}: write `gap wide` on the line that places "
+                       f"{tid} right of {oid} (or put the sources in the order of the inputs so they do not cross)")
     return out
 
 
@@ -2545,6 +2767,82 @@ def _chk_idle_reroute(cv, c):
                 break
         if ok and all(abs(cv.in_xy(l["target_id"], l["target_input"])[1] - a[1]) < 1 for l in outs):
             out.append(f"Reroute doing nothing (a direct wire from {src['origin_id']} would be horizontal and pass behind nothing): {n['id']}")
+    return out
+
+
+@check_rule("rail targets off the rail")
+def _chk_rail_target_off_rail(cv, c):
+    # a rail target wired straight from a rail Reroute far to its left, at another height: the rail ends in a long slanted
+    # wire instead of a lowering Reroute next to the target (readable-form.md, Wires: a rail gives its targets the value
+    # through a lowering Reroute)
+    out = []
+    nodes = c.nodes
+    for l in cv.s["links"]:
+        o, t = nodes.get(l["origin_id"]), nodes.get(l["target_id"])
+        if not o or not t or o.get("type") != "Reroute" or t.get("type") == "Reroute" or not cv.placed(o) or not cv.placed(t):
+            continue
+        a, b = cv.out_xy(o["id"], 0), cv.in_xy(t["id"], l["target_input"])
+        ro, rt = G.rect(o), G.rect(t)
+        # a lowering Reroute stands in the column just left of its target: no node stands between them
+        between = any(cv.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES and m is not t
+                      and G.rect(m)[0] >= ro[2] and G.rect(m)[2] <= rt[0] for m in cv.s["nodes"])
+        if abs(a[1] - b[1]) >= 1 and between:
+            out.append(f"rail target without a lowering Reroute ({round(b[0] - a[0])}px across, {round(b[1] - a[1])}px down): "
+                       f"{o['id']} → {lname(cv, l)}")
+    return out
+
+
+@check_rule("rail heads away from their rail")
+def _chk_rail_head_off_rail(cv, c):
+    # a node that takes no wire in (a loader, a value node, Load Image) heading a rail stands at the rail's height
+    # (readable-form.md, Wires): a Reroute raising or lowering its output to the rail means the node stands elsewhere
+    out = []
+    nodes = c.nodes
+    wired_in = {l["target_id"] for l in cv.s["links"]}
+    for l in cv.s["links"]:
+        n, r = nodes.get(l["origin_id"]), nodes.get(l["target_id"])
+        if not n or not r or n.get("type") == "Reroute" or r.get("type") != "Reroute" or n["id"] in wired_in \
+                or cv.is_model_loader(n) or not cv.placed(n) or not cv.placed(r):
+            continue
+        dy = cv.out_xy(r["id"], 0)[1] - cv.out_xy(n["id"], l["origin_slot"])[1]
+        # the exception: the source's wire into a node right of it is level (it cannot also stand at the rail's height)
+        held = any(m["origin_id"] == n["id"] and nodes.get(m["target_id"], {}).get("type") != "Reroute"
+                   and cv.placed(nodes.get(m["target_id"], {}))
+                   and abs(cv.out_xy(n["id"], m["origin_slot"])[1] - cv.in_xy(m["target_id"], m["target_input"])[1]) < 1
+                   for m in cv.s["links"])
+        if abs(dy) >= 1 and not held:
+            out.append(f"rail head away from its rail ({round(dy)}px): place {n['id']} at the height the rail runs, "
+                       f"with no Reroute raising or lowering it: {n['id']}")
+    return out
+
+
+@check_rule("output nodes stepped where the flow ends")
+def _chk_output_stepped_at_end(cv, c):
+    # an output node stands on its source's line when the flow ends there; it steps down only when the flow goes on past
+    # it (readable-form.md, Flow and position)
+    out = []
+    nodes = c.nodes
+    stepped = {i for u in cv.s.get("stepped") or [] for i in u}
+    for nid in stepped:
+        n = nodes.get(nid)
+        if not n or not is_output_node(cv, n) or not cv.placed(n):
+            continue
+        for l in cv.s["links"]:
+            if l["target_id"] != nid:
+                continue
+            def ends_on(tid, seen=()):
+                # the nodes a wire reaches, through Reroutes
+                t = nodes.get(tid)
+                if not t or tid in seen:
+                    return []
+                if t.get("type") != "Reroute":
+                    return [t]
+                return [x for m in cv.s["links"] if m["origin_id"] == tid for x in ends_on(m["target_id"], seen + (tid,))]
+            others = [t for m in cv.s["links"] if m["origin_id"] == l["origin_id"] and m["target_id"] != nid
+                      for t in ends_on(m["target_id"]) if not is_output_node(cv, t)]
+            if not others:
+                out.append(f"output node stepped down where the flow ends: put {nid} right of {l['origin_id']} on its wire "
+                           f"(step only when the flow goes on past it): {nid}")
     return out
 
 
@@ -2899,9 +3197,12 @@ def _chk_loader_raise(cv, c):
         # a loader whose other output goes level into the node right of it (a Load LoRA right of Load Checkpoint): at
         # its output height this rail would run behind that node, so it goes down with a Reroute right after the loader
         # (the skill author)
-        if any(l["origin_id"] == o["id"] and l["origin_slot"] != slot and cv.placed(nodes.get(l["target_id"]) or {})
+        # (readable-form.md, Wires: the one exception) a source whose wire into a node right of it is level, from this
+        # output or another (a Load VAE beside the VAE Encode it feeds, its vae also carried on a rail) cannot stand at
+        # the rail's height either
+        if any(l["origin_id"] == o["id"] and (nodes.get(l["target_id"]) or {}).get("type") != "Reroute"
+               and cv.placed(nodes.get(l["target_id"]) or {})
                and abs(cv.out_xy(o["id"], l["origin_slot"])[1] - cv.in_xy(l["target_id"], l["target_input"])[1]) < 1
-               and G.rect(nodes[l["target_id"]])[1] <= ay <= G.rect(nodes[l["target_id"]])[3]
                for l in cv.s["links"]):
             continue
         rx, ox1 = G.rect(r)[0], G.rect(o)[2]
@@ -3088,11 +3389,11 @@ def _stage_entry(cv, sid, nodes):
     return None
 
 
-@check_rule("result wire level, latent into the sampler slants")
+@check_rule("result wire slants into the stage's chain")
 def _chk_stage_entry_level(cv, c):
-    """readable-form §1: a stage taking the previous stage's result whose conditioning does not enter level: its own
-    chain moves to its sampler so the latent enters level, and the wire from the previous stage into that chain is the
-    one that slants."""
+    """readable-form §1: a stage taking the previous stage's result with no node taking the conditioning just left of its
+    sampler (its conditioning does not enter level from there): the chain stands on the eye line, the wire from the
+    previous stage into the chain is horizontal, and the chain's latent into the sampler slants."""
     out = []
     for n in cv.s["nodes"]:
         # a sampler taking its sources in one column (SamplerCustomAdvanced: the latent last) has its own level wire
@@ -3110,11 +3411,11 @@ def _chk_stage_entry_level(cv, c):
             continue
         a, b = cv.out_xy(lat["origin_id"], lat["origin_slot"]), cv.in_xy(n["id"], lat["target_input"])
         ra, rb = cv.out_xy(lk["origin_id"], lk["origin_slot"]), cv.in_xy(lk["target_id"], lk["target_input"])
-        if not (a and b and ra and rb) or abs(a[1] - b[1]) < 1 or abs(ra[1] - rb[1]) >= 1:
+        if not (a and b and ra and rb) or abs(ra[1] - rb[1]) < 1:
             continue
-        out.append(f"result wire level, latent into the sampler slants: {lname(cv, lk)} is horizontal while "
-                   f"{lname(cv, lat)} ({round(b[1] - a[1])}px) slants; move the stage's chain to {n['id']} so its latent "
-                   f"enters level, and let the wire from the previous stage slant")
+        out.append(f"result wire slants into the stage's chain: {lname(cv, lk)} ({round(rb[1] - ra[1])}px) slants; put the "
+                   f"stage's chain on the eye line (top edges on {n['id']}'s) so that wire is horizontal, and let "
+                   f"{lname(cv, lat)} slant into the sampler")
     return out
 
 
@@ -3179,6 +3480,10 @@ HARD_CHECKS = {
     # the sampler → decode → save wires. The skill author's LTX layouts set the decode midway between the video and
     # audio latents: a liking, not the form to write
     "main flow off its line": lambda cv, l: True,
+    "rail targets off the rail": lambda cv, l: True,
+    "crossings in a gap between columns": lambda cv, l: True,
+    "rail heads away from their rail": lambda cv, l: True,
+    "output nodes stepped where the flow ends": lambda cv, l: True,
     "core nodes the replacement list replaces": lambda cv, l: True,
     "custom nodes the replacement list turns into core": lambda cv, l: True,
 }
@@ -3866,10 +4171,12 @@ def gap_opt(opt):
     """The spacing a plan may ask for: none (the standard gap) or `gap wide` (between columns with many wires)."""
     if "gap" not in opt:
         return None
+    if opt["gap"] == "wide":
+        return "wide"
     if HAND_PLACING_FOR_TESTS:
-        return "wide" if opt["gap"] == "wide" else num(opt["gap"], "gap")
-    raise Stop(f"there is no gap {opt['gap']}: the canvas keeps every gap, and widens the gap between two columns "
-               f"where wires cross in it")
+        return num(opt["gap"], "gap")
+    raise Stop(f"there is no gap {opt['gap']}: the canvas keeps every gap; between two columns where wires cross 3 "
+               f"times or more, write gap wide")
 
 
 def plan_groups(cv):
@@ -3986,6 +4293,8 @@ def put_rel(cv, ids, how, ref_ids, align, gap):
 
 
 def _put_rel(cv, ids, how, ref_ids, align, gap):
+    # placed again: a step written before for these nodes no longer holds
+    cv.s["stepped"] = [u for u in cv.s.get("stepped") or [] if not set(u) & set(ids)]
     w, h = cv.unit_size(ids)
     rb = ref_box(cv, ref_ids)
     if how in ("right", "left"):
@@ -4023,7 +4332,7 @@ def _put_rel(cv, ids, how, ref_ids, align, gap):
     elif how in ("below", "above"):
         g = side_gap(cv, ids, how, ref_ids, gap)
         y0 = rb[3] + g if how == "below" else rb[1] - g - h
-        align = align or "left"
+        align = align or "right"   # a column reads as one by its right edges (readable-form.md, section 4)
         if align == "left":
             x0 = rb[0]
         elif align == "right":
@@ -4930,7 +5239,7 @@ def _op_stack(cv, work, args):
     units = [cv.unit(t) for t in pos]
     if not units:
         raise Stop("stack <unit> ...")
-    al = "right" if "right" in opt else "left"
+    al = "left" if "left" in opt else "right"
     gap = gap_opt(opt)
     if gap == "wide":
         raise Stop("gap wide is only between columns (put right, row, inputs)")
@@ -5493,6 +5802,13 @@ def _op_review(cv, work, args):
             raise Stop(f"\"{a}\": a row is left only with a quoted line of {', '.join(REVIEW_RULE_FILES)} (a Fine "
                        f"line, or the bold line of the rule the fix would break), written as it is in the file "
                        f"between quotes. If no such line applies, fix the row")
+        # every left row went back to the reviewer, who said whether the form is that row's Bad (references/review.md)
+        reply = re.search(r"reviewer:\s*(not bad|bad|not reached)", a, re.I)
+        if not reply:
+            raise Stop(f"\"{a}\": a left row goes back to the same reviewer first; add its reply after your answer as "
+                       f"\"reviewer: not Bad\" (or \"reviewer: not reached\" when it cannot be reached)")
+        if reply.group(1).lower() == "bad":
+            raise Stop(f"\"{a}\": the reviewer says the form is that row's Bad: it is not left. Fix it")
     seen = (work.cfg.get("review_render") or {}).get(cv.name)
     if any(r["answer"].lower().startswith("fixed") for r in rows) and seen == now:
         raise Stop("rows say \"fixed\", but the workflow is the same as in the picture the reviewer saw: fix it, export again, then register")
@@ -6204,6 +6520,11 @@ def do_layout(cv, work, args):
             if t != shown and not (may_say_what(cv, n) and t.startswith(shown + ":")):
                 n.pop("title", None)
                 cv.size_node(n)
+        if "col_base" in n:
+            # a width the column alignment gave is not the node's own: start again from its own width
+            n["size"][0] = n.pop("col_base")
+            n.pop("col_shift", None)
+            n.pop("col_x", None)
         widened = n.pop("size_min", None) is not None
         if n.pop("width_set", None) or widened or n.get("type") == "CLIPTextEncode" or cv.is_negative_prompt(n):
             # (a CLIP Text Encode is sized again too: whether it only feeds SAM3 is known once it is wired)
@@ -6512,7 +6833,7 @@ def do_layout(cv, work, args):
     cv.same_loader_width()
     for n in cv.s["nodes"]:
         if n.get("size") and before_w.get(n["id"]) != n["size"][0]:
-            beyond.append(f"  width {n['id']}: {before_w.get(n['id'])} -> {n['size'][0]} (loader widths aligned)")
+            beyond.append(f"  width {n['id']}: {before_w.get(n['id'])} -> {n['size'][0]} (widths aligned)")
     cv.save()
     if beyond:
         cv.out.append("done by the canvas beyond the lines:")
@@ -6524,6 +6845,11 @@ def do_layout(cv, work, args):
     soft = soft_problems(cv)
     if soft:
         cv.out += violations(soft)
+    # the last line names what is left, so a reply cut to its last line still says which nodes break which rule
+    left = [ln.strip() for ln in (hard or []) + (soft or [])]
+    if left:
+        names = [f"{ln.rsplit(': ', 1)[-1] if ': ' in ln else ''} ({ln.split(':')[0].split('(')[0].strip()})" for ln in left]
+        cv.out.append(f"left to fix ({len(left)}): " + "; ".join(names))
     return cv.out
 
 
@@ -6566,6 +6892,7 @@ CHECK_RULES = [
     (("groups overlap", "wire over the title", "node over the title", "node overlapping group"),
      "A group holds one large function"),
     (("loader is above the model loader",), "A loader stands in the column left"),
+    (("stacked nodes differ in width", "stacked nodes with right edges"), "Nodes stacked in one column"),
     (("rail order differs", "rail runs above the", "loader rail runs below", "stacked loaders differ"),
      "A wire is drawn directly"),   # its rail line holds the order
     (("loader away from its first user", "vae loader"), "A loader stands in the column left"),
@@ -6574,7 +6901,9 @@ CHECK_RULES = [
     (("overlap:", "is directly below"), "No node is hidden"),
     (("narrow gap", "empty band", "gap inside a column", "wide gap to a wired neighbour", "uneven spacing",
       "times in the gap"), "Wires show and nothing is packed"),
-    (("wire behind a node", "Reroute", "single value carried", "rail needs no raising", "rails too close"),
+    (("output node stepped down",), "An output node (Save, Preview"),
+    (("wire behind a node", "Reroute", "single value carried", "rail needs no raising", "rails too close",
+      "rail head away"),
      "A wire is drawn directly"),
     (("non-horizontal wire", "slanted wire", "reference wire level", "no wire level into"), "A wire is horizontal when it can be"),
     (("image into",), "Other chains have their own rows"),
@@ -6665,7 +6994,7 @@ def finish(cv):
     cv.same_loader_width()
     for n in cv.s["nodes"]:
         if n.get("size") and before.get(n["id"]) != n["size"][0]:
-            cv.out.append(f"width {n['id']}: {before.get(n['id'])} → {n['size'][0]} (loader widths aligned)")
+            cv.out.append(f"width {n['id']}: {before.get(n['id'])} → {n['size'][0]} (widths aligned)")
     local_report(cv, cv.before)
     cv.save()
     return cv.out or ["nothing changed"]
@@ -6972,9 +7301,10 @@ def lane_nodes(lanes):
 
 def rail_raise_x(cv, ox1):
     """x of a raising Reroute: its left edge on the left edge of the column right of the source (as in hand-made layouts),
-    or half the column gap right of the source when there is no such column."""
+    or half the column gap right of the source when there is no such column. The column may stand up to a wide gap away
+    (`gap wide`), as for a lowering Reroute."""
     lefts = [G.rect(m)[0] for m in cv.s["nodes"] if cv.placed(m) and m.get("type") != "Reroute"
-             and ox1 + H_GAP / 3 <= G.rect(m)[0] <= ox1 + H_GAP + REROUTE_W / 2]
+             and ox1 + H_GAP / 3 <= G.rect(m)[0] <= ox1 + GAP_WIDE + REROUTE_W / 2]
     return min(lefts) if lefts else ox1 + H_GAP / 2
 
 

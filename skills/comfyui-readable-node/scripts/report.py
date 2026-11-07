@@ -205,7 +205,7 @@ def _x_put(S, a, x, d):
              "wire": "間の線が水平になる高さで", "left": "左端をそろえて", "right": "右端をそろえて", "center": "左右の真ん中をそろえて"}
     if align is None:
         # put right|left without a word: the canvas made the wire horizontal when the two are wired, otherwise aligned the tops
-        align = ("wire" if x.get("wired") else "top") if how in ("right", "left") else "left"
+        align = ("wire" if x.get("wired") else "top") if how in ("right", "left") else "right"
     if S.ja:
         g = f"（間隔 {opt['gap']} px）" if "gap" in opt else ""
         return f"{u} を {r} {where_ja}に、{al_ja.get(align, '')}置きました{g}"
@@ -230,7 +230,7 @@ def _x_row(S, a, x, d):
 def _x_stack(S, a, x, d):
     pos, opt = _opts(a, keyed=("below", "gap"))
     units = [p for p in pos if p not in ("left", "right")]
-    side = "right" if "right" in pos else "left"
+    side = "left" if "left" in pos else "right"
     start = S.L(f", starting below {S.unit(opt['below'])}", f"（{S.unit(opt['below'])} の下から）") if "below" in opt else ""
     if S.ja:
         return f"{S.many(units, 4, d=d)} を上から下へ一列に積みました（{'右端' if side == 'right' else '左端'}をそろえて）{start}"
