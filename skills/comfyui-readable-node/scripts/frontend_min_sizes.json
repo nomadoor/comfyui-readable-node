@@ -1,5 +1,5 @@
 {
- "_about": "Sizes of nodes newly created in the frontend (measured from the frontend) that are larger than what nodesize computes: nodes the frontend adds fields to afterwards (PreviewAny's preview_text, etc.) and nodes whose contents change with a selection. The canvas never makes these nodes smaller than this.",
+ "_about": "Sizes of nodes newly created in the frontend (measured from the frontend) that are larger than what nodesize computes: nodes the frontend adds fields to afterward (PreviewAny's preview_text, etc.) and nodes whose contents change with a selection. The canvas never makes these nodes smaller than this.",
  "sizes": {
   "CreateBoundingBoxes": [
    420,

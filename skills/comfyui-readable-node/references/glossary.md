@@ -15,7 +15,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **sampler**: KSampler, KSampler (Advanced), SamplerCustom, SamplerCustomAdvanced, and custom nodes that add processing these core nodes cannot realize.
 - **loader**: a node that reads a model file (Load Checkpoint, Load Diffusion Model, Load CLIP, Load VAE, Load LoRA, and so on).
 - **value node**: a node that only outputs one value (Int, Float, String, and so on).
-- **core node**: a node that comes with ComfyUI from the start. A **custom node** is a node installed afterwards.
+- **core node**: a node that comes with ComfyUI from the start. A **custom node** is a node installed afterward.
 - **deprecated node**: a core node that has been superseded by a newer one ((DEPRECATED) is in its name).
 - **source**: an upstream node that connects into an input of a node.
 - **chain**: nodes connected in a line by wires.

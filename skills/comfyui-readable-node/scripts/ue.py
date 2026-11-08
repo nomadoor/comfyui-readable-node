@@ -17,7 +17,7 @@ Behavior reproduced (matching version 7.8 of the pack):
 * A receiver takes the offer with the highest priority among those whose type matches and whose
   restrictions (group, color, title / input / group regexes, repeated-type rules) allow it. A tie is
   left unconnected and reported.
-* Seed Everywhere is replaced by a PrimitiveInt; flatten.py removes the other broadcasters afterwards.
+* Seed Everywhere is replaced by a PrimitiveInt; flatten.py removes the other broadcasters afterward.
 """
 
 import re

@@ -5,6 +5,12 @@
 - A rail with one target lowers through a Reroute next to the target whenever another column stands between; the canvas no longer wires it straight from the raising Reroute, which its own check called Bad.
 - "A slanted wire one move makes horizontal" no longer counts a move that takes a sampler's column of sources along (a stage's chain on the row below stays there).
 - LATENT_UPSCALE_MODEL counts as a tool wire, not one a node works on.
+- Two stacked nodes aligned only on their left edges are Bad (columns align their right edges); the check names the fix, `put … below` with the right edges aligned. A loader above a sampler is left alone.
+- Rails keep V_GAP from nodes: a rail pushed up in type order stays V_GAP above the node heading the rail below it. New check: a rail closer to a node than V_GAP (the wire from a source to its first Reroute included).
+- Tests: removed the skipped tests and the development notes.
+- English uses American spelling throughout (color, neighbor, center, afterward, backward).
+- README rewritten in English and Japanese, with a Simplified Chinese version (README.zh.md), the intro video, and install steps for the Claude and ChatGPT desktop apps.
+- marketplace.json: the display name, install policy and category used by Codex are back.
 
 ## 0.0.5 (2026-11-08)
 
