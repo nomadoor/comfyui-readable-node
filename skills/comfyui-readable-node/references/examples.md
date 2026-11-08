@@ -1,6 +1,6 @@
 # Examples
 
-How the rules applied in real workflows: "Layout" under the section headings of readable-form.md, then "Content" and "Notes" by topic. "Before" is a form an agent built, "After" the corrected form, "Layout" a layout arranged by hand. In the same situation, lean towards this form.
+How the rules applied in real workflows: "Layout" under the section headings of readable-form.md, then "Content" and "Notes" by topic. "Before" is a form an agent built, "After" the corrected form, "Layout" a layout arranged by hand. In the same situation, lean toward this form.
 An example marked **Exception (<rule>)** is a correct counter-example: there that rule gives way. Every other example is a rule applied as written.
 
 ## Layout
@@ -134,7 +134,7 @@ Layout: the image Switches of all stages, the loader and the saver at one height
 **Spacing**
 ```
 Before: 150px between Load LoRA and KSampler
-After:  no wider space to a wired neighbour without a reason
+After:  no wider space to a wired neighbor without a reason
 ```
 
 ### 5. Loaders
@@ -166,11 +166,11 @@ Layout: a single stage: Load Checkpoint just left of the text encoders (its CLIP
 - The cfg 1.0 of a distilled model is not changed, so it stays in each KSampler; no cfg value node.
 - Sizes typed by hand once are not handed out; a size the author measures from an image comes from Get Image Size.
 
-### 7. Groups and colour
+### 7. Groups and color
 
 - A two-stage LTX workflow has three groups (stage 1, stage 2, decode). A t2i with IPAdapter has no group.
-- A Detail pass whose every node was coloured green inside its group: the group already guides the eye.
-- Colour split finely (SCAIL 2): the core green; taking the person in the input video pale_blue; taking the person in the reference image cyan; CLIP Vision brown.
+- A Detail pass whose every node was colored green inside its group: the group already guides the eye.
+- Color split finely (SCAIL 2): the core green; taking the person in the input video pale_blue; taking the person in the reference image cyan; CLIP Vision brown.
 - In that two-stage LTX workflow, when the Stage 1 result is decoded too, that decode belongs to the stage 1 group; only the decode after upscaling is in the decode group.
 
 ### 8. Names
@@ -187,7 +187,7 @@ After:  ComfyUI's display name
 ### Split
 
 ```
-One: base → refiner → Hires.fix (conditioning passes on), with the film grain and colour correction on the finished image
+One: base → refiner → Hires.fix (conditioning passes on), with the film grain and color correction on the finished image
 Split: nine models with their own sampler settings × t2i and i2i = eighteen workflows
 Split: a prompt written by hand or by an MLLM from an image, one side bypassed in the author's workflow: two text-to-image workflows, one with the MLLM and one without
 Before: an Anima LLLite guide, its nodes in no group, switched on and off with bypass in one workflow

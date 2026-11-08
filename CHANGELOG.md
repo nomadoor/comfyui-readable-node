@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0 (2026-11-08)
+
+- A rail with one target lowers through a Reroute next to the target whenever another column stands between; the canvas no longer wires it straight from the raising Reroute, which its own check called Bad.
+- "A slanted wire one move makes horizontal" no longer counts a move that takes a sampler's column of sources along (a stage's chain on the row below stays there).
+- LATENT_UPSCALE_MODEL counts as a tool wire, not one a node works on.
+- Two stacked nodes aligned only on their left edges are Bad (columns align their right edges); the check names the fix, `put … below` with the right edges aligned. A loader above a sampler is left alone.
+- Rails keep V_GAP from nodes: a rail pushed up in type order stays V_GAP above the node heading the rail below it. New check: a rail closer to a node than V_GAP (the wire from a source to its first Reroute included).
+- Tests: removed the skipped tests and the development notes.
+- English uses American spelling throughout (color, neighbor, center, afterward, backward).
+- README rewritten in English and Japanese, with a Simplified Chinese version (README.zh.md), the intro video, and install steps for the Claude and ChatGPT desktop apps.
+- marketplace.json: the display name, install policy and category used by Codex are back.
+
 ## 0.0.5 (2026-11-08)
 
 Layout came out worse in 0.0.4: rules lost while untangling sentences, and the canvas telling the agent fixes it could not make. This puts them back and makes the canvas and the rules agree.
@@ -70,10 +82,10 @@ The rules were untangled into one set: sentences that contradicted each other we
 - The places the canvas offers for a Note no longer put another node between the Note and the node it explains. A raising Reroute is no longer called unneeded when the rail drawn at the output height would run too close to another rail.
 - Export keeps node numbers from one export to the next; a Reroute the canvas made gets a number of its own.
 - Fixed: a link from a broadcaster (Anything Everywhere) saved with the type `*` now takes the type of the output it comes from.
-- A Load CLIP whose CLIP reaches no text encoder (one that only feeds an LLM) gets no fixed colour.
+- A Load CLIP whose CLIP reaches no text encoder (one that only feeds an LLM) gets no fixed color.
 - A wire may go back one node's width only into Conditioning Zero Out, or from an empty latent into a scheduler.
-- Report page: bypassed nodes are drawn in ComfyUI's bypass colour; the Walkthrough's first page lists the parts, the review and the widened gaps.
-- References: readable-form.md rewritten as eight numbered rules with Why, Bad, Fine and Undecided (the usual form, nodes, wires, flow and position, loaders, value nodes, groups and colour, names); content.md rewritten as two decisions (split; keep, fix, replace or remove); examples.md ordered by those sections; glossary.md defines chain wire, raising and lowering Reroute, gaps, step and more; notes.md: link the Comfy-Org copy of a model, suggest a smaller form of the same model when memory runs short; techniques.md: what becomes of the author's negative text at cfg 1 depends on whether raising cfg is an ordinary choice; replacements.md: `canvas open` replaces Image Comparer, braces in Format Text are doubled.
+- Report page: bypassed nodes are drawn in ComfyUI's bypass color; the Walkthrough's first page lists the parts, the review and the widened gaps.
+- References: readable-form.md rewritten as eight numbered rules with Why, Bad, Fine and Undecided (the usual form, nodes, wires, flow and position, loaders, value nodes, groups and color, names); content.md rewritten as two decisions (split; keep, fix, replace or remove); examples.md ordered by those sections; glossary.md defines chain wire, raising and lowering Reroute, gaps, step and more; notes.md: link the Comfy-Org copy of a model, suggest a smaller form of the same model when memory runs short; techniques.md: what becomes of the author's negative text at cfg 1 depends on whether raising cfg is an ordinary choice; replacements.md: `canvas open` replaces Image Comparer, braces in Format Text are doubled.
 
 ## 0.0.2 (2026-10-21)
 

@@ -10,7 +10,7 @@ Two decisions for each part of the original: which workflow it goes into (Split)
 ## Split
 
 **One workflow is one thing the user wants to do.** Many workflows are fine: the aim is the principles of SKILL.md, not fewer workflows. Why: 1 task = 1 workflow.
-- One workflow: a generation whose stages pass conditioning or a latent on (base → refiner → Hires.fix; t2i → a redraw at a larger size with the same model). Effects on the finished image (film grain, colour matching, frame interpolation, a 1x deblur) stay in it.
+- One workflow: a generation whose stages pass conditioning or a latent on (base → refiner → Hires.fix; t2i → a redraw at a larger size with the same model). Effects on the finished image (film grain, color matching, frame interpolation, a 1x deblur) stay in it.
 - Split: what changes what can be done (t2i, i2i and edit; T2V and I2V); what changes the sampling setup (steps, sigmas, cfg, the sampler): models each with their own settings, a speed-up that changes steps or cfg. Tasks that are not connected (outputs sharing no upstream).
 - A bypassed branch in the one workflow: a speed-up that only may make it faster, an addition that only may make it a little better (CFGZeroStar, a guidance adjustment).
 - An added function the user may want or not (a ControlNet, a guide image) is split: with it and without it. A few nodes that must be switched together can stay in the one workflow as a group switched with bypass.

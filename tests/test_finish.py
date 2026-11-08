@@ -171,7 +171,7 @@ class FinishTest(unittest.TestCase):
         self.assertEqual(C.Work(self.w).cfg["tab_group"], {"u": "m", "t": "m"})
 
     def test_bad_forms_are_reported_and_stop_nothing(self):
-        # the rules' Bad forms are listed first by layout, and export still writes the workflow (correction 980)
+        # the rules' Bad forms are listed first by layout, and export still writes the workflow
         self.do(f"layout {self.w / 'layout.txt'}")
         (self.w / "bad.txt").write_text("put 12 origin\nput 30 origin\n", encoding="utf-8")
         out = self.do(f"layout {self.w / 'bad.txt'}")

@@ -1,7 +1,7 @@
 """Draw a preview picture (PNG) so the agent can look at the layout and correct its decisions.
 Python standard library only.
 
-Draws groups, nodes (colour, title bar, id and title) and wires (the same spline as the frontend, coloured by type).
+Draws groups, nodes (color, title bar, id and title) and wires (the same spline as the frontend, colored by type).
 Wires passing behind a node are drawn as thick white lines, so the check result can be seen.
 Text uses a 5x7 bitmap font (capital letters, digits, symbols). Lower case is drawn as capitals; characters
 outside the font (CJK, etc.) are left out of titles, and anything else unknown becomes "?".
@@ -24,8 +24,8 @@ NODE_BG = (53, 53, 53)
 NODE_TITLE = (51, 51, 51)
 BORDER = (90, 90, 90)
 TEXT = (230, 230, 230)
-HIT = (255, 255, 255)  # marks a wire passing behind a node: white, unlike any type colour (to tell it from VAE red)
-# wire colours of the frontend's dark palette
+HIT = (255, 255, 255)  # marks a wire passing behind a node: white, unlike any type color (to tell it from VAE red)
+# wire colors of the frontend's dark palette
 LINK_COLORS = {
     "MODEL": "#B39DDB", "CLIP": "#FFD500", "VAE": "#FF6E6E", "CONDITIONING": "#FFA931", "LATENT": "#FF9CF9",
     "IMAGE": "#64B5F6", "MASK": "#81C784", "CONTROL_NET": "#6EE7B7", "CLIP_VISION": "#A8DADC",

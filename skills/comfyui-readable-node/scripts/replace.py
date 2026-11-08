@@ -11,7 +11,7 @@ What the code replaces:
 2b. Replacement of a custom node by a core node that does the same job (CORE_REPLACEMENTS: Image Comparer (rgthree)
    by ImageCompare). Recorded with by "core_node".
 
-How list entries are read (behaviour matched to ComfyUI's server and frontend):
+How list entries are read (behavior matched to ComfyUI's server and frontend):
 - input_mapping: {"new_id", "old_id"} copies an old input (a link or a widget value) to a new input.
   {"new_id", "set_value"} sets a value. Inputs not listed are not copied (the new node's default is used and
   the link is cut).
@@ -34,7 +34,7 @@ Each replacement is recorded:
 After replacing, the types of links into and out of replaced nodes are checked with validate.py; failures
 become warnings.
 
-3. The frontend's PrimitiveNode (an untyped value node; deprecated). Its behaviour, matched to the frontend:
+3. The frontend's PrimitiveNode (an untyped value node; deprecated). Its behavior, matched to the frontend:
    it writes its value into the widget it is connected to. Numbers and combos get a control widget ("fixed"
    by default when the target input has no control_after_generate; seed-like inputs use that input's control).
    widgets_values is [value, control, (filter for combos)].

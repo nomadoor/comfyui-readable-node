@@ -90,5 +90,16 @@ class CheckFixTest(unittest.TestCase):
         self.assertFalse(self.check_lines("raising Reroute right of a loader"))
 
 
+    def test_write_below_right_for_a_left_aligned_column(self):
+        # "stacked nodes aligned on their left edges, not their right: … (place the lower one with put … below the other)"
+        self.do("copy 42 26 22")
+        self.do("link 42.0 26.conditioning 26.0 22.conditioning")
+        out = self.layout(["put 42 origin", "put 26 below 42 left"])
+        self.assertTrue(self.check_lines("stacked nodes aligned on their left edges"), "the check names the pair")
+        self.assertTrue([x for x in out if x.startswith("left to fix") and "aligned on their left" in x], "a rule's violation")
+        self.layout(["put 42 origin", "put 26 below 42"])
+        self.assertFalse(self.check_lines("stacked nodes aligned on their left edges"))
+
+
 if __name__ == "__main__":
     unittest.main()

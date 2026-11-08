@@ -39,7 +39,7 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
                            A text of several lines: write it in a file and give <widget>=@<file>, the path from the current folder (\\n in a line stays two characters)
   link <A>.<output> <B>.<input> [<A>.<output> <B>.<input> ...]   connects (in pairs, any number of pairs). Output by name or index, input by name.
       If B.<input> already has a wire, it is replaced. Connecting to an autogrow input (values.c etc.) adds the slot
-      A Branch's input is named for what it carries: link <A>.0 <branch>.<name> (the next input, labelled); set <branch>
+      A Branch's input is named for what it carries: link <A>.0 <branch>.<name> (the next input, labeled); set <branch>
       branch=<name> chooses it (the first by default)
   unlink <B>.<input> ...
   rm <id> ...              removes nodes (and their wires)
@@ -64,7 +64,7 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
       <ref> may be all: every placed node but Notes (rail Reroutes too, not the unit being placed) with the group
                            frames (note <file> left all; align top all <Note>)
   row <unit> ... [right <ref>] [top|wire]   one row from left to right (the first goes right of ref, or stays where it is).
-                           Default: wire between neighbours that are wired, top between those that are not
+                           Default: wire between neighbors that are wired, top between those that are not
   stack <unit> ... [below <ref>] [left|right]  one column from top to bottom
   align <top|bottom|left|right|middle|center> <unit|all> <unit> ...   aligns to the first unit (the first does not move)
   align <how> <unit|all> <B> move <unit>   aligns B to the first unit, moving the unit that holds B with it (a later
@@ -78,13 +78,13 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
                            node on the current canvas, by node type. Run it once, after the nodes are built and before writing the plan
   inputs <id>              puts the sources wired directly into that node in one right-aligned column on its left (in input order, top to bottom). Only the sources move; a source an earlier stage's sampler also takes stays with that stage.
                            Column height: the source that carries the conditioning enters at the node's height (KSampler: the positive wire
-                           horizontal); SamplerCustomAdvanced is centred on the column; any other node has its chain wire (else its first wired input) horizontal
+                           horizontal); SamplerCustomAdvanced is centered on the column; any other node has its chain wire (else its first wired input) horizontal
   shape <laid-out block> <block to lay out> [right|below|left|above <ref>]
                            places the nodes of the second block in the same shape as the first (nodes of the same type are matched in order).
                            For laying out similar stages, or giving split workflows the same layout
   level <A>.<output> <B>.<input> [move <unit>]   moves so that this wire is horizontal (default: moves B)
                            B in an `inputs` column (a side value made level into it): the gap above B takes the room
-                           (the other gaps stay), the side value is set level, a centred sampler is centred last
+                           (the other gaps stay), the side value is set level, a centered sampler is centered last
   block <name> <id> ...     makes a block (making it again replaces it). unblock <name>
   group <title> <unit> ... [color <color>]   makes a group. The frame is recomputed from its nodes every time (padding measured from hand-made layouts)
   ungroup <title>
@@ -148,7 +148,7 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
   node <id>                a node's inputs/outputs, values and slot positions
   check                    the checks (unplaced, overlaps, narrow gaps, wires behind nodes, crossings, non-horizontal wires, backward wires,
                            right edges of sampler inputs, empty band across everything, width differences and value node tops,
-                           Preview above its source, gaps inside a column, gap to a wired neighbour, spacing in a row,
+                           Preview above its source, gaps inside a column, gap to a wired neighbor, spacing in a row,
                            consecutive Reroutes, Reroutes doing nothing, model Note top edge, rails that can run at the output height,
                            single values carried with Reroutes, overlapping rails, rail order against loader order, raising Reroutes right of a loader,
                            loader rails above their targets, wires over group titles, nodes overlapping groups, main flow off its line, Note away from its node, reference wire level and chain wire slanted, no wire level into a merging node,
@@ -217,7 +217,7 @@ HAND_PLACING_FOR_TESTS = False
 AUTO_LEVEL = True   # the layout levels wires and closes gaps by itself (a test of one placing alone turns it off)
 # the layout keeps the plan's vertical relations and solves the heights all at once (relations.py); being built, off by default
 LAYOUT_SOLVE = False
-# the layout's own fixes after the plan (levelling, widening and closing gaps, clearing below growing nodes, pulling rails
+# the layout's own fixes after the plan (leveling, widening and closing gaps, clearing below growing nodes, pulling rails
 # together, railing wires along rails, separating groups, clearing frames). Off only to compare
 AUTO_FIX = False
 # after the plan's lines the canvas moves nothing by itself; a gap between two columns where wires cross 3 times or more
@@ -291,7 +291,7 @@ OWN_IMAGE_WIDGETS = {"PAINTER", "IMAGECOMPARE"}
 
 
 def image_kind(t, oi):
-    """Whether a node type shows an image, recognised from object_info (by type name only for LOADS_WITH_PREVIEW):
+    """Whether a node type shows an image, recognized from object_info (by type name only for LOADS_WITH_PREVIEW):
     "save" for an output node that takes an IMAGE or VIDEO input and saves files ("save" in its category or name, or a
     filename_prefix input), "preview" for another output node that takes an IMAGE input and puts out nothing but IMAGE, "load" for a node with an
     input carrying image_upload or video_upload. None otherwise (also for a type not in object_info)."""
@@ -408,7 +408,7 @@ class Canvas:
         self.out = []
         self.changed = set()
         self.moved = {}
-        self.in_layout = False   # set while `layout` applies a plan (titles and colours it sets are undone on the next layout)
+        self.in_layout = False   # set while `layout` applies a plan (titles and colors it sets are undone on the next layout)
         self.before = set()
 
     # ---- saving and undo
@@ -467,7 +467,7 @@ class Canvas:
             left = self.placed(n) and any(abs(G.rect(m)[2] - G.rect(n)[2]) < 1 and self.stacked(n, m) for m in self.s["nodes"]
                                           if m is not n and self.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES
                                           and "Loader" not in (m.get("type") or "") and not self.is_model_loader(m))
-            # widest first; if that overlaps a neighbour, at least the minimum width; else leave it as it is. A loader
+            # widest first; if that overlaps a neighbor, at least the minimum width; else leave it as it is. A loader
             # not kept on a right edge widens to the right, or to the left when widening to the right would eat the gap
             # to the node right of it (a loader placed left of a node keeps its gap to that node)
             before, done = G.rect(n) if self.placed(n) else None, False
@@ -762,7 +762,7 @@ class Canvas:
         raise Stop(f"{nid} has no input {p} ({', '.join(i['name'] for i in n.get('inputs') or [])})")
 
     def branch_input(self, n, label):
-        """A Branch input named for what it carries: the input with that label, or the next autogrow.branchN, labelled
+        """A Branch input named for what it carries: the input with that label, or the next autogrow.branchN, labeled
         (the frontend shows the label and chooses by it)."""
         for i in n.get("inputs") or []:
             if i.get("label") == label:
@@ -964,8 +964,8 @@ class Canvas:
 
     def clip_loader_role_color(self):
         """A clip loader is yellow only when its CLIP reaches a text encoder (a node that makes conditioning). One that
-        feeds only something else (an LLM's Generate Text) does another job and takes no fixed colour; one that feeds
-        both is yellow. Run once the wires are known: the fixed colour is given when a node is copied."""
+        feeds only something else (an LLM's Generate Text) does another job and takes no fixed color; one that feeds
+        both is yellow. Run once the wires are known: the fixed color is given when a node is copied."""
         yellow = list(COLORS["yellow"])
         for n in self.s["nodes"]:
             outs = [o.get("type") for o in n.get("outputs") or []]
@@ -991,7 +991,7 @@ class Canvas:
             if not reaches:
                 n.pop("color", None)
                 n.pop("bgcolor", None)
-                self.out.append(f"colour {n['id']}: no fixed yellow (its CLIP reaches no text encoder)")
+                self.out.append(f"color {n['id']}: no fixed yellow (its CLIP reaches no text encoder)")
 
     def default_color(self, n):
         outs = [o.get("type") for o in n.get("outputs") or []]
@@ -1734,12 +1734,23 @@ def _quick_bad(cv):
         {x for x in _chk_backward(cv, c) if x.startswith("backward wire (cannot be kept")}
 
 
+def takes_a_sources_column(cv, ids):
+    """Whether ids hold two or more nodes wired straight into one sampler: moving them moves that sampler's column of
+    sources, which its form places (readable-form.md, section 1), not one node at the end of a wire."""
+    fed = {}
+    for l in cv.s["links"]:
+        t = cv.node(l["target_id"])
+        if l["origin_id"] in ids and t and is_sampler(t):
+            fed.setdefault(t["id"], set()).add(l["origin_id"])
+    return any(len(v) >= 2 for v in fed.values())
+
+
 def one_move_levels(cv):
     """readable-form.md, Wires, Bad: "a slanted wire that becomes horizontal by moving the node at one end, without
     slanting another wire". Counted exactly: that node moves (with the nodes wired level to it, so no horizontal wire
     is slanted), lands on no node or Reroute. A Save or Preview stepped down below the wire passing on (a staircase),
-    the side inputs of SamplerCustomAdvanced, a loader's wires, a node in a sources column and a move that would take a
-    sampler along are left out. [(wire, ids that move, dy, node moved first)]."""
+    the side inputs of SamplerCustomAdvanced, a loader's wires, a node in a sources column, a move that would take a
+    sampler along and one that would take a sampler's column of sources along are left out. [(wire, ids that move, dy, node moved first)]."""
     nodes = cv.nodes
     solid = [m for m in cv.s["nodes"] if cv.placed(m) and m.get("type") != "Reroute" and m.get("type") not in NOTE_TYPES]
     pairs = horizontal_pairs(cv)
@@ -1766,7 +1777,8 @@ def one_move_levels(cv):
             # a node stacked with another source of a node it feeds stands in that node's sources column (`inputs`):
             # moving it alone breaks the column
             mv = move_closure(cv, solid, {start}, d, {other}, pairs)
-            if mv and not any(is_sampler(nodes[i]) for i in mv) and not lands_on_reroute(cv, mv, d):
+            if mv and not any(is_sampler(nodes[i]) for i in mv) and not lands_on_reroute(cv, mv, d) \
+                    and not takes_a_sources_column(cv, mv):
                 # the sampler fixes the band: it does not move for a side wire; and the move makes no other Bad form
                 bad = _quick_bad(cv)
                 if _try_move(cv, mv, d, lambda: _quick_bad(cv) <= bad):
@@ -1985,7 +1997,13 @@ def _chk_width_and_value_tops(cv, c):
                 # rows that merely stand one above the other are not a column
                 aligned = abs(ra[2] - rb[2]) < 1 or abs(ra[0] - rb[0]) < 1
                 if 0 <= gap_v <= V_GAP + 1 and not (cv.is_model_loader(a) and cv.is_model_loader(b)):
-                    if aligned and 1 <= dw < SAME_WIDTH_UNDER:
+                    if abs(ra[0] - rb[0]) < 1 and abs(ra[2] - rb[2]) >= 1 and not any(
+                            cv.is_loader(x) and is_sampler(y) for x, y in ((a, b), (b, a))):
+                        # written with `left`: a column aligns its right edges. A loader above a sampler keeps the
+                        # sampler's left edge (Load VAE above the sampler)
+                        out.append(f"stacked nodes aligned on their left edges, not their right ({round(abs(ra[2] - rb[2]))}px): "
+                                   f"{a['id']} and {b['id']} (place the lower one with put … below the other, right edges aligned)")
+                    elif aligned and 1 <= dw < SAME_WIDTH_UNDER:
                         out.append(f"stacked nodes differ in width by {round(dw)}px: the canvas gives a column one width, but a node "
                                    f"next to one is in the way of widening it: {a['id']} and {b['id']}")
                     elif not aligned:
@@ -2400,11 +2418,11 @@ def _chk_column_gap(cv, c):
     return out
 
 
-@check_rule("gap to a wired neighbour")
+@check_rule("gap to a wired neighbor")
 def _chk_wide_gap(cv, c):
     out = []
     nodes, ws = c.nodes, c.ws  # noqa: F841
-    # the gap to a wired neighbour is wider than the standard gap (same row, nothing between them)
+    # the gap to a wired neighbor is wider than the standard gap (same row, nothing between them)
     seen_pair = set()
     for l in cv.s["links"]:
         o, t = nodes.get(l["origin_id"]), nodes.get(l["target_id"])
@@ -2423,7 +2441,7 @@ def _chk_wide_gap(cv, c):
                if cv.placed(m) and m["id"] not in (o["id"], t["id"]) and m.get("type") != "Reroute"):
             continue
         seen_pair.add((o["id"], t["id"]))
-        out.append(f"wide gap to a wired neighbour ({round(gap)}px, standard gap {round(std)}): {o['id']} → {t['id']}")
+        out.append(f"wide gap to a wired neighbor ({round(gap)}px, standard gap {round(std)}): {o['id']} → {t['id']}")
     return out
 
 
@@ -2541,7 +2559,10 @@ def _chk_consecutive_reroute(cv, c):
                 direct = all(cv.placed(nodes.get(e, {})) and not any(
                     G.wire_hits(G.spline(a0, cv.in_xy(e, ei)), G.rect(m)) for m in cv.s["nodes"]
                     if cv.placed(m) and m["id"] != e and m.get("type") != "Reroute") for e, ei in ends)
-                if direct and not any(rect_overlap(G.rect(m), band) for m in cv.s["nodes"] if cv.placed(m) and m["id"] not in (n["id"], t["id"])):
+                # across other columns the rail lowers next to its target (rail targets off the rail): both are needed
+                across = any(nodes.get(e) and columns_between(cv, G.rect(n), nodes[e]) for e, _ in ends)
+                if direct and not across and not any(rect_overlap(G.rect(m), band) for m in cv.s["nodes"]
+                                                     if cv.placed(m) and m["id"] not in (n["id"], t["id"])):
                     out.append(f"consecutive Reroutes ({n['id']} leads straight into {t['id']}; one is enough): {n['id']} → {t['id']}")
     return out
 
@@ -2770,6 +2791,44 @@ def _chk_idle_reroute(cv, c):
     return out
 
 
+def columns_between(cv, r, t):
+    """Whether a node (not a Reroute or a Note) stands between rect r (a rail Reroute) and target t: then the rail lowers
+    into t through a Reroute in the column just left of it (readable-form.md, Wires), not with one long slanted wire."""
+    rt = G.rect(t)
+    return any(cv.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES and m is not t
+               and G.rect(m)[0] >= r[2] and G.rect(m)[2] <= rt[0] for m in cv.s["nodes"])
+
+
+@check_rule("rails too close to a node")
+def _chk_rail_near_node(cv, c):
+    """A rail's line running over or under a node closer than V_GAP: as far as a rail written above or below a unit
+    stands from it (readable-form.md, Wires show and nothing is packed). Its Reroutes sit on the line, so the line is
+    what is measured."""
+    out, seen = [], set()
+    spans = list(rail_spans(cv))
+    # the piece from a source at the rail's height into its first Reroute is the rail too
+    for l in cv.s["links"]:
+        o, t = cv.node(l["origin_id"]), cv.node(l["target_id"])
+        if o and t and o.get("type") != "Reroute" and t.get("type") == "Reroute" and cv.placed(o) and cv.placed(t):
+            a, b = cv.out_xy(o["id"], l["origin_slot"]), cv.in_xy(t["id"], "")
+            if a and b and abs(a[1] - b[1]) < 1:
+                spans.append((a[1], a[0], b[0], (o["id"], l["origin_slot"])))
+    for y, x0, x1, (root, _slot) in spans:
+        for m in cv.s["nodes"]:
+            if not cv.placed(m) or m.get("type") in {"Reroute"} | NOTE_TYPES or m["id"] == root:
+                continue
+            r = G.rect(m)
+            if min(r[2], x1) <= max(r[0], x0):
+                continue
+            d = r[1] - y if y <= r[1] else y - r[3] if y >= r[3] else None
+            if d is not None and d < V_GAP - 0.5 and (root, m["id"]) not in seen:
+                seen.add((root, m["id"]))
+                out.append(f"rail too close to a node ({round(d)}px {'above' if y <= r[1] else 'below'} it, min {V_GAP}): "
+                           f"the rail of {root} and {m['id']} (write the rail's height so it clears the node, or place "
+                           f"the node off the rail)")
+    return out
+
+
 @check_rule("rail targets off the rail")
 def _chk_rail_target_off_rail(cv, c):
     # a rail target wired straight from a rail Reroute far to its left, at another height: the rail ends in a long slanted
@@ -2782,11 +2841,8 @@ def _chk_rail_target_off_rail(cv, c):
         if not o or not t or o.get("type") != "Reroute" or t.get("type") == "Reroute" or not cv.placed(o) or not cv.placed(t):
             continue
         a, b = cv.out_xy(o["id"], 0), cv.in_xy(t["id"], l["target_input"])
-        ro, rt = G.rect(o), G.rect(t)
-        # a lowering Reroute stands in the column just left of its target: no node stands between them
-        between = any(cv.placed(m) and m.get("type") not in {"Reroute"} | NOTE_TYPES and m is not t
-                      and G.rect(m)[0] >= ro[2] and G.rect(m)[2] <= rt[0] for m in cv.s["nodes"])
-        if abs(a[1] - b[1]) >= 1 and between:
+        ro = G.rect(o)
+        if abs(a[1] - b[1]) >= 1 and columns_between(cv, ro, t):
             out.append(f"rail target without a lowering Reroute ({round(b[0] - a[0])}px across, {round(b[1] - a[1])}px down): "
                        f"{o['id']} → {lname(cv, l)}")
     return out
@@ -3300,7 +3356,7 @@ def _behind_save_into_output(cv, line):
     return bool(t and b) and is_output_node(cv, t) and "Preview" not in (b.get("type") or "")
 
 
-REFERENCE_TYPES = {"MODEL", "CLIP", "VAE", "CLIP_VISION", "CONTROL_NET", "UPSCALE_MODEL", "STYLE_MODEL", "GLIGEN",
+REFERENCE_TYPES = {"MODEL", "CLIP", "VAE", "CLIP_VISION", "CONTROL_NET", "UPSCALE_MODEL", "LATENT_UPSCALE_MODEL", "STYLE_MODEL", "GLIGEN",
                    "MODEL_PATCH", "INTERP_MODEL", "BBOX_DETECTOR", "SEGM_DETECTOR", "SAM_MODEL", "NOISE", "SAMPLER",
                    "SIGMAS", "GUIDER", "INT", "FLOAT", "STRING", "BOOLEAN", "MASK"}
 
@@ -3481,9 +3537,11 @@ HARD_CHECKS = {
     # audio latents: a liking, not the form to write
     "main flow off its line": lambda cv, l: True,
     "rail targets off the rail": lambda cv, l: True,
+    "rails too close to a node": lambda cv, l: True,
     "crossings in a gap between columns": lambda cv, l: True,
     "rail heads away from their rail": lambda cv, l: True,
     "output nodes stepped where the flow ends": lambda cv, l: True,
+    "width differences and value node tops": lambda cv, l: l.startswith("stacked nodes aligned on their left edges"),
     "core nodes the replacement list replaces": lambda cv, l: True,
     "custom nodes the replacement list turns into core": lambda cv, l: True,
 }
@@ -4603,7 +4661,7 @@ def close_gaps(cv):
             if not _try_move_x(cv, unit, dx, lambda: _quick_bad(cv) <= bad and _group_intrusions(cv) <= intr):
                 continue
             cv.translate(sorted(unit), dx, 0)
-            done.append(f"moved {round(dx)}px right towards {near['id']} which it feeds: {' '.join(sorted(unit))}")
+            done.append(f"moved {round(dx)}px right toward {near['id']} which it feeds: {' '.join(sorted(unit))}")
             moved = True
             break
         if not moved:
@@ -5323,7 +5381,7 @@ def _op_inputs(cv, work, args):
         y += h + V_GAP
     # column height: the node stays (it stands on the eye line) and the column moves to it. The source that carries the
     # conditioning enters at the node's height: for KSampler etc. the positive wire is horizontal. A node that takes no
-    # conditioning (SamplerCustomAdvanced: its conditioning enters the guider) is centred on the column; the guider's
+    # conditioning (SamplerCustomAdvanced: its conditioning enters the guider) is centered on the column; the guider's
     # wire into it slants
     pos_l = next((l for l in cv.s["links"] if l["target_id"] == tid and l.get("type") == "CONDITIONING"
                   and l["target_input"] in ("positive", "conditioning") and l["origin_id"] in srcs), None)
@@ -5341,9 +5399,9 @@ def _op_inputs(cv, work, args):
     else:
         col = cv.bbox(srcs)
         dy = (rt[1] + rt[3]) / 2 - (col[1] + col[3]) / 2
-        how = "node centred on the column"
+        how = "node centered on the column"
     cv.translate(srcs, 0, dy)
-    cv.s.setdefault("inputs_cols", {})[tid] = {"srcs": list(srcs), "centre": how == "node centred on the column"}
+    cv.s.setdefault("inputs_cols", {})[tid] = {"srcs": list(srcs), "center": how == "node centered on the column"}
     cv.out.append(f"sources of {tid} in one right-aligned column on its left ({how}): {' '.join(srcs)}")
 
 
@@ -5423,7 +5481,7 @@ def respace_inputs_column(cv, tid, col):
     again. A node going down carries what it pushes; a node going up moves with what is level to it and goes no further
     than it stays clear (the main flow is not pushed for a side value): if it cannot reach, the gap above its target
     takes the rest (the target and the nodes below it go down), and the others keep the row gap (the skill author: the
-    room shows where the wire needs it); 3. last, a node centred on its column (SamplerCustomAdvanced) is centred
+    room shows where the wire needs it); 3. last, a node centered on its column (SamplerCustomAdvanced) is centered
     again, with what is wired level to it and what is stacked on it."""
     srcs = [i for i in col["srcs"] if i in cv.nodes and cv.placed(cv.node(i))]
     if len(srcs) < 2:
@@ -5493,7 +5551,7 @@ def respace_inputs_column(cv, tid, col):
         # the gap above the target takes the rest: the target and what is below it go down
         k = srcs.index(short[0])
         cv.translate(srcs[k:], 0, math.ceil(short[1]))
-    if col.get("centre"):
+    if col.get("center"):
         solid = [m for m in cv.s["nodes"] if cv.placed(m) and m.get("type") != "Reroute" and m.get("type") not in NOTE_TYPES]
         t, box = cv.node(tid), cv.bbox(srcs)
         rt = G.rect(t)
@@ -5503,7 +5561,7 @@ def respace_inputs_column(cv, tid, col):
             pairs = [(a, b) for a, b in horizontal_pairs(cv) if not ({a, b} & in_col)]
             mv = move_closure(cv, solid, {tid} | stacked, d, in_col, pairs)
             cv.translate(sorted(mv) if mv else sorted({tid} | stacked), 0, d)
-    cv.out.append(f"sources of {tid} given room for the level" + (f", {tid} centred on them again" if col.get("centre") else ""))
+    cv.out.append(f"sources of {tid} given room for the level" + (f", {tid} centered on them again" if col.get("center") else ""))
 
 
 def _op_width(cv, work, args):
@@ -5673,14 +5731,14 @@ def _op_note(cv, work, args):
                   if side != where[0] and not (side == "below" and grow)]
     # above or below a node with no edge written: the Note (wider than most nodes) sticks out to the side where nothing
     # stands. A node right of the ref: right edges aligned (it sticks out left); a node left: left edges aligned; none or
-    # both: centred. The other two are tried after, and the first that is clear is kept (notes.md: a Note touching a node)
+    # both: centered. The other two are tried after, and the first that is clear is kept (notes.md: a Note touching a node)
     if where[0] in ("above", "below") and len(where) == 2 and where[1] != "all":
         try:
             rb = cv.bbox(cv.unit(where[1]))
         except Stop:
             rb = None
         if rb:
-            # a neighbour beside the ref or beside where the Note goes
+            # a neighbor beside the ref or beside where the Note goes
             y0, y1 = (rb[1], rb[3] + V_GAP + h) if where[0] == "below" else (rb[1] - V_GAP - h, rb[3])
             others = [G.rect(o) for o in cv.s["nodes"] if o["id"] != nid and cv.placed(o) and o["id"] not in cv.unit(where[1])]
             near = [r for r in others if r[1] < y1 and r[3] > y0]
@@ -6017,7 +6075,7 @@ LAYOUT_OPS = {"block", "put", "row", "stack", "align", "level", "inputs", "shape
 
 # ---- layout by relations (LAYOUT_SOLVE): the plan's vertical relations are kept and the heights solved at once ----
 # Order in which relations are added: the geometry of the plan's placing (always) -> the plan's level
-# wires -> the canvas's levelling (readable-form, Wires, Bad) -> rails at their output heights -> the plan's other relations. Later plan lines
+# wires -> the canvas's leveling (readable-form, Wires, Bad) -> rails at their output heights -> the plan's other relations. Later plan lines
 # first, so a later line wins as it does when the lines are run one by one. A relation that cannot hold with those
 # added before it is not kept, and is reported with its line.
 REL_WIRE, REL_LEVEL, REL_OTHER = 2, 3, 4
@@ -6334,15 +6392,15 @@ def _solve_vertical_once(cv, rails, order, rect, moves, notes):
         if o in rect and t in rect and abs(cv.out_xy(o, l["origin_slot"])[1] - cv.in_xy(t, l["target_input"])[1]) < 1:
             level_now.append((REL_WIRE, "eq", t, o, rect[t][1] - rect[o][1], f"wire {lname(cv, l)} (level where the plan put it)"))
     add(level_now)
-    # 3. the canvas's levelling: the wires one move made level before the problem started (solve_vertical), kept level
+    # 3. the canvas's leveling: the wires one move made level before the problem started (solve_vertical), kept level
     for l in moves:
         o, t = l["origin_id"], l["target_id"]
         if o in v and t in v:
             off = (cv.out_xy(o, l["origin_slot"])[1] - rect[o][1]) - (cv.in_xy(t, l["target_input"])[1] - rect[t][1])
-            if p.try_equal(v[o], v[t], off, f"levelling {lname(cv, l)}")[0]:
+            if p.try_equal(v[o], v[t], off, f"leveling {lname(cv, l)}")[0]:
                 notes.append(f"  made horizontal: {lname(cv, l)}")
     # 4. rails, one at a time in the rail order: a rail of one target is first tried as a level direct wire. Otherwise
-    # its run is taken: the nodes along it whose centre is above its cut stay above it, the others below, and it keeps
+    # its run is taken: the nodes along it whose center is above its cut stay above it, the others below, and it keeps
     # its order with the rails taken before it. The cut is its output height (written: the unit's edge); when that cannot
     # hold, the nearest cut that can. Then the rail is put at its output height when that can hold (it moves with its
     # source), before the plan's other relations: a rail that leaves its output height needs a raising Reroute, a Bad
@@ -6405,7 +6463,7 @@ def _solve_vertical_once(cv, rails, order, rect, moves, notes):
     # 5. the plan's other relations
     add([r for r in plan if r[0] == REL_OTHER])
     # 6. no empty band between rails: from the lowest rail up, a rail at its output height
-    # comes down with its source (the nodes held to it) towards the next rail below, as far as that moves nothing else
+    # comes down with its source (the nodes held to it) toward the next rail below, as far as that moves nothing else
     y = p.solve()
     free = [i for i in taken if geo[i][6] is None and p.find(rv[i])[0] == p.find(v[rails[i][3]])[0]]
     for i in sorted(free, key=lambda i: -y[rv[i]]):
@@ -6418,7 +6476,7 @@ def _solve_vertical_once(cv, rails, order, rect, moves, notes):
         def fits(gap):
             snap = p.snapshot()
             try:
-                if not p.try_edge(rv[j], rv[i], -gap, f"line {rails[i][0]} (towards the rail below)")[0]:
+                if not p.try_edge(rv[j], rv[i], -gap, f"line {rails[i][0]} (toward the rail below)")[0]:
                     return False
                 y1 = p.solve()
                 moved = {u for u in range(len(y)) if abs(y1[u] - y[u]) >= 1}
@@ -6437,9 +6495,9 @@ def _solve_vertical_once(cv, rails, order, rect, moves, notes):
                     lo = mid
             lo = hi
         if lo < y[rv[j]] - y[rv[i]] - 1:
-            p.try_edge(rv[j], rv[i], -lo, f"line {rails[i][0]} (towards the rail below)")
+            p.try_edge(rv[j], rv[i], -lo, f"line {rails[i][0]} (toward the rail below)")
             y2 = p.solve()
-            notes.append(f"  line {rails[i][0]}: rail pulled {round(y2[rv[i]] - y[rv[i]])}px down towards the rail of line "
+            notes.append(f"  line {rails[i][0]}: rail pulled {round(y2[rv[i]] - y[rv[i]])}px down toward the rail of line "
                          f"{rails[j][0]}, with its source")
             y = y2
     for i in ids:
@@ -6499,7 +6557,7 @@ def do_layout(cv, work, args):
         n["pos"] = None
         prev = n.pop("layout_prev", None)
         if prev:
-            # titles and colours the previous plan set go back to what they were before it (build-time ones stay)
+            # titles and colors the previous plan set go back to what they were before it (build-time ones stay)
             if "title" in prev:
                 if prev["title"] is None:
                     n.pop("title", None)
@@ -6732,7 +6790,7 @@ def do_layout(cv, work, args):
         # rails written at the same place (above X / below X) are stacked in the rules' order whatever order the plan
         # lists them in: from the top model, vae, clip, then conditioning, then the rest; the outputs of one node in slot
         # order (positive right above its negative). For above the last in that order is nearest X, for below the first
-        # (listed as model, vae, vae under `above 1`, they had stacked upwards in reverse)
+        # (listed as model, vae, vae under `above 1`, they had stacked upward in reverse)
         def stack_key(i):
             k, raw, args, oid, slot, targets = rails[i]
             t = rail_type(cv, oid, slot)
@@ -6892,14 +6950,15 @@ CHECK_RULES = [
     (("groups overlap", "wire over the title", "node over the title", "node overlapping group"),
      "A group holds one large function"),
     (("loader is above the model loader",), "A loader stands in the column left"),
-    (("stacked nodes differ in width", "stacked nodes with right edges"), "Nodes stacked in one column"),
+    (("stacked nodes differ in width", "stacked nodes with right edges", "stacked nodes aligned on their left"),
+     "Nodes stacked in one column"),
     (("rail order differs", "rail runs above the", "loader rail runs below", "stacked loaders differ"),
      "A wire is drawn directly"),   # its rail line holds the order
     (("loader away from its first user", "vae loader"), "A loader stands in the column left"),
     (("model chain end",), "The model chain ends in the column"),
     (("right edges of the sources",), "The sources wired straight into a sampler"),
     (("overlap:", "is directly below"), "No node is hidden"),
-    (("narrow gap", "empty band", "gap inside a column", "wide gap to a wired neighbour", "uneven spacing",
+    (("narrow gap", "rail too close to a node", "empty band", "gap inside a column", "wide gap to a wired neighbor", "uneven spacing",
       "times in the gap"), "Wires show and nothing is packed"),
     (("output node stepped down",), "An output node (Save, Preview"),
     (("wire behind a node", "Reroute", "single value carried", "rail needs no raising", "rails too close",
@@ -7073,6 +7132,10 @@ def order_rails_by_type(cv, rails, lanes):
         for j in seq[a + 1:]:
             if overlap(i, j) and rank[i] < rank[j]:
                 y = min(y, lanes[j][0] - gap)
+                # the node heading rail j at its height: rail i clears its top by V_GAP (as `rail … above <unit>`)
+                h = G.rect(cv.node(lanes[j][1]))
+                if abs(cv.out_xy(lanes[j][1], lanes[j][2])[1] - lanes[j][0]) < 1 and min(h[2], ext[i][1]) > max(h[0], ext[i][0]):
+                    y = min(y, h[1] - V_GAP)
         moved = abs(y - before[i]) >= 1
         for j in seq[a + 1:]:
             if overlap(i, j) and rank[i] == rank[j] and (moved or abs(lanes[j][0] - before[j]) >= 1) and y > lanes[j][0] - gap:
@@ -7290,7 +7353,7 @@ def pull_rails(cv, lanes):
         cv.translate(sorted(mv), 0, d)
         for j in mine:
             lanes[j][0] += d
-        out.append(f"rail of {oid} pulled {round(d)}px down towards the rail below, with {' '.join(sorted(mv))}")
+        out.append(f"rail of {oid} pulled {round(d)}px down toward the rail below, with {' '.join(sorted(mv))}")
     return out
 
 
@@ -7357,7 +7420,7 @@ def one_target_height(cv, oid, slot, tins, spec, y, notes, k):
 def settle_rail_moves(cv, rails, lanes, rail_move, notes):
     """Rails written with `move <unit>`: the unit goes up or down with its rail, so it must not stand on a rail below it.
     Such a rail goes up until the unit clears the rail below by the rail gap; a rail above it that it then comes too
-    close to (or passes) goes up too, and so on upwards, so the rails keep their order from the top. A rail pushed up
+    close to (or passes) goes up too, and so on upward, so the rails keep their order from the top. A rail pushed up
     that ran at its source's output height, or that a loader heads, takes its source (with its block) along, so no
     Reroute lifts it. Then the units move, once each, and a rail of a moved source that ran at its output height moves
     with it. Changes lanes and rail_move; moves nodes."""
@@ -7413,6 +7476,16 @@ def settle_rail_moves(cv, rails, lanes, rail_move, notes):
             x0 = min(x0, u[3][0])
         return x0, x1
 
+    def head_box(i):
+        """The box of the node heading rail i where it stands at the rail's height (moved with it, or never lifted)."""
+        u = unit_of.get(i)
+        if u is not None:
+            b, sh = u[3], shift(u)
+            return (b[0], b[1] + sh, b[2], b[3] + sh)
+        if abs(lanes[i][0] - out_y0[i]) < 1:
+            return G.rect(cv.node(lanes[i][1]))
+        return None
+
     def raise_by(i, d):
         u = unit_of.get(i)
         for m in (u[2] if u else [i]):
@@ -7440,6 +7513,11 @@ def settle_rail_moves(cv, rails, lanes, rail_move, notes):
                     d = lanes[lo][0] - P["RAIL_GAP"] - (u[3][3] + shift(u))
                 else:
                     d = lanes[lo][0] - gap - lanes[up][0]
+                    # the node heading the rail below stands at that rail's height: the rail above clears its top as a
+                    # rail written above a unit does (V_GAP), not only that rail's line
+                    hd = head_box(lo)
+                    if hd is not None and min(hd[2], a1) > max(hd[0], a0):
+                        d = min(d, hd[1] - V_GAP - lanes[up][0])
                 if d >= -0.5:
                     continue
                 _, oid, slot, _t = lanes[up]
@@ -7643,8 +7721,10 @@ def do_rail(cv, args):
             continue
         # a rail into one target after its raising Reroute: when a wire from that Reroute reaches the target passing behind
         # no node, a lowering Reroute would follow it straight, which the rules call Bad (consecutive Reroutes: one is enough)
+        # Only when no column stands between that Reroute and the target: across columns the rail lowers next to it
         if (prev[0] != oid and not lowered and (x0, tid, tin) == tg[-1] and direct_ok(tid, tin, prev[0])
-                and not any(t2 == tid for _, t2, _ in tg[:-1])):
+                and not any(t2 == tid for _, t2, _ in tg[:-1])
+                and not columns_between(cv, G.rect(cv.node(prev[0])), cv.node(tid))):
             cv.add_link(prev[0], prev[1], tid, tin)
             continue
         # the lowering Reroute stays in the column left of the target (same column), also below a node that grows: it is
@@ -7810,7 +7890,7 @@ def _short(v, limit):
 
 
 def _node_def(n, oi, title=None):
-    """What does not move: type, title, slots (name, type, wired), widget rows (name, kind, value), colours, mode."""
+    """What does not move: type, title, slots (name, type, wired), widget rows (name, kind, value), colors, mode."""
     t = n.get("type") or "?"
     d = {"t": t, "n": title or display_title(n, oi)}
     for k, src in (("c", "color"), ("bg", "bgcolor")):
@@ -7878,7 +7958,7 @@ def wire_key(origin, slot, target, inp):
 
 def _view(cv, defs):
     """One state as the page draws it: placed nodes [id, x, y, w, h, def], wires [x0, y0, x1, y1, type, key],
-    groups [title, x, y, w, h, colour]. Positions are the body's top-left (the title bar is above, as in ComfyUI)."""
+    groups [title, x, y, w, h, color]. Positions are the body's top-left (the title bar is above, as in ComfyUI)."""
     nodes = [[n["id"], round(n["pos"][0]), round(n["pos"][1]), round(n["size"][0]), round(n["size"][1]), defs(_node_def(n, cv.oi))]
              for n in cv.s["nodes"] if n.get("pos") is not None and n.get("size")]
     wires = []
