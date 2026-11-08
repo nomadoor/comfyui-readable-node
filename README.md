@@ -9,7 +9,7 @@ An agent skill that rebuilds ComfyUI workflows into a form people can read: **Re
 3. **Left to right.** Flow from left to right in processing order.
 4. **1 task = 1 workflow.** One workflow is one thing the user wants to do.
 5. **Remove custom nodes as far as possible.** What can be built with core nodes is built with core.
-6. **Colour appropriately.** Colour shows which function a node belongs to.
+6. **Color appropriately.** Color shows which function a node belongs to.
 
 ## Install
 

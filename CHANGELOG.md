@@ -76,10 +76,10 @@ The rules were untangled into one set: sentences that contradicted each other we
 - The places the canvas offers for a Note no longer put another node between the Note and the node it explains. A raising Reroute is no longer called unneeded when the rail drawn at the output height would run too close to another rail.
 - Export keeps node numbers from one export to the next; a Reroute the canvas made gets a number of its own.
 - Fixed: a link from a broadcaster (Anything Everywhere) saved with the type `*` now takes the type of the output it comes from.
-- A Load CLIP whose CLIP reaches no text encoder (one that only feeds an LLM) gets no fixed colour.
+- A Load CLIP whose CLIP reaches no text encoder (one that only feeds an LLM) gets no fixed color.
 - A wire may go back one node's width only into Conditioning Zero Out, or from an empty latent into a scheduler.
-- Report page: bypassed nodes are drawn in ComfyUI's bypass colour; the Walkthrough's first page lists the parts, the review and the widened gaps.
-- References: readable-form.md rewritten as eight numbered rules with Why, Bad, Fine and Undecided (the usual form, nodes, wires, flow and position, loaders, value nodes, groups and colour, names); content.md rewritten as two decisions (split; keep, fix, replace or remove); examples.md ordered by those sections; glossary.md defines chain wire, raising and lowering Reroute, gaps, step and more; notes.md: link the Comfy-Org copy of a model, suggest a smaller form of the same model when memory runs short; techniques.md: what becomes of the author's negative text at cfg 1 depends on whether raising cfg is an ordinary choice; replacements.md: `canvas open` replaces Image Comparer, braces in Format Text are doubled.
+- Report page: bypassed nodes are drawn in ComfyUI's bypass color; the Walkthrough's first page lists the parts, the review and the widened gaps.
+- References: readable-form.md rewritten as eight numbered rules with Why, Bad, Fine and Undecided (the usual form, nodes, wires, flow and position, loaders, value nodes, groups and color, names); content.md rewritten as two decisions (split; keep, fix, replace or remove); examples.md ordered by those sections; glossary.md defines chain wire, raising and lowering Reroute, gaps, step and more; notes.md: link the Comfy-Org copy of a model, suggest a smaller form of the same model when memory runs short; techniques.md: what becomes of the author's negative text at cfg 1 depends on whether raising cfg is an ordinary choice; replacements.md: `canvas open` replaces Image Comparer, braces in Format Text are doubled.
 
 ## 0.0.2 (2026-10-21)
 

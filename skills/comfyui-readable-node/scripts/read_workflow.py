@@ -10,7 +10,7 @@ The shape:
         "extra": {...},
     }
 
-Pitfalls when reading (behaviour matched to the frontend):
+Pitfalls when reading (behavior matched to the frontend):
 - Top-level links are 6-element arrays; links inside subgraphs are objects. In version 1 workflows the
   top-level links are objects too.
 - A subgraph's input node is -10, its output node -20.

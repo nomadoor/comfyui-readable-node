@@ -139,7 +139,7 @@ class CanvasTest(unittest.TestCase):
         self.do("put 26 right 12")
         self.assertEqual(self.rect("26")[1], self.rect("12")[1])
 
-    def test_row_levels_wired_neighbours_by_default(self):
+    def test_row_levels_wired_neighbors_by_default(self):
         self.do("put 27 origin")
         self.do("row 27 13")
         cv = self.cv()
@@ -1264,11 +1264,11 @@ group "A" 30
 """
         self.do(f"layout {self.write_plan(plan)}")
         n, r = self.rect("note_blk"), self.rect("30")
-        # nothing stands beside 30: the Note is centred under it, and moved with the block
+        # nothing stands beside 30: the Note is centered under it, and moved with the block
         self.assertLess(abs((n[0] + n[2]) / 2 - (r[0] + r[2]) / 2), 1, (n, r))
         self.assertGreaterEqual(n[1], r[3])
 
-    def test_a_note_below_a_node_sticks_out_away_from_its_neighbour(self):
+    def test_a_note_below_a_node_sticks_out_away_from_its_neighbor(self):
         # a Note (wider than the node) below 30 with a node just right of 30: right edges aligned, so it sticks out left
         md = self.dir / "note_side.md"
         md.write_text("### a\n\nb\n", encoding="utf-8")
@@ -1278,7 +1278,7 @@ group "A" 30
         self.do(f"note {md} below 30")
         n, r = self.rect("note_side"), self.rect("30")
         self.assertLess(abs(n[2] - r[2]), 1, (n, r))
-        # the neighbour on the left instead: left edges aligned
+        # the neighbor on the left instead: left edges aligned
         self.do("put 12 left 30")
         self.do(f"note {md} below 30")
         n2 = [G.rect(x) for x in self.cv().s["nodes"] if x["id"].startswith("note_side_")][0]
@@ -1376,7 +1376,7 @@ group "A" s 30 12
         self.assertNotIn("branch_names", names("BranchNode"))
 
     def test_branch_inputs_are_named_and_its_values_follow_them(self):
-        # as the frontend saves a Branch: inputs labelled, the chosen name and the names of the connected inputs; no
+        # as the frontend saves a Branch: inputs labeled, the chosen name and the names of the connected inputs; no
         # input slot for the list of names
         self.do("add PrimitiveFloat a")
         self.do("add PrimitiveFloat b")
@@ -1558,9 +1558,9 @@ group "A" s 30 12
         full, neg = self.cv().node("6")["size"][1], self.cv().node("neg")["size"][1]
         self.assertEqual(neg, round(full / 2))
 
-    def test_a_level_into_a_sources_column_opens_only_the_gap_it_needs_and_centres_the_sampler_last(self):
+    def test_a_level_into_a_sources_column_opens_only_the_gap_it_needs_and_centers_the_sampler_last(self):
         # the gap above the node the side value is level into takes the room, the other gaps stay, the sampler is
-        # centred on the column last
+        # centered on the column last
         self.do("add RandomNoise rn")
         self.do("add KSamplerSelect sel")
         self.do("add PrimitiveInt w")
@@ -1721,7 +1721,7 @@ group "A" s 30 12
         lines, _ = C.full_check(self.cv())
         self.assertTrue([x for x in lines if x.startswith("value nodes side by side have unaligned tops")])
 
-    def test_inputs_centres_sampler_custom_on_its_column(self):
+    def test_inputs_centers_sampler_custom_on_its_column(self):
         # the sampler stays on the eye line and its column moves to it, so that the sampler
         # is at the column's vertical middle (its conditioning enters the guider, whose wire into the sampler slants)
         self.do("copy 25 16 17")
@@ -1823,7 +1823,7 @@ group "A" s 30 12
         self.assertNotIn("loader_base", cv.node("u"))
 
     def test_loader_not_widened_into_neighbor(self):
-        # a loader that would overlap its neighbour is not widened
+        # a loader that would overlap its neighbor is not widened
         self.do("put 11 origin")
         self.do("put 10 right 11 gap 0")
         cv = self.cv()
@@ -1964,7 +1964,7 @@ group "A" s 30 12
 
     def test_a_positive_from_the_column_left_of_a_sampler_that_slants_is_fixed_in_the_plan(self):
         # a conditioning node (as Apply ControlNet) stands in the column just left of the stage's KSampler, far above it:
-        # its positive is levelled
+        # its positive is leveled
         self.do("add KSampler k")
         self.do("add FluxGuidance a")
         self.do("link 6.0 a.conditioning a.0 k.positive")
@@ -2280,7 +2280,7 @@ group "A" s 30 12
         self.do("put 12 origin")
         self.do("put 30 right 12 wire gap 200")
         lines, _ = C.full_check(self.cv())
-        self.assertTrue([x for x in lines if x.startswith("wide gap to a wired neighbour")])
+        self.assertTrue([x for x in lines if x.startswith("wide gap to a wired neighbor")])
 
     def test_python_error_becomes_stop_and_keeps_undo(self):
         before = len(list((self.dir / "canvas" / "t.hist").glob("*.json")))

@@ -11,9 +11,9 @@ What it does:
 What it does not do: muted and bypassed nodes are kept (whether to split them off is the agent's call).
 PrimitiveNode is a visible link, so it is kept (replacing it with a typed value node, or moving the value back
 into a widget, is done by replace.py).
-What it drops: positions, sizes, colours, groups, subgraph nesting, and titles the author gave (only the
+What it drops: positions, sizes, colors, groups, subgraph nesting, and titles the author gave (only the
 meaning is taken, so the old layout does not bias the new one).
-Anything Everywhere's group and colour restrictions are still computed on the original graph, before
+Anything Everywhere's group and color restrictions are still computed on the original graph, before
 anything is dropped (ue.py).
 Group names and author titles are not used for layout; they are kept separately in author_words as
 material for Notes (not attached to nodes).
@@ -30,7 +30,7 @@ Shape of the flat graph:
     author_words: the author's words (material for Notes; not used for layout)
         "titles":    [{"id", "type", "title"}]  titles the author gave (ones equal to the display name or type are left out)
         "groups":    [{"title", "scope", "nodes": [id, ...]}]  groups and the nodes that were in them
-                     (as in the frontend, nodes whose rectangle centre lies in the group; nested groups both count)
+                     (as in the frontend, nodes whose rectangle center lies in the group; nested groups both count)
         "subgraphs": [{"scope", "title", "nodes": [id, ...]}]  subgraph titles (instance title or definition name) and their nodes
         nodes lists only nodes left after expansion (Reroutes and Set/Get are gone).
 
@@ -558,7 +558,7 @@ class Flattener:
                     continue
                 members = []
                 for nid in g["order"]:
-                    c = self._node_centre(g["nodes"][nid])
+                    c = self._node_center(g["nodes"][nid])
                     if c and b[0] <= c[0] <= b[0] + b[2] and b[1] <= c[1] <= b[1] + b[3]:
                         members.append(self.eid(path, nid))
                 groups.append({"title": grp.get("title") or "", "scope": scope, "members": members})
@@ -575,8 +575,8 @@ class Flattener:
             return [v.get("0", 0), v.get("1", 0)]
         return list(v) if isinstance(v, (list, tuple)) and len(v) >= 2 else None
 
-    def _node_centre(self, node):
-        """Centre of a node's rectangle (including the title bar), the way the frontend decides which nodes are in a group.
+    def _node_center(self, node):
+        """Center of a node's rectangle (including the title bar), the way the frontend decides which nodes are in a group.
         A collapsed node's width depends on its title's text width, which cannot be measured here, so the
         frontend's default collapsed width (80) is used."""
         pos, size = self._xy(node.get("pos")), self._xy(node.get("size"))
@@ -624,7 +624,7 @@ class Flattener:
             n["widgets"], n["widgets_exact"] = self.widget_map(n)
             # The size of a custom node that is not installed in ComfyUI cannot be computed. Keep only the size
             # it had when the author opened it with the node installed (saved in the original workflow), so the
-            # layout never makes it smaller than that (position and colour are still dropped)
+            # layout never makes it smaller than that (position and color are still dropped)
             size = self._xy(n.get("size"))
             if size and n.get("type") not in self.oi and n.get("type") not in REROUTE_TYPES \
                     and not (n.get("flags") or {}).get("collapsed"):

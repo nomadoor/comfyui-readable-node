@@ -3,7 +3,7 @@
 Called by flatten.py on each saved graph before subgraphs are expanded. The saved ``extra.ue_links`` is
 not trusted (it is not refreshed on save), so the links are recomputed from the nodes.
 
-Behaviour reproduced (matching version 7.8 of the pack):
+Behavior reproduced (matching version 7.8 of the pack):
 
 * Broadcasters are active (mode 0) nodes whose type starts with "Anything Everywhere", plus
   "Seed Everywhere", "Prompts Everywhere", and ordinary nodes marked ``properties.ue_convert`` (they
@@ -15,7 +15,7 @@ Behaviour reproduced (matching version 7.8 of the pack):
   by a bypass also counts). A widget input is a receiver only when ``widget_ue_connectable`` enables it
   (or, for saves older than 7.0, when the widget had been converted to a socket).
 * A receiver takes the offer with the highest priority among those whose type matches and whose
-  restrictions (group, colour, title / input / group regexes, repeated-type rules) allow it. A tie is
+  restrictions (group, color, title / input / group regexes, repeated-type rules) allow it. A tie is
   left unconnected and reported.
 * Seed Everywhere is replaced by a PrimitiveInt; flatten.py removes the other broadcasters afterwards.
 """
@@ -123,7 +123,7 @@ class _Graph:
             link = self.links.get(lid)
         return None
 
-    def centre_in(self, node, bounding):
+    def center_in(self, node, bounding):
         pos, size = node.get("pos"), node.get("size")
         if not pos or not size:
             return False
@@ -132,7 +132,7 @@ class _Graph:
         return x <= cx <= x + w and y <= cy <= y + h
 
     def members(self, group):
-        return [n for n in self.order if self.centre_in(self.nodes[n], group["bounding"])]
+        return [n for n in self.order if self.center_in(self.nodes[n], group["bounding"])]
 
     def sends_to_disabled(self):
         """The pack's "connect to bypassed" option is not saved; infer it from the saved links."""
@@ -190,7 +190,7 @@ def _paired(pairing, node, inp):
 
 
 def _scope(gv, nid, node, s):
-    """Node ids this broadcaster may reach, from its group / colour / group-regex restrictions."""
+    """Node ids this broadcaster may reach, from its group / color / group-regex restrictions."""
     allowed = None
     by_group = s.get("group_restricted") or 0
     if by_group:
@@ -200,10 +200,10 @@ def _scope(gv, nid, node, s):
             if nid in m:
                 mine.update(m)
         allowed = list(mine) if by_group == 1 else [n for n in gv.order if n not in mine]
-    by_colour = s.get("color_restricted") or 0
-    if by_colour:
+    by_color = s.get("color_restricted") or 0
+    if by_color:
         pool = allowed if allowed is not None else gv.order
-        allowed = [n for n in pool if (gv.nodes[n].get("color") == node.get("color")) == (by_colour == 1)]
+        allowed = [n for n in pool if (gv.nodes[n].get("color") == node.get("color")) == (by_color == 1)]
     grx = _compiled(s, "group")
     if grx:
         inside = set()
@@ -234,7 +234,7 @@ def _offers(gv, nid, node):
     scope = _scope(gv, nid, node, s)
     if s.get("seed_inputs"):
         return [_Offer(nid, "INT", (nid, 0), _priority(node, s, set()), s, scope, seed=True)]
-    sources = []        # (the slot it is labelled by, the link it comes from)
+    sources = []        # (the slot it is labeled by, the link it comes from)
     if (node.get("properties") or {}).get("ue_convert"):
         off = s.get("output_not_broadcasting") or {}
         for i, o in enumerate(node.get("outputs") or []):

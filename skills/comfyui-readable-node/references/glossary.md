@@ -12,7 +12,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 
 ## Kinds of nodes
 
-- **sampler**: KSampler, KSampler (Advanced), SamplerCustom, SamplerCustomAdvanced, and custom nodes that add processing these core nodes cannot realise.
+- **sampler**: KSampler, KSampler (Advanced), SamplerCustom, SamplerCustomAdvanced, and custom nodes that add processing these core nodes cannot realize.
 - **loader**: a node that reads a model file (Load Checkpoint, Load Diffusion Model, Load CLIP, Load VAE, Load LoRA, and so on).
 - **value node**: a node that only outputs one value (Int, Float, String, and so on).
 - **core node**: a node that comes with ComfyUI from the start. A **custom node** is a node installed afterwards.
@@ -35,7 +35,7 @@ The meaning of the words used in the skill's documents. Each is defined here onc
 - **row**: a horizontal band of nodes lined up side by side. Rows are separated top to bottom by role, like the model row, the conditioning row, the image row.
 - **column**: a vertical band of nodes stacked up and down. The column of sources to the left of a sampler, and so on.
 - **eye line (band)**: the height every stage's sampler (KSampler, SamplerCustomAdvanced) stands at; a band with width through which the main flow passes.
-- **main flow**: the flow from the sampler towards the final output (sampler → decode → … → save).
+- **main flow**: the flow from the sampler toward the final output (sampler → decode → … → save).
 - **output node**: a node that takes a result and passes nothing on (Save, Preview, Compare).
 - **rail**: a value, or several side by side, carried far or to several places with Reroutes (`rail`).
 - **Reroute**: a small node that relays a wire. Used for rails.

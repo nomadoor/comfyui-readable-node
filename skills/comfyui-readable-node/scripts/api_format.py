@@ -5,7 +5,7 @@ Python standard library only.
 An API-format workflow has no positions, sizes, groups, Notes or bypassed nodes. The positions made here are the ones
 ComfyUI gives when it opens the file, so the original view shows what the user sees there.
 
-Behaviour matched to the frontend (loadApiJson, then graph.arrange() and computeExecutionOrder):
+Behavior matched to the frontend (loadApiJson, then graph.arrange() and computeExecutionOrder):
 - Nodes are created in the order of Object.keys: integer-like ids in ascending order first, then the others in file order.
   An id with ":" (a node from inside a subgraph) becomes the same id with "_".
 - The title is _meta.title (written only when it differs from the display name, as the frontend saves it).

@@ -20,7 +20,7 @@ from pathlib import Path
 
 LANGS = ("en", "ja")   # the languages the page's own sentences are written in; any other code gets English
 
-# wire colours of the frontend's dark palette (the same as render.py)
+# wire colors of the frontend's dark palette (the same as render.py)
 LINK_COLORS = {
     "MODEL": "#B39DDB", "CLIP": "#FFD500", "VAE": "#FF6E6E", "CONDITIONING": "#FFA931", "LATENT": "#FF9CF9",
     "IMAGE": "#64B5F6", "MASK": "#81C784", "CONTROL_NET": "#6EE7B7", "CLIP_VISION": "#A8DADC",
@@ -198,9 +198,9 @@ def _x_put(S, a, x, d):
     u, r = S.unit(unit), S.unit(ref)
     where_en = {"right": "to the right of", "left": "to the left of", "below": "below", "above": "above"}[how]
     where_ja = {"right": "の右", "left": "の左", "below": "の下", "above": "の上"}[how]
-    al_en = {"top": ", tops aligned", "bottom": ", bottoms aligned", "middle": ", centred vertically",
+    al_en = {"top": ", tops aligned", "bottom": ", bottoms aligned", "middle": ", centered vertically",
              "wire": " and made the wire between them horizontal", "left": ", left edges aligned",
-             "right": ", right edges aligned", "center": ", centred horizontally"}
+             "right": ", right edges aligned", "center": ", centered horizontally"}
     al_ja = {"top": "上端をそろえて", "bottom": "下端をそろえて", "middle": "上下の真ん中をそろえて",
              "wire": "間の線が水平になる高さで", "left": "左端をそろえて", "right": "右端をそろえて", "center": "左右の真ん中をそろえて"}
     if align is None:
@@ -215,7 +215,7 @@ def _x_put(S, a, x, d):
 def _x_row(S, a, x, d):
     pos, opt = _opts(a, keyed=("right", "gap"))
     units = [p for p in pos if p not in ("top", "wire")]
-    # without top or wire, the canvas makes the wire horizontal between wired neighbours and aligns the tops of the others
+    # without top or wire, the canvas makes the wire horizontal between wired neighbors and aligns the tops of the others
     w = x.get("wired")
     wire = "wire" in pos or (isinstance(w, list) and w and all(w))
     some = "top" not in pos and not wire and isinstance(w, list) and any(w)
@@ -223,7 +223,7 @@ def _x_row(S, a, x, d):
     if S.ja:
         tail = "。線は水平にしました" if wire else ("。線でつながる隣どうしは線を水平に、ほかは上端をそろえました" if some else "")
         return f"{S.many(units, 4, d=d)} を左から右へ一列に並べました{start}{tail}"
-    tail = ", with horizontal wires" if wire else (", wires horizontal between wired neighbours and tops aligned elsewhere" if some else "")
+    tail = ", with horizontal wires" if wire else (", wires horizontal between wired neighbors and tops aligned elsewhere" if some else "")
     return f"Lined up {S.many(units, 4, d=d)} in one row from left to right{start}{tail}"
 
 
@@ -240,7 +240,7 @@ def _x_stack(S, a, x, d):
 def _x_align(S, a, x, d):
     edge, units = a[0], a[1:]
     en = {"top": "top edges", "bottom": "bottom edges", "left": "left edges", "right": "right edges",
-          "middle": "vertical centres", "center": "horizontal centres"}
+          "middle": "vertical centers", "center": "horizontal centers"}
     ja = {"top": "上端", "bottom": "下端", "left": "左端", "right": "右端", "middle": "上下の真ん中", "center": "左右の真ん中"}
     if S.ja:
         return f"{S.many(units[1:])} の{ja[edge]}を {S.unit(units[0])} にそろえました"
@@ -313,8 +313,8 @@ def _x_group_align(S, a, x, d):
 def _x_color(S, a, x, d):
     c, ids = a[0], a[1:]
     if c == "none":
-        return S.L(f"Removed the colour of {S.many(ids)}", f"{S.many(ids)} の色を外しました")
-    return S.L(f"Coloured {S.many(ids)} {c.replace('_', ' ')}", f"{S.many(ids)} を{COLOR_JA.get(c, c)}にしました")
+        return S.L(f"Removed the color of {S.many(ids)}", f"{S.many(ids)} の色を外しました")
+    return S.L(f"Colored {S.many(ids)} {c.replace('_', ' ')}", f"{S.many(ids)} を{COLOR_JA.get(c, c)}にしました")
 
 
 def _x_rail(S, a, x, d):
@@ -523,8 +523,8 @@ PROBLEMS = [
     ("space", r"^gap inside a column \((\d+)px tall, min (\d+)\): nothing between (\S+) and (\S+)$",
      lambda S, m: S.L(f"An empty {m.group(1)} px gap inside a column, between {S.node(m.group(3))} and {S.node(m.group(4))}",
                       f"列の中で {S.node(m.group(3))} と {S.node(m.group(4))} の間が {m.group(1)} px 空いています")),
-    ("space", r"^wide gap to a wired neighbour \((\d+)px, standard gap (\d+)\): (\S+) → (\S+)$",
-     lambda S, m: S.L(f"{S.node(m.group(3))} and its wired neighbour {S.node(m.group(4))} are {m.group(1)} px apart (standard {m.group(2)})",
+    ("space", r"^wide gap to a wired neighbor \((\d+)px, standard gap (\d+)\): (\S+) → (\S+)$",
+     lambda S, m: S.L(f"{S.node(m.group(3))} and its wired neighbor {S.node(m.group(4))} are {m.group(1)} px apart (standard {m.group(2)})",
                       f"つながった隣どうしの {S.node(m.group(3))} と {S.node(m.group(4))} が {m.group(1)} px 離れています（標準 {m.group(2)} px）")),
     ("reroute", r"^consecutive Reroutes .*: (\S+) → (\S+)$",
      lambda S, m: S.L(f"Two Reroutes in a row ({S.node(m.group(1))} → {S.node(m.group(2))}); one is enough",
@@ -600,7 +600,7 @@ NOTES = [
                       f"{S.unit(m.group(1))} はまだ置かれていなかったので、左上 (0, 0) に置きました")),
     (r"^sources of (\S+) in one right-aligned column on its left \((.*)\): (.*)$",
      lambda S, m: S.L(f"put the nodes feeding {S.node(m.group(1))} ({_ids(S, m.group(3), 4)}) in a column on its left"
-                      + (", positive wire horizontal" if "positive" in m.group(2) else ", centred on the column"),
+                      + (", positive wire horizontal" if "positive" in m.group(2) else ", centered on the column"),
                       f"{S.node(m.group(1))} につながる {_ids(S, m.group(3), 4)} を左に一列で置きました"
                       + ("（positive の線を水平に）" if "positive" in m.group(2) else "（列の真ん中に合わせて）"))),
     (r"^(\S+) in the same shape as (\S+): ", lambda S, m: S.L(f"laid out {S.unit(m.group(1))} in the same shape as {S.unit(m.group(2))}",
@@ -620,7 +620,7 @@ NOTES = [
     (r'^group "(.*)": (.*?)  frame', lambda S, m: S.L(f"group “{m.group(1)}” around {len(m.group(2).split())} nodes",
                                                      f"グループ「{m.group(1)}」: ノード {len(m.group(2).split())} 個を囲む")),
     (r"^aligned top and bottom edges: ", lambda S, m: S.L("aligned the top and bottom edges of the groups", "グループの上端と下端をそろえました")),
-    (r"^color (\S+): (\S+)$", lambda S, m: S.L(f"coloured {S.node(m.group(1))} {m.group(2).replace('_', ' ')}",
+    (r"^color (\S+): (\S+)$", lambda S, m: S.L(f"colored {S.node(m.group(1))} {m.group(2).replace('_', ' ')}",
                                                f"{S.node(m.group(1))} を{COLOR_JA.get(m.group(2), m.group(2))}にしました")),
     (r"^title (\S+): (.*)$", lambda S, m: S.L(f"titled {S.node(m.group(1))} “{m.group(2)}”", f"{S.node(m.group(1))} の題名を「{m.group(2)}」にしました")),
     (r"^Note (\S+): width (\d+), height (\d+)$", lambda S, m: S.L(f"placed the Note {S.node(m.group(1))} ({m.group(2)} × {m.group(3)})",
@@ -776,7 +776,7 @@ def _icon(name):
     return f'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{ICONS[name]}</svg>'
 
 
-ACCENT = "#ff5a1f"   # the one colour that marks "now" (the needle, the current step, the moved nodes); the logo's wire
+ACCENT = "#ff5a1f"   # the one color that marks "now" (the needle, the current step, the moved nodes); the logo's wire
 LOGO_FILE = Path(__file__).with_name("logo.svg")
 REPO = "https://github.com/nomadoor/comfyui-readable-node"
 # the browser tab's icon: the logo's wire on a dark rounded square
@@ -789,7 +789,7 @@ def _logo():
     return LOGO_FILE.read_text(encoding="utf-8").strip() if LOGO_FILE.is_file() else '<span class="name">ComfyUI Readable Node</span>'
 
 
-# Colour only where it means something: the accent for "now", green for solved or added, red for problems, yellow for
+# Color only where it means something: the accent for "now", green for solved or added, red for problems, yellow for
 # changed. A button's name floats just above it (or below, at the top of the page); nothing moves when the system asks
 # for less motion.
 STYLE = """
@@ -844,7 +844,7 @@ button,a{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:po
 .seg button .icon{width:16px;height:16px}
 .seg button[aria-pressed=true] .draw{animation:rn-draw .45s cubic-bezier(.65,0,.35,1) backwards}
 .seg button[aria-pressed=true] .dot2{animation:rn-fade .22s .36s ease-out backwards}
-/* workflow tabs, like a browser's: the chosen tab has the canvas colour and runs into the canvas below */
+/* workflow tabs, like a browser's: the chosen tab has the canvas color and runs into the canvas below */
 .tabs{display:flex;align-items:flex-end;gap:2px;min-width:0;padding:0 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{position:relative;flex:none;height:40px;padding:0 16px 8px;border-radius:9px 9px 0 0;font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap;transition:color var(--t-hover) ease}
@@ -1065,7 +1065,7 @@ function label(e, text){ e.dataset.tip = text; e.setAttribute('aria-label', text
 function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function sum(text, n){ const e = el('summary', null, text); e.appendChild(el('span', 'n', String(n))); return e; }   // a fold's heading with its count
 
-// ---------- colours (read from the CSS variables, so the drawing follows the light and dark themes)
+// ---------- colors (read from the CSS variables, so the drawing follows the light and dark themes)
 const TH = {};
 const probe = document.createElement('canvas').getContext('2d'), rgbCache = new Map(), mixCache = new Map();
 function rgb(c){
@@ -1198,7 +1198,7 @@ function drawNode(n, def, lod){
   if (lod > 0){ rr(x + 2, y - TITLE + 4, w, h + TITLE, 9); ctx.fillStyle = TH.shadow; ctx.fill(); }
   rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = body; ctx.fill();
   rr(x, y - TITLE, w, TITLE, [8, 8, 0, 0]); ctx.fillStyle = head; ctx.fill();
-  // bypass: the whole node in the frontend's bypass colour (NODE_BYPASS_BGCOLOR #FF00FF), as ComfyUI shows it
+  // bypass: the whole node in the frontend's bypass color (NODE_BYPASS_BGCOLOR #FF00FF), as ComfyUI shows it
   if (def.m === 4){ rr(x, y - TITLE, w, h + TITLE, 8); ctx.fillStyle = 'rgba(255,0,255,.5)'; ctx.fill(); }
   if (lod < 1) return;
   ctx.beginPath(); ctx.arc(x + 15, y - TITLE / 2, 4.5, 0, 6.2832); ctx.fillStyle = TH['slot-text']; ctx.globalAlpha *= .55; ctx.fill(); ctx.globalAlpha /= .55;
@@ -1487,7 +1487,7 @@ function makeTiles(){
     const ic = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); ic.setAttribute('viewBox', '0 0 24 24'); ic.innerHTML = MICON[key];
     t.append(txt, ic); grid.appendChild(t); T.m[key] = {now, was};
   }
-  // what the coloured outlines on the canvas mean; pointing at one lights up those nodes of this step
+  // what the colored outlines on the canvas mean; pointing at one lights up those nodes of this step
   const keys = $('keys'); keys.innerHTML = '';
   for (const key of ['moved', 'added', 'changed', 'removed', 'behind']){
     const sw = el('span', 'sw ' + key), k1 = el('span', 'k', U.units[key]), d1 = el('span', 'd', U.keys_note[key]);
@@ -1548,7 +1548,7 @@ function panel(){
 }
 
 // ---------- the timeline: the whole run from the first step to the last, and a line where we are now.
-// The grey area is the number of the four problems at each step, so the steps that made or solved problems show.
+// The gray area is the number of the four problems at each step, so the steps that made or solved problems show.
 // ---------- the walkthrough: the finished workflow, part by part in processing order (written by the agent that rebuilt it)
 function inline(parent, text){
   // `code` and **bold** inside a line; everything else is plain text (the split puts the marked pieces at the odd places)

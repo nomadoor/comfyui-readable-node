@@ -139,7 +139,7 @@ After:  instruction → Generate Text.system_prompt (optional)
         body text → Generate Text.prompt
 ```
 
-- The behaviour changes slightly (it is passed as system). Write it in the report.
+- The behavior changes slightly (it is passed as system). Write it in the report.
 - Where verified: TextGenerate in object_info.
 
 ## Display nodes

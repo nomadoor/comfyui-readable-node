@@ -4,7 +4,7 @@ Legacy group nodes were removed from ComfyUI. The frontend still loads them by u
 into its inner nodes. This module produces the same graph at the top level, so the reader can then
 treat the workflow like any other.
 
-How a group instance maps onto its inner nodes (the behaviour this module reproduces):
+How a group instance maps onto its inner nodes (the behavior this module reproduces):
 
 * The group exposes, in order: first every *socket* input of the inner nodes that is not fed from
   inside the group (inner nodes taken in index order), then every *widget* of the inner nodes that is
