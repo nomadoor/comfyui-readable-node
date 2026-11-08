@@ -107,7 +107,7 @@ A workflow of about 25 nodes takes around 10 minutes. A large workflow can take 
 
 ## What you get
 
-<!-- before / after image goes here -->
+<img width="1920" height="1080" alt="ba_04_allinone_dark" src="https://github.com/user-attachments/assets/b2218290-7b18-4810-bb62-7a27d1dfe332" />
 
 - **The rebuilt workflow**: a `.json` file with `_readable` appended to the original name. The original file is not overwritten.
 - **report.html**: open it in a browser to watch the AI rebuild the workflow and read an explanation of the result.
