@@ -5,7 +5,7 @@
 - Whether two types can be connected (same rule as the frontend)
 - Whether a node is core (decided by python_module)
 
-Rules matched to the frontend's behaviour:
+Rules matched to the frontend's behavior:
 - Inputs are ordered input_order.required -> input_order.optional -> the rest
 - An input becomes a widget when its type is a widget type and it is not forceInput
 - INT with control_after_generate, or named seed / noise_seed, is followed by 1 control widget

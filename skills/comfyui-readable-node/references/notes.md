@@ -19,7 +19,7 @@ The text of the Notes on part of the processing, and the one or two sentences at
 
 **At the very top, what this workflow does, in one or two sentences: what goes in and what comes out. Below it, the list of models.**
 - The first heading says that in the user's language. The models heading is always `## models`, in every language (the canvas finds the model Note by it).
-- It has no title: its place at the upper left and its colour say what it is, and its headings divide it.
+- It has no title: its place at the upper left and its color say what it is, and its headings divide it.
 - The list of models is in exactly this form (the canvas `models` gives a draft):
 
 ````markdown
@@ -63,8 +63,8 @@ Generates an image from a text prompt with Qwen Image 2.1.
 - One Note per place the user looks at (one node, or a cluster looked at together). Several topics there become several headings in that one Note. One thing is said once in the whole workflow: the same point (larger is slower) is not written again in the Note of another node.
 - Each topic has a `###` heading that says in one plain phrase what the topic wants to say (a warning calls for attention). Under it, one or two phrases. Indent at most one level. A polite register.
 - Point at nodes by their names; to have a value changed, write the node name and the widget name ("set sage_attention on Patch Sage Attention KJ to disabled").
-- Text to be copied exactly is in quotation marks, not inline code (`), which breaks in the legacy renderer and on coloured Notes.
-- Bad: pointing at nodes by their colour (a bypassed node loses its colour).
+- Text to be copied exactly is in quotation marks, not inline code (`), which breaks in the legacy renderer and on colored Notes.
+- Bad: pointing at nodes by their color (a bypassed node loses its color).
 
 ## Where to place
 

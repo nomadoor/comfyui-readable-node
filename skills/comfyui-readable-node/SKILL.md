@@ -1,6 +1,6 @@
 ---
 name: comfyui-readable-node
-description: Builds a ComfyUI workflow (JSON) into a form people can read easily (Readable Node). Use it when the user mentions Readable Node, asks to make a ComfyUI workflow readable or tidy, takes an existing workflow apart to rebuild it, or builds a new workflow. Do not hide nodes, do not hide wires (turn wireless links back into wires), left to right, 1 task per workflow, fewer custom nodes, appropriate colouring.
+description: Builds a ComfyUI workflow (JSON) into a form people can read easily (Readable Node). Use it when the user mentions Readable Node, asks to make a ComfyUI workflow readable or tidy, takes an existing workflow apart to rebuild it, or builds a new workflow. Do not hide nodes, do not hide wires (turn wireless links back into wires), left to right, 1 task per workflow, fewer custom nodes, appropriate coloring.
 license: MIT
 metadata:
   version: "0.0.5"
@@ -20,10 +20,10 @@ The items are ordered by how much they matter when a person reads a workflow. Wh
 
 1. **Do not hide nodes.** Expand subgraphs, open collapsed nodes, and do not overlap nodes.
 2. **Do not hide wires.** Turn wireless links (Set/Get, Anything Everywhere, hidden links, and the like) back into wires.
-3. **Left to right.** Flow from left to right in processing order. Do not stretch too far towards the lower right.
+3. **Left to right.** Flow from left to right in processing order. Do not stretch too far toward the lower right.
 4. **1 task = 1 workflow.** One workflow is one thing the user wants to do.
 5. **Remove custom nodes as far as possible.** What can be built with core nodes is built with core.
-6. **Colour appropriately.** Colour shows which function a node belongs to.
+6. **Color appropriately.** Color shows which function a node belongs to.
 
 There are three goals.
 - The reader can follow the processing along a single line (can trace the details).
@@ -42,9 +42,9 @@ The rules in the references serve these principles and goals; how to read a rule
 
 ## Division of work
 
-**What you decide (judgement)**: understanding, how to split, what to keep, remove or replace, rebuilding custom nodes, what goes where, what to align, rails, groups, colours for added functions, Notes.
+**What you decide (judgment)**: understanding, how to split, what to keep, remove or replace, rebuilding custom nodes, what goes where, what to align, rails, groups, colors for added functions, Notes.
 
-**What the canvas does (things with exactly one answer)**: node sizes, calculating positions, the default colours of loaders, LoRAs and Notes, group padding, checks (check), export. When reading the original (`canvas open`), it fixes what has exactly one way of fixing, such as turning wireless links back into wires, and applying the official node-replacement list and replacements that give the same calculation. It returns everything it did.
+**What the canvas does (things with exactly one answer)**: node sizes, calculating positions, the default colors of loaders, LoRAs and Notes, group padding, checks (check), export. When reading the original (`canvas open`), it fixes what has exactly one way of fixing, such as turning wireless links back into wires, and applying the official node-replacement list and replacements that give the same calculation. It returns everything it did.
 
 **How to use the canvas**
 - Do not write coordinate numbers. Point at things: "put it to the right of A", "make the wire horizontal", "align the top edges". The canvas does the calculation. Only what you point at moves.
@@ -60,7 +60,7 @@ The rules in the references serve these principles and goals; how to read a rule
 
 ## Steps
 
-`S` is the path of scripts/. Choose one working folder `W` inside the folder where the results go (the one the user named; otherwise next to the original), and type every canvas move as `python3 $S/canvas.py --dir $W <move>`. Below, this is written `canvas`. The list of moves, their syntax and the detailed behaviour (undo, placements calculated only once, block, and so on) are at the top of canvas.py (`python3 $S/canvas.py` prints them): read it once before step 4.
+`S` is the path of scripts/. Choose one working folder `W` inside the folder where the results go (the one the user named; otherwise next to the original), and type every canvas move as `python3 $S/canvas.py --dir $W <move>`. Below, this is written `canvas`. The list of moves, their syntax and the detailed behavior (undo, placements calculated only once, block, and so on) are at the top of canvas.py (`python3 $S/canvas.py` prints them): read it once before step 4.
 - Put every file you make while working inside `W`: plan files (build.txt for building, layout.txt for arranging: "the plan" is layout.txt), Note files, workflows or object_info you fetch to read, notes. Only the exported workflows and the report page go outside `W`. `canvas finish` deletes the files of `W` it knows (what it wrote, the plan and Note files, understanding.md) and names the others it left: delete only those, one by one. Do not delete `W` with a recursive delete.
 
 Moves marked "(when there is an original)" are only for rebuilding a given workflow. When building a new one, skip them.
@@ -100,7 +100,7 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
    2. Read references/readable-form.md, references/glossary.md and the "Layout" part of references/examples.md, again here if you read them before. Then paste the lines of `canvas core <the first stage's sampler>` at the top of layout.txt. They are a draft of the core's block: adjust them to this workflow (a part the usual form lacks is named in a comment, to be placed by relations).
    3. For each grouping of the understanding document, write `block <name> <id> …` and the arrangement inside it.
    4. Run `canvas between layout.txt` to see the wires between blocks and the outputs handed out to several blocks. Whether a value handed out to several stages needs a `rail`: readable-form.md, "Wires".
-   5. Write the arrangement between blocks: each block against the block it is wired to (`put <block> left|right <block> wire`). Groups, colours and the titles of value nodes and of nodes loading an image go in the same file (readable-form.md, "Groups and colour", "Names"); the canvas reads every group line before it places anything, so where in the file a group line stands does not change the layout.
+   5. Write the arrangement between blocks: each block against the block it is wired to (`put <block> left|right <block> wire`). Groups, colors and the titles of value nodes and of nodes loading an image go in the same file (readable-form.md, "Groups and color", "Names"); the canvas reads every group line before it places anything, so where in the file a group line stands does not change the layout.
    6. Run `canvas layout layout.txt`.
 
    How to place:
@@ -145,7 +145,7 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
 - references/content.md: the rules about content (splitting, replacing, keeping, removing).
 - references/techniques.md: building techniques (hard-to-read forms, and forms rebuilt to be readable).
 - references/replacements.md: the replacement dictionary (custom nodes and deprecated nodes, things that may be removed, things to keep) and how to find the source.
-- references/readable-form.md: the layout rules (nodes, wires, flow and position, groups and colour, names).
+- references/readable-form.md: the layout rules (nodes, wires, flow and position, groups and color, names).
 - references/notes.md: how to write Notes and the Walkthrough, and where to place Notes.
 - references/examples.md: examples (how the rules applied in real workflows).
 - references/review.md: the review after export (what you do, and the brief for the agent that reviews).

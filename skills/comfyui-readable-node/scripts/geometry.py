@@ -1,7 +1,7 @@
 """Node shapes, slot positions and wire shapes, computed the same way the frontend (litegraph) does.
 Python standard library only.
 
-Behaviour checked against positions the frontend produces:
+Behavior checked against positions the frontend produces:
 - The title bar is 30px above pos. The rectangle a node occupies is [x, y - 30, w, h + 30].
 - Slots of inputs without a widget, and outputs, sit at y = pos.y + (k + 0.7) x 20 (k is the index among
   inputs without a widget, or among outputs). Inputs are at x = pos.x + 10, outputs at x = pos.x + w + 1 - 10.
