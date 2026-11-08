@@ -1997,7 +1997,13 @@ def _chk_width_and_value_tops(cv, c):
                 # rows that merely stand one above the other are not a column
                 aligned = abs(ra[2] - rb[2]) < 1 or abs(ra[0] - rb[0]) < 1
                 if 0 <= gap_v <= V_GAP + 1 and not (cv.is_model_loader(a) and cv.is_model_loader(b)):
-                    if aligned and 1 <= dw < SAME_WIDTH_UNDER:
+                    if abs(ra[0] - rb[0]) < 1 and abs(ra[2] - rb[2]) >= 1 and not any(
+                            cv.is_loader(x) and is_sampler(y) for x, y in ((a, b), (b, a))):
+                        # written with `left`: a column aligns its right edges. A loader above a sampler keeps the
+                        # sampler's left edge (Load VAE above the sampler)
+                        out.append(f"stacked nodes aligned on their left edges, not their right ({round(abs(ra[2] - rb[2]))}px): "
+                                   f"{a['id']} and {b['id']} (place the lower one with put … below the other, right edges aligned)")
+                    elif aligned and 1 <= dw < SAME_WIDTH_UNDER:
                         out.append(f"stacked nodes differ in width by {round(dw)}px: the canvas gives a column one width, but a node "
                                    f"next to one is in the way of widening it: {a['id']} and {b['id']}")
                     elif not aligned:
@@ -2793,6 +2799,36 @@ def columns_between(cv, r, t):
                and G.rect(m)[0] >= r[2] and G.rect(m)[2] <= rt[0] for m in cv.s["nodes"])
 
 
+@check_rule("rails too close to a node")
+def _chk_rail_near_node(cv, c):
+    """A rail's line running over or under a node closer than V_GAP: as far as a rail written above or below a unit
+    stands from it (readable-form.md, Wires show and nothing is packed). Its Reroutes sit on the line, so the line is
+    what is measured."""
+    out, seen = [], set()
+    spans = list(rail_spans(cv))
+    # the piece from a source at the rail's height into its first Reroute is the rail too
+    for l in cv.s["links"]:
+        o, t = cv.node(l["origin_id"]), cv.node(l["target_id"])
+        if o and t and o.get("type") != "Reroute" and t.get("type") == "Reroute" and cv.placed(o) and cv.placed(t):
+            a, b = cv.out_xy(o["id"], l["origin_slot"]), cv.in_xy(t["id"], "")
+            if a and b and abs(a[1] - b[1]) < 1:
+                spans.append((a[1], a[0], b[0], (o["id"], l["origin_slot"])))
+    for y, x0, x1, (root, _slot) in spans:
+        for m in cv.s["nodes"]:
+            if not cv.placed(m) or m.get("type") in {"Reroute"} | NOTE_TYPES or m["id"] == root:
+                continue
+            r = G.rect(m)
+            if min(r[2], x1) <= max(r[0], x0):
+                continue
+            d = r[1] - y if y <= r[1] else y - r[3] if y >= r[3] else None
+            if d is not None and d < V_GAP - 0.5 and (root, m["id"]) not in seen:
+                seen.add((root, m["id"]))
+                out.append(f"rail too close to a node ({round(d)}px {'above' if y <= r[1] else 'below'} it, min {V_GAP}): "
+                           f"the rail of {root} and {m['id']} (write the rail's height so it clears the node, or place "
+                           f"the node off the rail)")
+    return out
+
+
 @check_rule("rail targets off the rail")
 def _chk_rail_target_off_rail(cv, c):
     # a rail target wired straight from a rail Reroute far to its left, at another height: the rail ends in a long slanted
@@ -3501,9 +3537,11 @@ HARD_CHECKS = {
     # audio latents: a liking, not the form to write
     "main flow off its line": lambda cv, l: True,
     "rail targets off the rail": lambda cv, l: True,
+    "rails too close to a node": lambda cv, l: True,
     "crossings in a gap between columns": lambda cv, l: True,
     "rail heads away from their rail": lambda cv, l: True,
     "output nodes stepped where the flow ends": lambda cv, l: True,
+    "width differences and value node tops": lambda cv, l: l.startswith("stacked nodes aligned on their left edges"),
     "core nodes the replacement list replaces": lambda cv, l: True,
     "custom nodes the replacement list turns into core": lambda cv, l: True,
 }
@@ -6912,14 +6950,15 @@ CHECK_RULES = [
     (("groups overlap", "wire over the title", "node over the title", "node overlapping group"),
      "A group holds one large function"),
     (("loader is above the model loader",), "A loader stands in the column left"),
-    (("stacked nodes differ in width", "stacked nodes with right edges"), "Nodes stacked in one column"),
+    (("stacked nodes differ in width", "stacked nodes with right edges", "stacked nodes aligned on their left"),
+     "Nodes stacked in one column"),
     (("rail order differs", "rail runs above the", "loader rail runs below", "stacked loaders differ"),
      "A wire is drawn directly"),   # its rail line holds the order
     (("loader away from its first user", "vae loader"), "A loader stands in the column left"),
     (("model chain end",), "The model chain ends in the column"),
     (("right edges of the sources",), "The sources wired straight into a sampler"),
     (("overlap:", "is directly below"), "No node is hidden"),
-    (("narrow gap", "empty band", "gap inside a column", "wide gap to a wired neighbour", "uneven spacing",
+    (("narrow gap", "rail too close to a node", "empty band", "gap inside a column", "wide gap to a wired neighbour", "uneven spacing",
       "times in the gap"), "Wires show and nothing is packed"),
     (("output node stepped down",), "An output node (Save, Preview"),
     (("wire behind a node", "Reroute", "single value carried", "rail needs no raising", "rails too close",
@@ -7093,6 +7132,10 @@ def order_rails_by_type(cv, rails, lanes):
         for j in seq[a + 1:]:
             if overlap(i, j) and rank[i] < rank[j]:
                 y = min(y, lanes[j][0] - gap)
+                # the node heading rail j at its height: rail i clears its top by V_GAP (as `rail … above <unit>`)
+                h = G.rect(cv.node(lanes[j][1]))
+                if abs(cv.out_xy(lanes[j][1], lanes[j][2])[1] - lanes[j][0]) < 1 and min(h[2], ext[i][1]) > max(h[0], ext[i][0]):
+                    y = min(y, h[1] - V_GAP)
         moved = abs(y - before[i]) >= 1
         for j in seq[a + 1:]:
             if overlap(i, j) and rank[i] == rank[j] and (moved or abs(lanes[j][0] - before[j]) >= 1) and y > lanes[j][0] - gap:
@@ -7433,6 +7476,16 @@ def settle_rail_moves(cv, rails, lanes, rail_move, notes):
             x0 = min(x0, u[3][0])
         return x0, x1
 
+    def head_box(i):
+        """The box of the node heading rail i where it stands at the rail's height (moved with it, or never lifted)."""
+        u = unit_of.get(i)
+        if u is not None:
+            b, sh = u[3], shift(u)
+            return (b[0], b[1] + sh, b[2], b[3] + sh)
+        if abs(lanes[i][0] - out_y0[i]) < 1:
+            return G.rect(cv.node(lanes[i][1]))
+        return None
+
     def raise_by(i, d):
         u = unit_of.get(i)
         for m in (u[2] if u else [i]):
@@ -7460,6 +7513,11 @@ def settle_rail_moves(cv, rails, lanes, rail_move, notes):
                     d = lanes[lo][0] - P["RAIL_GAP"] - (u[3][3] + shift(u))
                 else:
                     d = lanes[lo][0] - gap - lanes[up][0]
+                    # the node heading the rail below stands at that rail's height: the rail above clears its top as a
+                    # rail written above a unit does (V_GAP), not only that rail's line
+                    hd = head_box(lo)
+                    if hd is not None and min(hd[2], a1) > max(hd[0], a0):
+                        d = min(d, hd[1] - V_GAP - lanes[up][0])
                 if d >= -0.5:
                     continue
                 _, oid, slot, _t = lanes[up]

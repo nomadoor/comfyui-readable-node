@@ -328,6 +328,17 @@ class CanvasTest(unittest.TestCase):
         self.assertLess(cv.out_xy("12", 0)[1] + C.P["RAIL_GAP"] - 0.5, cv.out_xy("10", 0)[1])
         self.assertFalse([x for x in C.full_check(cv)[0] if "runs above the MODEL rail" in x or "raising Reroute right of a loader" in x and ": 10" in x])
 
+    def test_a_rail_pushed_above_a_loader_heading_the_rail_below_clears_its_top(self):
+        # Load VAE above the sampler heads the vae rail at its height; the model rail, pushed above the vae rail by the
+        # type order, also clears Load VAE's top by V_GAP (as a rail written above a unit), not only the vae rail's line
+        plan = ("put 13 origin\nput 8 right 13 wire\nput 22 right 8\nput 30 left 13\nput 12 left 30\n"
+                "put 10 above 13 left\nrail 10.VAE move 10 to 8.vae\nrail 30.MODEL above 13 to 22.model\n")
+        self.do(f"layout {self.write_plan(plan)}")
+        cv = self.cv()
+        model = min(r[0] for r in C.rail_spans(cv) if r[3][0] == "30")
+        self.assertLessEqual(model, G.rect(cv.node("10"))[1] - C.V_GAP + 0.5)
+        self.assertFalse([x for x in C.full_check(cv)[0] if "rail too close to a node" in x])
+
     def test_layout_rail_move_twice_on_one_unit_stops(self):
         plan = ("row 13 8 9 42 30\nput 10 left 13 above 13\n"
                 "rail 10.VAE above 13 move 10 to 8.vae\nrail 10.VAE above 42 move 10 to 9.images\n")
