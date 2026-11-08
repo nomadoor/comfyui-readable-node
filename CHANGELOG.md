@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (the version number is set when it is published)
+## 0.1.0 (2026-11-08)
 
 - A rail with one target lowers through a Reroute next to the target whenever another column stands between; the canvas no longer wires it straight from the raising Reroute, which its own check called Bad.
 - "A slanted wire one move makes horizontal" no longer counts a move that takes a sampler's column of sources along (a stage's chain on the row below stays there).
