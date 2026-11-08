@@ -74,7 +74,7 @@ class CanvasTest(unittest.TestCase):
         return self.do(f"layout {plan}")
 
     def test_a_clip_loader_feeding_text_encoders_stays_yellow(self):
-        # correction 1014: the fixed yellow stays when the CLIP reaches a text encoder, also through a node passing it on
+        # the fixed yellow stays when the CLIP reaches a text encoder, also through a node passing it on
         self._layout_one()
         yellow = list(C.COLORS["yellow"])
         self.assertEqual([self.cv().node("11").get("color"), self.cv().node("11").get("bgcolor")], yellow)
@@ -274,7 +274,7 @@ class CanvasTest(unittest.TestCase):
 
     def test_rail_reroute_below_a_sampler_stays_in_its_column(self):
         # the lowering Reroute stands on the right edge of the column left of its target: it is not moved sideways
-        # (correction 1204); a rail written below a sampler runs below the room it grows into, so nothing is hidden
+        # a rail written below a sampler runs below the room it grows into, so nothing is hidden
         self.do("row 10 13 8 9")
         self.do("put 12 above 10")
         self.do("rail 10.VAE below 13 to 8.vae")
@@ -306,7 +306,7 @@ class CanvasTest(unittest.TestCase):
 
     def test_layout_rail_move_keeps_the_unit_off_the_rail_below(self):
         # a loader moved to its rail's height does not stand on the rail below it: its rail goes up until the loader
-        # clears that rail by the rail gap (correction 1205)
+        # clears that rail by the rail gap
         plan = "row 13 8 9 42\nput 11 left 13 below 13\nput 10 left 13 above 13\n" \
                "rail 10.VAE above 13 move 10 to 8.vae\nrail 11.CLIP above 13 to 42.clip\n"
         self.do(f"layout {self.write_plan(plan)}")
@@ -320,7 +320,7 @@ class CanvasTest(unittest.TestCase):
 
     def test_layout_rail_move_keeps_the_rail_order(self):
         # a rail pushed up by a moved loader does not pass the rail of an earlier type above it: that rail goes up too,
-        # with its loader's block (Fable review of correction 1205)
+        # with its loader's block
         plan = ("row 13 8 9 42 30\nput 11 left 13 below 13\nblock L 12 10\nput 12 left 13 above 13\nput 10 below 12\n"
                 "rail 12.MODEL to 30.model\nrail 10.VAE above 13 move 10 to 8.vae\nrail 11.CLIP above 13 to 42.clip\n")
         self.do(f"layout {self.write_plan(plan)}")
@@ -542,7 +542,7 @@ class CanvasTest(unittest.TestCase):
         self.assertFalse([x for x in C.hard_problems(self.cv()) if x.startswith("wire behind a node")])
 
     def test_wires_behind_a_node_are_said_only_when_they_cross_there(self):
-        # grill 2026-11-06 (U2): wires behind a node that come out in the order they went in are Fine
+        # wires behind a node that come out in the order they went in are Fine
         def place(pos):
             for nid, (x, y) in pos.items():
                 self.do(f"put {nid} origin")
@@ -632,21 +632,6 @@ put 8 right 42 top gap 400
 rail 10.VAE to 8.vae
 """
 
-    @unittest.skip("the canvas no longer chooses rail heights, moves nodes after the plan, or holds backward wires as unkeepable (correction 1001)")
-    def test_layout_rail_opens_a_lane_in_a_packed_column(self):
-        # a column stands across the vae rail's run, with no clear height near the output: the column opens at the rail
-        out = self.do(f"layout {self.write_plan(self.PACKED)}")
-        self.assertTrue([x for x in out if "opening a lane" in x or "opened a lane" in x], out)
-        self.assertTrue([x for x in out if "to open the lane" in x], out)
-        cv = self.cv()
-        rr = [n for n in cv.s["nodes"] if n["type"] == "Reroute"]
-        y = cv.out_xy(rr[0]["id"] if rr else "10", 0)[1]
-        x0, x1, last = C.rail_extent(cv, "10", ["8"])
-        self.assertEqual(C.lane_blockers(cv, y, x0, x1, {"10"} | last), [])
-        self.assertEqual(self.rect("30")[1] <= 0, True)   # the top of the column moved up or stayed
-        lines, _ = C.full_check(cv)
-        self.assertFalse([x for x in lines if x.startswith("overlap")], lines)
-
     def test_layout_loader_rail_has_no_raising_reroute(self):
         # a loader heads its rail: the lane opens at its output height, no Reroute lifts or lowers its output
         self.do(f"layout {self.write_plan(self.PACKED)}")
@@ -657,37 +642,6 @@ rail 10.VAE to 8.vae
         if not rr:   # the lane let the direct wire through
             self.assertTrue(C.wire_clear(cv, cv.out_xy("10", 0), cv.in_xy("8", "vae"), {"10", "8"}))
         self.assertFalse([x for x in C.full_check(cv)[0] if x.startswith("raising Reroute right of a loader")])
-
-    @unittest.skip("the canvas no longer chooses rail heights, moves nodes after the plan, or holds backward wires as unkeepable (correction 1001)")
-    def test_layout_rail_moves_the_source_rather_than_a_column(self):
-        # the run is blocked at the output height of VAE Decode by a stack of three; moving the source (and the sampler
-        # wired level into it) moves two nodes, opening a lane would move three: the source moves, nothing lifts the rail
-        self.do("add PreviewImage p")
-        self.do("link 8.IMAGE p.images")
-        plan = """put 13 origin
-put 8 right 13
-block b 27 30 42
-stack 27 30 42
-put b right 8 top
-put 9 right b
-move 9 0 120
-put p below 9
-rail 8.IMAGE to 9.images p.images
-"""
-        C.AUTO_LEVEL = False   # this test is about the rail's choice alone (the layout would level 27 → 13 first)
-        try:
-            out = self.do(f"layout {self.write_plan(plan)}")
-        finally:
-            C.AUTO_LEVEL = True
-        self.assertTrue([x for x in out if "moving the source" in x], out)
-        cv = self.cv()
-        self.assertEqual(self.rect("27")[1], 0)   # the stack stayed
-        a, b = cv.out_xy("13", 0), cv.in_xy("8", "samples")
-        self.assertLess(abs(a[1] - b[1]), 1)       # the sampler moved with it: still horizontal
-        y = cv.out_xy("8", 0)[1]
-        for n in cv.s["nodes"]:
-            if n["type"] == "Reroute":
-                self.assertLess(abs(cv.out_xy(n["id"], 0)[1] - y), 1)
 
     def test_move_closure_keeps_a_stack(self):
         self.do("block s 12 11 10")
@@ -734,7 +688,7 @@ rail 11.CLIP to 6.clip 42.clip c3.clip
 
     def test_rail_into_one_target_further_down_runs_at_its_input_height(self):
         # rail written below a unit, its one target further down: the rail runs at the target's input height, so the wire
-        # from its Reroute into the target is horizontal (correction 1041: a Reroute stopped halfway)
+        # from its Reroute into the target is horizontal
         plan = """put 13 origin
 put 8 right 13
 put 9 right 8
@@ -782,7 +736,7 @@ rail 10.VAE below 10 to 8.vae
         self.do("link 30.0 k.model 42.0 k.positive 6.0 k.negative 27.0 k.latent_image")
 
     def test_model_chain_end_off_the_input_column_weighs_less(self):
-        # the model chain ends at the right edge of the sampler's column of sources (correction 1044); off it is a soft line
+        # the model chain ends at the right edge of the sampler's column of sources; off it is a soft line
         self._ksampler()
         self.do("add ModelSamplingFlux ms")
         self.do("link 30.0 ms.model ms.0 k.model")
@@ -818,7 +772,7 @@ rail 10.VAE below 10 to 8.vae
             self.assertTrue([x for x in C.soft_problems(self.cv()) if x.startswith("model chain end 30")])
 
     def test_merging_node_with_no_wire_level_weighs_less(self):
-        # two conditionings into one node, the node set midway so neither wire is level (correction 1044)
+        # two conditionings into one node, the node set midway so neither wire is level
         self.do("add ConditioningCombine m")
         self.do("link 42.0 m.conditioning_1 6.0 m.conditioning_2")
         plan = "put 42 origin" + chr(10) + "put 6 below 42" + chr(10) + "put m right 42" + chr(10) + "move m 0 120" + chr(10)
@@ -840,7 +794,7 @@ rail 10.VAE below 10 to 8.vae
 
     def test_gap_crossings_are_counted_in_each_row_sharing_its_span(self):
         # two rows ending and starting at the same x: the gap keeps the crossings of the row where they are, not 0 from
-        # the first wire found (correction 1044: a model row ending at the column hid a crossed gap)
+        # the first wire found (a model row ending at the column hid a crossed gap)
         self._ksampler()
         plan = """put k origin
 put 42 left k gap 60
@@ -860,7 +814,7 @@ put 12 left 30 gap 60
         self.assertGreaterEqual(spans[0][2], 1)
 
     def test_widening_a_gap_takes_a_node_right_aligned_with_the_opened_column(self):
-        # a node above the gap whose right edge is the opened column's right edge moves with that column (correction 1044)
+        # a node above the gap whose right edge is the opened column's right edge moves with that column
         self._ksampler()
         self.do("add ConditioningCombine m")
         self.do("link 42.0 m.conditioning_1 6.0 m.conditioning_2 m.0 k.positive")
@@ -891,7 +845,6 @@ put 30 above m right
 
     def test_widening_a_gap_moves_the_rows_below_it_too(self):
         # a node right of the line far below the crossing wires moves too, so a column aligned across rows stays aligned
-        # (corrections 1041, 1044)
         self._ksampler()
         self.do("add ConditioningCombine m")
         self.do("link 42.0 m.conditioning_1 6.0 m.conditioning_2 m.0 k.positive")
@@ -973,49 +926,6 @@ put 8 right 42 top gap 400
                          {k: v for k, v in p1.items() if not k.startswith("r1")})
         self.assertEqual(r1, r2)
 
-    @unittest.skip("the canvas no longer chooses rail heights, moves nodes after the plan, or holds backward wires as unkeepable (correction 1001)")
-    def test_layout_output_node_steps_down_for_a_wire_through(self):
-        # Save Image stands level with VAE Decode, in the way of the image going on to a Preview farther right:
-        # Save steps down (a staircase) and the wire through stays at the output height, with no Reroute
-        self.do("add PreviewImage p")
-        self.do("link 8.IMAGE p.images")
-        plan = """put 8 origin
-put 9 right 8
-put 27 right 9 gap 300
-put p right 27
-rail 8.IMAGE to 9.images p.images
-"""
-        out = self.do(f"layout {self.write_plan(plan)}")
-        cv = self.cv()
-        self.assertTrue([x for x in out if "opening a lane" in x], out)
-        self.assertGreater(self.rect("9")[1], self.rect("8")[1])
-        self.assertFalse([n for n in cv.s["nodes"] if n["type"] == "Reroute"])
-        self.assertTrue(C.wire_clear(cv, cv.out_xy("8", 0), cv.in_xy("p", "images"), {"8", "p"}))
-
-    @unittest.skip("the canvas no longer chooses rail heights, moves nodes after the plan, or holds backward wires as unkeepable (correction 1001)")
-    def test_layout_rails_go_model_vae_clip(self):
-        def plan(stack):
-            return f"""block load {stack}
-stack {stack}
-put 6 right load gap 600
-put 42 below 6
-put 8 right 6 gap 300
-move 8 0 400
-put 30 right 8
-rail 12.MODEL to 30.model
-rail 10.VAE to 8.vae
-rail 11.CLIP to 6.clip 42.clip
-"""
-        with self.assertRaises(C.Stop) as e:
-            self.do(f"layout {self.write_plan(plan('12 11 10'))}")
-        self.assertIn("model, vae, clip from the top", str(e.exception))
-        self.do(f"layout {self.write_plan(plan('12 10 11'))}")
-        cv = self.cv()
-        ys = {C.rail_type(cv, r, s): y for y, _, _, (r, s) in C.rail_spans(cv)}
-        self.assertLess(ys["MODEL"], ys["VAE"])
-        lines = C.full_check(cv)[0]
-        self.assertFalse([x for x in lines if "rail runs above the" in x or "clip loader" in x], lines)
-
     def test_clip_loader_above_vae_loader_is_not_reported(self):
         # vae and clip take either order (Load VAE may stand below the text encoders, below Load CLIP); only a loader
         # above the model loader is out of order
@@ -1032,23 +942,6 @@ rail 11.CLIP to 6.clip 42.clip
         self.do("stack 10 12 11")
         lines = C.full_check(self.cv())[0]
         self.assertTrue([x for x in lines if x.startswith("vae loader 10 is above the model loader 12")], lines)
-
-    @unittest.skip("the canvas no longer chooses rail heights, moves nodes after the plan, or holds backward wires as unkeepable (correction 1001)")
-    def test_layout_conditioning_rail_runs_above_the_samplers(self):
-        # the text encoder stands below the sampler; its conditioning still runs above the sampler to the guider beyond it
-        plan = """put 13 origin
-put 6 left 13 gap 300
-move 6 0 400
-put 26 right 13 gap 300
-put 22 right 26 gap 300
-rail 6.CONDITIONING to 26.conditioning 22.conditioning
-"""
-        self.do("unlink 26.conditioning")
-        self.do("link 6.CONDITIONING 26.conditioning 6.CONDITIONING 22.conditioning")
-        out = self.do(f"layout {self.write_plan(plan)}")
-        h = [float(re.search(r"rail height (-?[\d.]+)", x).group(1)) for x in out if "line 6: rail height" in x]
-        self.assertTrue(h, out)
-        self.assertLess(h[0], self.rect("13")[1])
 
     def test_loader_is_not_widened_past_the_node_below_it(self):
         # Load VAE stacked right above the sampler is not widened to the loader minimum width past the sampler
@@ -1310,7 +1203,7 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
         self.do(f"layout {self.write_plan(plan)}")
         self.assertEqual(self.rect("note_top")[2], self.rect("30")[2])
         self.assertEqual(self.rect("note_top")[3], self.rect("30")[1] - C.V_GAP)
-        # the overview Note aligns with the workflow's top, not with a Note placed above it (correction 913)
+        # the overview Note aligns with the workflow's top, not with a Note placed above it
         self.assertEqual(self.rect("note_models")[1], min(self.rect("12")[1], self.rect("30")[1]))
         self.assertNotIn("model Note top edge", "\n".join(self.do("check")))
 
@@ -1339,14 +1232,6 @@ rail 6.CONDITIONING to 26.conditioning 22.conditioning
             self.assertFalse([x for x in C.hard_problems(self.cv()) if x.startswith("Note note_b ")])
             self.assertTrue([x for x in C.full_check(self.cv())[0] if x.startswith("Note note_b explains 12 from away")])
             self.assertFalse(C.note_trouble(self.cv(), "note_b"))
-
-    @unittest.skip("a Note goes where the plan writes it; the canvas no longer tries other sides (correction 1005)")
-    def test_a_note_below_a_node_that_grows_goes_above_it(self):
-        md = self.dir / "note_g.md"
-        md.write_text("### a\n\nb\n", encoding="utf-8")
-        out = self.do(f"layout {self.write_plan(f'put 13 origin' + chr(10) + f'note {md} below 13' + chr(10))}")
-        self.assertLess(self.rect("note_g")[3], self.rect("13")[1])
-        self.assertTrue(any("goes above it" in l for l in out), out)
 
     def test_a_note_on_a_node_of_a_group_is_placed_with_the_group_inside_its_frame(self):
         # the Note line written with the group runs then, the frame takes it in, and the next group keeps clear of it
@@ -1416,15 +1301,6 @@ group "A" s 30 12
         hint = lines[0].split("write note <its file> ")[1]
         self.do(f"layout {self.write_plan(plan.replace('left s', hint))}")
         self.assertFalse([x for x in C.hard_problems(self.cv()) if "widens the frame" in x])
-
-    @unittest.skip("a Note goes where the plan writes it; the canvas no longer tries other sides (correction 1005)")
-    def test_a_note_that_would_land_on_a_node_goes_to_another_side(self):
-        md = self.dir / "note_o.md"
-        md.write_text("### a\n\nb\n", encoding="utf-8")
-        # right of 30 is where 12 stands: the canvas tries the other sides of 30 instead of putting it on 12
-        out = self.do(f"layout {self.write_plan('put 30 origin' + chr(10) + 'put 12 right 30 top' + chr(10) + f'note {md} right 30' + chr(10))}")
-        self.assertFalse([x for x in out if "overlap" in x and "note_o" in x], out)
-        self.assertTrue(any("note_o: placed" in l for l in out), out)
 
     def test_a_title_written_after_the_lines_that_place_takes_its_width_before_them(self):
         # a long title widens its node: written at the end of the plan, the node beside it still keeps its gap
@@ -1846,7 +1722,7 @@ group "A" s 30 12
         self.assertTrue([x for x in lines if x.startswith("value nodes side by side have unaligned tops")])
 
     def test_inputs_centres_sampler_custom_on_its_column(self):
-        # corrections 1025 and 1114: the sampler stays on the eye line and its column moves to it, so that the sampler
+        # the sampler stays on the eye line and its column moves to it, so that the sampler
         # is at the column's vertical middle (its conditioning enters the guider, whose wire into the sampler slants)
         self.do("copy 25 16 17")
         self.do("link 25.NOISE 13.noise 16.SAMPLER 13.sampler 17.SIGMAS 13.sigmas 30.MODEL 17.model")
@@ -1860,7 +1736,7 @@ group "A" s 30 12
         self.assertLess(abs((before[1] + before[3]) / 2 - (col[1] + col[3]) / 2), 1)
 
     def test_inputs_levels_a_wire_of_a_node_that_is_not_sampler_custom(self):
-        # grill 2026-11-06 (K-102, correction 1044): not set midway between its sources; one wire is horizontal
+        # not set midway between its sources; one wire is horizontal
         self.do("put 8 origin")
         self.do("move 8 2000 600")
         self.do("inputs 8")
@@ -2187,7 +2063,7 @@ group "A" s 30 12
         self.assertFalse([x for x in lines if x.startswith("raising Reroute right of a loader")])
 
     def test_export_stops_on_a_raising_reroute_right_of_a_loader_only(self):
-        # grill 2026-11-06 (Q8a): a loader of a model, clip or vae stands at its rail's height; the export stops on its
+        # a loader of a model, clip or vae stands at its rail's height; the export stops on its
         # raising Reroute. The last node of a model chain heading a rail is only said
         self._two_loader_rails("above 12", "below 10")
         stops = [x for x in C.export_stops(self.cv()) if x.startswith("raising Reroute right of a loader")]
@@ -2477,7 +2353,7 @@ group "A" s 30 12
         self.assertIn("の下に", steps[1]["s"])
 
     def test_layout_does_not_echo_what_lines_did(self):
-        # correction 1020: the reply is an error log; what the plan's lines did is kept for the report page only
+        # the reply is an error log; what the plan's lines did is kept for the report page only
         plan = self.dir / "plan.txt"
         plan.write_text("put 12 origin\nput 30 right 12 wire\n", encoding="utf-8")
         out = self.do(f"layout {plan}")
