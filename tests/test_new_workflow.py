@@ -69,6 +69,22 @@ class NewWorkflowTest(unittest.TestCase):
                 self.do(line)
             self.assertIn("no original", str(e.exception), line)
 
+    def test_open_stops_in_a_working_folder_already_used(self):
+        # one working folder is one job: opening another workflow over canvases (and their export, review and report
+        # records) would let finish take the old records for the new job
+        self.build()
+        for line in (f"open new {FIX / 'object_info.json'}", f"open {FIX / 'flux_t2i.json'} {FIX / 'object_info.json'}"):
+            with self.assertRaises(C.Stop) as e:
+                self.do(line)
+            self.assertIn("another working folder", str(e.exception), line)
+        self.assertEqual(C.Work(self.w).names(), ["t"])
+
+    def test_open_again_before_any_canvas(self):
+        # nothing built yet: opening again (another object_info, the original after all) is fine
+        self.do(f"open new {FIX / 'object_info.json'}")
+        out = self.do(f"open {FIX / 'flux_t2i.json'} {FIX / 'object_info.json'}")
+        self.assertTrue(any(x.startswith("read:") for x in out), out)
+
     def test_open_still_needs_both_files_for_an_original(self):
         with self.assertRaises(C.Stop) as e:
             self.do(f"open {FIX / 'flux_t2i.json'}")

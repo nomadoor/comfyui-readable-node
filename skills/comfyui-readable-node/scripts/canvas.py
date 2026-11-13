@@ -3761,6 +3761,11 @@ def do_open(work, args):
         raise Stop("open <workflow.json> <object_info URL or JSON>, or for a new workflow (no original): "
                    "open new <object_info URL or JSON>")
     wf_path, oi_src = args[0], args[1]
+    if work.names():
+        # one working folder is one job: the export, review and report records of the canvases here would be taken
+        # for the new job
+        raise Stop(f"this working folder already holds canvases ({', '.join(work.names())}): open the workflow in "
+                   f"another working folder, named after what it builds (<name>_work). Nothing changed")
     oi = CS.load_object_info(oi_src)
     work.dir.mkdir(parents=True, exist_ok=True)
     jdump(work.dir / "object_info.json", oi)
