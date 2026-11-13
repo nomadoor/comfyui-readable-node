@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 (2026-11-14)
+
+- `canvas finish` never deletes a file outside the working folder: it follows the links of the folder that holds a file before deleting it. A file link is still removed as a link, and a folder link left behind is named. (#16)
+- Building a new workflow can start: `canvas open new <object_info>` reads only the node definitions. `src`, `copy` and `diff` say there is no original. SKILL.md has a table of which steps apply when rebuilding, building a new workflow, or working fast. (#15)
+- One working folder per job, named after the workflow it builds with `_work` after it. `open` stops in a working folder that already holds canvases.
+- README: the before / after image.
+
 ## 0.1.0 (2026-11-08)
 
 - A rail with one target lowers through a Reroute next to the target whenever another column stands between; the canvas no longer wires it straight from the raising Reroute, which its own check called Bad.
