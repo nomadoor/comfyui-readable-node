@@ -242,6 +242,48 @@ class FinishTest(unittest.TestCase):
         self.assertFalse((self.w / "src.flat.json").exists())
         self.assertFalse((self.w / "canvas").exists())
 
+    def outside_dir_with_sentinel(self):
+        outside = self.out / "outside_dir"
+        outside.mkdir()
+        sentinel = outside / "sentinel.md"
+        sentinel.write_text("# S\ntext", encoding="utf-8")
+        return outside, sentinel
+
+    def test_a_note_through_a_folder_link_to_outside_is_kept(self):
+        outside, sentinel = self.outside_dir_with_sentinel()
+        (self.w / "alias").symlink_to(outside, target_is_directory=True)
+        self.do(f"note {self.w / 'alias' / 'sentinel.md'} below 12")
+        self.export_and_report()
+        out = self.do("finish")
+        self.assertTrue(sentinel.exists())
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "# S\ntext")
+        self.assertTrue(any("outside the working folder" in x and "sentinel.md" in x for x in out), out)
+        # the link itself is left and named: the folder is not called empty
+        self.assertIn("alias", out[0]); self.assertNotIn("is empty", out[0])
+        self.assertFalse((self.w / "src.flat.json").exists())
+
+    def test_a_canvas_folder_turned_into_a_link_to_outside_is_not_followed(self):
+        outside, sentinel = self.outside_dir_with_sentinel()
+        self.export_and_report()
+        shutil.copy(self.w / "canvas" / "t.json", outside / "t.json")
+        real = self.w / "canvas"
+        shutil.move(str(real), str(self.out / "canvas_moved"))
+        real.symlink_to(outside, target_is_directory=True)
+        os.environ["CANVAS_KEEP_WORK"] = "1"
+        listed = self.do("finish")
+        os.environ.pop("CANVAS_KEEP_WORK")
+        self.assertFalse(any(x.strip() == "canvas/t.json" for x in listed), listed)
+        self.assertTrue(any(x.strip() == "src.flat.json" for x in listed), listed)
+
+    def test_a_file_link_inside_removes_only_the_link(self):
+        outside, sentinel = self.outside_dir_with_sentinel()
+        (self.w / "link.md").symlink_to(sentinel)
+        self.do(f"note {self.w / 'link.md'} below 12")
+        self.export_and_report()
+        self.do("finish")
+        self.assertTrue(sentinel.exists())
+        self.assertFalse(self.w.exists())
+
     def test_keep_work_deletes_nothing(self):
         self.export_and_report()
         os.environ["CANVAS_KEEP_WORK"] = "1"
