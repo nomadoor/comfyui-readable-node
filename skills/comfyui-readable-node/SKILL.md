@@ -60,12 +60,23 @@ The rules in the references serve these principles and goals; how to read a rule
 
 ## Steps
 
-`S` is the path of scripts/. Choose one working folder `W` inside the folder where the results go (the one the user named; otherwise next to the original), and type every canvas move as `python3 $S/canvas.py --dir $W <move>`. Below, this is written `canvas`. The list of moves, their syntax and the detailed behavior (undo, placements calculated only once, block, and so on) are at the top of canvas.py (`python3 $S/canvas.py` prints them): read it once before step 4.
+`S` is the path of scripts/. Choose one working folder `W` inside the folder where the results go (the one the user named; otherwise next to the original, or the current folder when there is no original), and type every canvas move as `python3 $S/canvas.py --dir $W <move>`. Below, this is written `canvas`. The list of moves, their syntax and the detailed behavior (undo, placements calculated only once, block, and so on) are at the top of canvas.py (`python3 $S/canvas.py` prints them): read it once before step 4.
 - Put every file you make while working inside `W`: plan files (build.txt for building, layout.txt for arranging: "the plan" is layout.txt), Note files, workflows or object_info you fetch to read, notes. Only the exported workflows and the report page go outside `W`. `canvas finish` deletes the files of `W` it knows (what it wrote, the plan and Note files, understanding.md) and names the others it left: delete only those, one by one. Do not delete `W` with a recursive delete.
 
-Moves marked "(when there is an original)" are only for rebuilding a given workflow. When building a new one, skip them.
+Which steps apply. Moves marked "(when there is an original)" in the steps are only for rebuilding a given workflow. "Fast" is when the user asks for it fast; it applies to both.
 
-When the user asks for it fast, skip steps 9 and 10 (the review and the report page), finish with `canvas finish fast`.
+| Step | Rebuilding a given workflow | Building a new one | Fast | Done before the next step |
+|---|---|---|---|---|
+| 1 Read | `open <workflow.json> <object_info>`, `src all` | `open new <object_info>` (only the node definitions) | same | the working folder is open |
+| 2 Understanding | A to E of references/understanding.md | what was asked: what it makes, what the user puts in and gets out | same | understanding.md |
+| 3 Split | yes | yes | same | the canvases |
+| 4 Build | `copy` and `add`, then `diff` | `add` only | same | the wires are connected |
+| 5–6 Arrange, look and fix | yes | yes | same | what the check names is fixed |
+| 7 Notes | yes | yes | same | the Notes |
+| 8 Export | the original's name with `_readable`, `diff` | a few English words for what it does | same | the exported workflows |
+| 9 Review | yes | yes | skipped | the review registered |
+| 10 Report page | with Original | without Original | skipped | report.html |
+| 11 Report and finish | `finish` | `finish` | `finish fast` | the working folder is gone |
 
 1. **Read the original (when there is an original)**  
    `canvas open <workflow.json> <object_info URL or saved object_info JSON>`
@@ -77,6 +88,7 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
    The understanding of the workflow, written before building. Write the first version after reading, and revise it while building. Keep what you revised as well.
    - Read references/content.md, references/techniques.md, and the "Content" and "Notes" parts of references/examples.md before writing (its "Layout" part comes in step 5). readable-form.md, notes.md and review.md are read in steps 5, 7 and 9, not now.
    - What to write is in references/understanding.md. For every node, write what it does with its values here.
+   - When building a new one, write only what was asked: what the workflow makes, what the user puts in and gets out.
 
 3. **Split**  
    Following the split in the understanding document, make one canvas per workflow (`canvas new <name>`, `canvas use <name>`). How they are named is in step 8. One canvas becomes one workflow JSON.
@@ -123,13 +135,13 @@ When the user asks for it fast, skip steps 9 and 10 (the review and the report p
    - One Note at a time, check that the node on the 🔗 line and the topics are about the same node; a topic about another node moves to that node's Note.
 
 8. **Export and compare**  
-   For each canvas, `canvas export <name>.json`. The name is the original's file name with `_readable` after it (`image_flux2_klein_text_to_image_readable.json`), so it stands beside the original without overwriting it; when the workflow was split, a few English words after that say what each one does (`…_readable_upscale.json`). (When there is an original) run `canvas diff` again on every canvas, take the differences one by one against the four items of step 4 and content.md, "What becomes of each part", fix what they say, and export again.
+   For each canvas, `canvas export <name>.json`. The name is the original's file name with `_readable` after it (`image_flux2_klein_text_to_image_readable.json`), so it stands beside the original without overwriting it; when the workflow was split, a few English words after that say what each one does (`…_readable_upscale.json`). When there is no original, the name is a few English words for what it does (`flux_text_to_image.json`). (When there is an original) run `canvas diff` again on every canvas, take the differences one by one against the four items of step 4 and content.md, "What becomes of each part", fix what they say, and export again.
 
 9. **Review (another agent)**  
    Read references/review.md and follow it: draw the picture for each canvas (not for one that differs from another only in values), give the brief to a new agent, fix the rows one at a time, answer every row, export again and register the review with `canvas review`.
 
 10. **Write the report page (`report.html`)**  
-   Write the page where the user checks the result, as one HTML file. The page has three views. The canvas makes Original (the original workflow) and Rebuilt (what was done on the canvases, one move at a time). You write only the Walkthrough.
+   Write the page where the user checks the result, as one HTML file. The page has three views. The canvas makes Original (the original workflow; only when there is an original) and Rebuilt (what was done on the canvases, one move at a time). You write only the Walkthrough.
    - For each canvas, write `$W/walk_<canvas>.md`, select the canvas with `canvas use <canvas>`, and register it with `canvas walk $W/walk_<canvas>.md` (the file's form is at the top of canvas.py). How to write it is in references/notes.md, "Walkthrough".
    - Set the order of the canvases on the page with `canvas order <canvas> …`: the basic workflow on the left, then those that add to it (t2i before i2i and edit, the normal version before its fast version), parts last. Workflows of the same form that differ only in values (one per model) share one tab: write them next to each other as `<tab>/<canvas>`.
    - Finally, write the page with `canvas report report.html <the user's language code>` (`ja`, `en`, `zh` and so on).

@@ -14,6 +14,8 @@ Usage: python3 canvas.py [--dir WORK_DIR] <command> [args...]
       with the core Compare Images (ImageCompare), returns value nodes into their targets or turns them into typed ones,
       and merges identical loaders. Removes Preview Image nodes that only show what was loaded.
       Reports everything it did. Discards positions, sizes, colors, titles and groups (the author's words are returned separately).
+  open new <object_info URL or JSON>
+      A new workflow (no original): only the node definitions are read. src, copy and diff are not used.
   src outputs              output nodes and the size of each one's upstream
   src list [part of type]  list of source nodes
   src all                  inputs/outputs, values and mode of every source node at once (instead of many `src node`)
@@ -355,7 +357,7 @@ class Work:
         if self._oi is None:
             p = self.dir / "object_info.json"
             if not p.exists():
-                raise Stop("not opened yet (run open first)")
+                raise Stop("not opened yet (run open first; for a new workflow, open new <object_info URL or JSON>)")
             self._oi = jload(p)
         return self._oi
 
@@ -374,8 +376,15 @@ class Work:
     def src(self):
         p = self.dir / "src.flat.json"
         if not p.exists():
-            raise Stop("not opened yet (run open first)")
+            raise Stop("not opened yet (run open first; for a new workflow, open new <object_info URL or JSON>)")
         return jload(p)
+
+    def original(self):
+        """The source, for a move that reads an original: stops when the work was opened with `open new`."""
+        flat = self.src()
+        if not self.cfg.get("source"):
+            raise Stop("no original (opened with `open new`): add nodes with `add <type>`")
+        return flat
 
     def canvas_path(self, name):
         return self.dir / "canvas" / f"{name}.json"
@@ -3694,10 +3703,18 @@ def do_finish(work, args=()):
     if missing:
         raise Stop("not finished. Nothing is deleted:\n  " + "\n  ".join(missing))
     root = os.path.abspath(work.dir)
+    real_root = os.path.realpath(root)
 
     def inside(p):
+        # the folder that holds the file, with every link followed, must be the working folder or inside it:
+        # a path spelled inside it can go out through a folder link (W/alias -> elsewhere). The file itself is not
+        # followed: a file link is deleted as a link, and its target stays
+        p = os.path.abspath(p)
+        if p == root:
+            return False
         try:
-            return os.path.commonpath([root, os.path.abspath(p)]) == root and os.path.abspath(p) != root
+            parent = os.path.realpath(os.path.dirname(p))
+            return os.path.commonpath([real_root, parent]) == real_root
         except ValueError:   # another drive (Windows): outside
             return False
 
@@ -3727,7 +3744,9 @@ def do_finish(work, args=()):
         except OSError:
             pass
     if os.path.exists(root):
-        left = sorted(os.path.relpath(os.path.join(dp, f), root) for dp, _, fs in os.walk(root) for f in fs)
+        # a folder link is named too (os.walk lists it with the folders and does not go into it)
+        left = sorted(os.path.relpath(os.path.join(dp, f), root) for dp, ds, fs in os.walk(root)
+                      for f in fs + [d for d in ds if os.path.islink(os.path.join(dp, d))])
         if not left:
             return [f"deleted {len(files)} files. The working folder {root} is empty but could not be removed "
                     f"(it is the current directory?): remove it from outside"] + note_outside
@@ -3739,12 +3758,21 @@ def do_finish(work, args=()):
 
 def do_open(work, args):
     if len(args) < 2:
-        raise Stop("open <workflow.json> <object_info URL or JSON>")
+        raise Stop("open <workflow.json> <object_info URL or JSON>, or for a new workflow (no original): "
+                   "open new <object_info URL or JSON>")
     wf_path, oi_src = args[0], args[1]
     oi = CS.load_object_info(oi_src)
     work.dir.mkdir(parents=True, exist_ok=True)
     jdump(work.dir / "object_info.json", oi)
     work._oi = oi
+    if wf_path == "new":
+        # a new workflow: only the node definitions; the source is empty and no original is remembered
+        jdump(work.dir / "src.flat.json", FL.flatten(RW.load({"nodes": [], "links": []}), oi))
+        work.cfg.pop("source", None)
+        work.cfg["object_info"] = oi_src
+        work.save_cfg()
+        return [f"no original: a new workflow, built with the node definitions of {oi_src} ({len(oi)} node types). "
+                f"Moves that read an original (src, copy, diff) are not used"]
     out = []
     raw = jload(wf_path)
     if AF.is_api(raw):
@@ -3973,7 +4001,7 @@ def src_node_lines(flat, oi, nid):
 
 
 def do_src(work, args):
-    flat, oi = work.src(), work.oi
+    flat, oi = work.original(), work.oi
     if not args:
         raise Stop("src <outputs|list|all|node|up|words>")
     sub = args[0]
@@ -4871,8 +4899,7 @@ def _run_cmd(work, line):
         work.save_cfg()
         return [f"current canvas: {args[0]}"]
     if cmd == "diff":
-        if not work.cfg.get("source"):
-            raise Stop("not opened yet (run open first)")
+        work.original()
         src, _ = load_source(need_file(work.cfg["source"], "source workflow"), work.oi)
         outs = []
         for name in work.names():
@@ -5014,7 +5041,7 @@ def change(cv, work, cmd, args):
 
 def _op_copy(cv, work, args):
     nodes = cv.nodes
-    src = work.src()
+    src = work.original()
     sn = {n["id"]: n for n in src["nodes"]}
     for sid in args:
         if sid not in sn:
