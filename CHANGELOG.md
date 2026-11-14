@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (2026-11-14)
+
+- `canvas finish` no longer deletes files outside the working folder through a folder link. (#16)
+- New workflows can start with `canvas open new <object_info>`. (#15)
+- One working folder per job (`<name>_work`).
+
 ## 0.1.0 (2026-11-08)
 
 - A rail with one target lowers through a Reroute next to the target whenever another column stands between; the canvas no longer wires it straight from the raising Reroute, which its own check called Bad.
